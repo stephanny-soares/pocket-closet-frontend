@@ -1,56 +1,37 @@
-import React from 'react';
-import {
-  TouchableOpacity,
-  Text,
-  StyleSheet,
-  GestureResponderEvent,
-} from 'react-native';
-import colors from '../constants/colors';
+// ✅ PrimaryButton.tsx
+// Botón principal reutilizable con colores base de Tailwind y NativeWind
+import React from "react";
+import { TouchableOpacity, Text, ActivityIndicator } from "react-native";
 
-/**
- * Botón principal en estilo "pill".
- * - Centrado, ancho contenido (no full width)
- * - Sombra sutil; feedback con opacity al presionar
- */
 interface PrimaryButtonProps {
-  text: string;
-  onPress: (event: GestureResponderEvent) => void;
+  title: string;
+  onPress: () => void;
+  loading?: boolean;
   disabled?: boolean;
 }
 
-const PrimaryButton: React.FC<PrimaryButtonProps> = ({ text, onPress, disabled }) => {
+const PrimaryButton: React.FC<PrimaryButtonProps> = ({
+  title,
+  onPress,
+  loading = false,
+  disabled = false,
+}) => {
   return (
     <TouchableOpacity
+      activeOpacity={0.8}
       onPress={onPress}
-      disabled={disabled}
-      activeOpacity={0.85}
-      style={[styles.button, disabled && { opacity: 0.7 }]}
+      disabled={disabled || loading}
+      className={`w-full py-3 rounded-xl items-center justify-center ${
+        disabled ? "bg-primary/50" : "bg-primary"
+      }`}
     >
-      <Text style={styles.label}>{text}</Text>
+      {loading ? (
+        <ActivityIndicator color="#fff" />
+      ) : (
+        <Text className="text-white text-lg font-semibold">{title}</Text>
+      )}
     </TouchableOpacity>
   );
 };
-
-const styles = StyleSheet.create({
-  button: {
-    alignSelf: 'center',
-    backgroundColor: colors.primary,
-    borderRadius: 28,
-    paddingVertical: 14,
-    paddingHorizontal: 36,
-    marginTop: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 3,
-  },
-  label: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 16,
-    letterSpacing: 0.2,
-  },
-});
 
 export default PrimaryButton;

@@ -1,20 +1,27 @@
-// Reglas de validación reutilizables
+// 🧠 validation.tsx
+// Funciones de validación reutilizables para formularios
 
-// Email válido básico
-export const isValidEmail = (email: string = ''): boolean => /\S+@\S+\.\S+/.test(email);
+// Validar formato de email
+export const validateEmail = (email: string): boolean => {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
 
-// Contraseña: 8+, 1 mayúscula, 1 número, 1 símbolo (símbolos ampliados, incluye '.')
-export const isValidPassword = (password: string = ''): boolean =>
-  /^(?=.*[0-9])(?=.*[A-Z])(?=.*[!@#$%^&*()_+.,;:?\-=])[A-Za-z0-9!@#$%^&*()_+.,;:?\-=]{8,}$/.test(
-    password
-  );
+// Validar contraseña: mínimo 8 caracteres, al menos un número y un símbolo
+export const validatePassword = (password: string): boolean => {
+  const passwordRegex = /^(?=.*[0-9])(?=.*[!@#$%^&*])[A-Za-z0-9!@#$%^&*]{8,}$/;
+  return passwordRegex.test(password);
+};
 
-// Fecha opcional, si viene debe cumplir AAAA/MM/DD
-export const isValidDate = (date: string = ''): boolean => {
-  if (!date.trim()) return true; // opcional
-  if (!/^\d{4}\/\d{2}\/\d{2}$/.test(date)) return false;
-  // Validación rápida de rangos (opcional)
-  const [y, m, d] = date.split('/').map(Number);
-  if (m < 1 || m > 12 || d < 1 || d > 31) return false;
-  return true;
+// Validar coincidencia de contraseñas
+export const validatePasswordMatch = (
+  password: string,
+  confirmPassword: string
+): boolean => {
+  return password === confirmPassword;
+};
+
+// Validar campos vacíos
+export const validateRequiredFields = (fields: Record<string, string>): boolean => {
+  return Object.values(fields).every((value) => value.trim() !== "");
 };

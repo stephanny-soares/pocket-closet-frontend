@@ -1,62 +1,32 @@
-// CheckBox.tsx
-// Componente reutilizable y compatible con Android, iOS y Web
-// Si @react-native-community/checkbox no funciona en Web, usamos un fallback visual
+// ✅ CheckBox.tsx
+// Componente de casilla personalizada (checkbox) con NativeWind
+import React from "react";
+import { TouchableOpacity, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
-import React from 'react';
-import {
-  Platform,
-  Pressable,
-  View,
-  StyleSheet,
-} from 'react-native';
-import CheckBoxBase from '@react-native-community/checkbox';
-import colors from '../constants/colors';
-
-// Tipado de las props
 interface CheckBoxProps {
-  value: boolean;
-  onValueChange: (value: boolean) => void;
-  tintColors?: { true: string; false: string };
+  checked: boolean;
+  label: string;
+  onToggle: () => void;
 }
 
-// Fallback para Web: dibuja un recuadro clicable con estilo similar
-const WebCheckBox: React.FC<CheckBoxProps> = ({ value, onValueChange }) => (
-  <Pressable
-    onPress={() => onValueChange(!value)}
-    style={[
-      styles.webBox,
-      {
-        borderColor: value ? colors.primary : '#999',
-        backgroundColor: value ? colors.primary : 'transparent',
-      },
-    ]}
-  >
-    {value && <View style={styles.innerMark} />}
-  </Pressable>
-);
-
-// ✅ Solución: usa React.ComponentType con cast intermedio
-const CheckBox: React.ComponentType<CheckBoxProps> =
-  Platform.OS === 'web'
-    ? WebCheckBox
-    : (CheckBoxBase as unknown as React.ComponentType<CheckBoxProps>);
-
-const styles = StyleSheet.create({
-  webBox: {
-    width: 20,
-    height: 20,
-    borderWidth: 2,
-    borderRadius: 4,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  innerMark: {
-    width: 8,
-    height: 8,
-    backgroundColor: '#fff',
-    borderRadius: 2,
-  },
-});
+const CheckBox: React.FC<CheckBoxProps> = ({ checked, label, onToggle }) => {
+  return (
+    <TouchableOpacity
+      onPress={onToggle}
+      className="flex-row items-center my-2"
+      activeOpacity={0.8}
+    >
+      <View
+        className={`w-5 h-5 mr-3 rounded-md justify-center items-center shadow-sm ${
+          checked ? "bg-primary" : "bg-inputBg"
+        }`}
+      >
+        {checked && <Ionicons name="checkmark" size={16} color="#fff" />}
+      </View>
+      <Text className="text-textMuted text-sm">{label}</Text>
+    </TouchableOpacity>
+  );
+};
 
 export default CheckBox;
-

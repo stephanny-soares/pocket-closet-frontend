@@ -1,58 +1,47 @@
-// ===============================
+// ================================================
 //  RegisterScreen.tsx
-// Pantalla de registro principal
-// Diseño: campos flotando sobre fondo degradado
-// Validaciones completas + feedback visual (falta éxito cuando se conecte con el backend) + responsive
-// Incluye indicador de fuerza de contraseña, loader durante envío, mostrar/ocultar contraseña y Captcha anti-bot (para implantar cuando se conecte con el Backend)
-// ===============================
+//  Pantalla de registro con conexión al backend
+//  Adaptada a NativeWind + LinearGradient + Dark Mode automático
+// ================================================
 
-import React, { useState, useRef } from 'react';
+import React, { useState } from "react";
+import { useWindowDimensions } from "react-native";
 import {
   View,
   Text,
-  StyleSheet,
+  TouchableOpacity,
   Alert,
-  ScrollView,
   KeyboardAvoidingView,
   Platform,
-  useWindowDimensions,
-  ActivityIndicator,
-  TouchableOpacity,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient'; // Fondo degradado (como el Splash)
-import colors from '../constants/colors'; // Paleta centralizada
-import CustomInput from '../components/CustomInput';
-import PasswordInput from '../components/PasswordInput';
-import PrimaryButton from '../components/PrimaryButton';
-import { isValidEmail, isValidPassword, isValidDate } from '../utils/validation'; // Reglas de validación
-import CheckBox from '../components/CheckBox';
-import { router } from 'expo-router';
-
-/* Implementar cuando se conecte con el Backend
-// Importamos el componente reCAPTCHA de Expo
-import { GoogleReCaptcha } from 'expo-google-recaptcha';
-*/
+  ScrollView,
+  useColorScheme,
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import CustomInput from "../components/CustomInput";
+import PasswordInput from "../components/PasswordInput";
+import CheckBox from "../components/CheckBox";
+import PrimaryButton from "../components/PrimaryButton";
+import colors from "../constants/colors";
+import {
+  validateEmail,
+  validatePassword,
+  validatePasswordMatch,
+} from "../utils/validation";
 
 // ===============================
 //  Tipos de datos
 // ===============================
 interface FormState {
-  username: string;
   password: string;
   confirmPassword: string;
   email: string;
-  fullName: string;
-  birthDate: string;
   terms: boolean;
 }
 
 interface Errors {
-  username?: string;
   password?: string;
   confirmPassword?: string;
   email?: string;
-  fullName?: string;
-  birthDate?: string;
   terms?: string;
   captcha?: string;
 }
@@ -63,7 +52,9 @@ interface PasswordStrength {
 }
 
 // URL base del backend (leída del .env, con fallback a localhost)
-const API_BASE = (process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000').replace(/\/+$/, '');
+const API_BASE = (
+  process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000"
+).replace(/\/+$/, "");
 
 const RegisterScreen: React.FC = () => {
   // Hook que da el ancho actual de la pantalla (para comportamiento responsive)
@@ -72,14 +63,15 @@ const RegisterScreen: React.FC = () => {
   // Define el ancho máximo del formulario (420px en desktop, 88% en móvil)
   const maxWidth = Math.min(420, width * 0.88);
 
+  // Detectar modo del sistema (claro / oscuro)
+  const scheme = useColorScheme();
+  const isDark = scheme === "dark";
+
   // Estado que almacena los valores del formulario
   const [form, setForm] = useState<FormState>({
-    username: '',
-    password: '',
-    confirmPassword: '',
-    email: '',
-    fullName: '',
-    birthDate: '',
+    password: "",
+    confirmPassword: "",
+    email: "",
     terms: false, // checkbox de Términos y Condiciones
   });
 
@@ -90,7 +82,10 @@ const RegisterScreen: React.FC = () => {
   const [sending, setSending] = useState(false);
 
   // Estado para fuerza de contraseña
-  const [passwordStrength, setPasswordStrength] = useState<PasswordStrength>({ label: '', color: '' });
+  const [passwordStrength, setPasswordStrength] = useState<PasswordStrength>({
+    label: "",
+    color: "",
+  });
 
   /* Implementar cuando se conecte con el Backend
   // Referencia y token del Captcha
@@ -103,7 +98,7 @@ const RegisterScreen: React.FC = () => {
     setForm((s) => ({ ...s, [key]: val }));
 
     // Si el campo cambiado es contraseña, calculamos su fuerza
-    if (key === 'password' && typeof val === 'string') evaluatePasswordStrength(val);
+    if (key === "password" && typeof val === "string") evaluatePasswordStrength(val);
   };
 
   // ===============================
@@ -117,314 +112,227 @@ const RegisterScreen: React.FC = () => {
     if (/[!@#$%^&*()_+.,;:?\-=]/.test(password)) score++;
 
     if (score <= 1)
-      setPasswordStrength({ label: 'Débil', color: '#E53935' });
+      setPasswordStrength({ label: "Débil", color: "#E53935" });
     else if (score === 2)
-      setPasswordStrength({ label: 'Media', color: '#FFA726' });
+      setPasswordStrength({ label: "Media", color: "#FFA726" });
     else if (score >= 3)
-      setPasswordStrength({ label: 'Fuerte', color: '#43A047' });
-    else setPasswordStrength({ label: '', color: '' });
+      setPasswordStrength({ label: "Fuerte", color: "#43A047" });
+    else setPasswordStrength({ label: "", color: "" });
   };
 
   // ===============================
-  //  VALIDACIÓN DE CAMPOS
+  // VALIDACIÓN DEL FORMULARIO
   // ===============================
-  const validate = (): boolean => {
-    const e: Errors = {}; // objeto temporal de errores
+  const validateForm = (): boolean => {
+    const newErrors: Errors = {};
 
-    // Validar usuario
-    if (!form.username.trim()) e.username = 'El nombre de usuario es obligatorio.';
+    if (!form.email.trim()) newErrors.email = "El correo electrónico es obligatorio";
+    else if (!validateEmail(form.email))
+      newErrors.email = "Formato de correo electrónico inválido";
 
-    // Validar email
-    if (!form.email.trim()) e.email = 'El correo electrónico es obligatorio.';
-    else if (!isValidEmail(form.email)) e.email = 'Correo electrónico inválido.';
+    if (!validatePassword(form.password))
+      newErrors.password =
+        "La contraseña debe tener al menos 8 caracteres, un número y un símbolo";
 
-    // Validar contraseña
-    if (!form.password) e.password = 'La contraseña es obligatoria.';
-    else if (!isValidPassword(form.password))
-      e.password = 'Mín. 8 caracteres, una mayúscula, un número y un símbolo.';
+    if (!validatePasswordMatch(form.password, form.confirmPassword))
+      newErrors.confirmPassword = "Las contraseñas no coinciden";
 
-    // Confirmar contraseña
-    if (form.password !== form.confirmPassword)
-      e.confirmPassword = 'Las contraseñas no coinciden.';
-
-    // Validar fecha opcional
-    if (form.birthDate && !isValidDate(form.birthDate))
-      e.birthDate = 'Formato de fecha inválido (AAAA/MM/DD).';
-
-    // Términos y condiciones (obligatorio)
     if (!form.terms)
-      e.terms = 'Debes aceptar Términos y Condiciones y la Política de Privacidad.';
+      newErrors.terms =
+        "Debes aceptar los Términos y la Política de Privacidad";
 
-    /* Implementar cuando se conecte con el Backend
-    // Verificación de Captcha (anti-bot)
-    if (!recaptchaToken)
-      e.captcha = 'Por favor, verifica que no eres un robot.';
-    */
-
-    // Actualiza estado de errores y devuelve si el formulario es válido
-    setErrors(e);
-    return Object.keys(e).length === 0;
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   // ===============================
-  //  ENVÍO DE DATOS
+  // ENVÍO DE FORMULARIO AL BACKEND
   // ===============================
-  const onSubmit = async (): Promise<void> => {
-    // Primero, validar el formulario
-    if (!validate()) return;
+  const handleSubmit = async () => {
+    if (!validateForm()) return;
 
-    setSending(true); // muestra loader
+    setSending(true);
 
     try {
-      // Cuerpo de la petición: no enviamos confirmPassword ni terms
-      const payload = {
-        nombre: form.fullName?.trim() || form.username.trim(),
-        email: form.email.trim().toLowerCase(),
-        password: form.password,
-        birthDate: form.birthDate?.trim() || null,
-        /* Implementar cuando se conecte con el Backend
-        recaptchaToken, 
-        */
-      };
-
-      // Petición POST al backend
-      const res = await fetch(`${API_BASE}/api/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+      const response = await fetch(`${API_BASE}/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: form.email,
+          password: form.password,
+        }),
       });
 
-      // Manejo de respuestas según código HTTP
-      if (res.status === 201) {
-        Alert.alert('✅ Registro exitoso', 'Tu cuenta ha sido creada correctamente.');
+      const data = await response.json();
+
+      if (response.ok) {
+        Alert.alert(
+          "Registro exitoso",
+          data.message || "Usuario creado correctamente."
+        );
         setForm({
-          username: '',
-          password: '',
-          confirmPassword: '',
-          email: '',
-          fullName: '',
-          birthDate: '',
+          email: "",
+          password: "",
+          confirmPassword: "",
           terms: false,
         });
-        setErrors({});
-        setPasswordStrength({ label: '', color: '' });
-        //setRecaptchaToken(null);
-        router.replace('/home');
-      } else if (res.status === 409) {
-        setErrors({ email: 'El correo electrónico ya está registrado.' });
-      } else if (res.status === 400) {
-        const data = await safeJson(res);
-        const msg = data?.error || 'Campos inválidos o incompletos.';
-        Alert.alert('Error', msg);
+        setPasswordStrength({ label: "", color: "" });
       } else {
-        const data = await safeJson(res);
-        const msg = data?.error || 'Ha ocurrido un error inesperado.';
-        Alert.alert('Error', msg);
+        Alert.alert("Error", data.error || "No se pudo registrar el usuario.");
       }
-    } catch (err) {
-      Alert.alert('Error de conexión', 'No se pudo contactar con el servidor.');
+    } catch (error) {
+      console.error("Error al registrar:", error);
+      Alert.alert(
+        "Error de conexión",
+        "No se pudo conectar con el servidor. Inténtalo más tarde."
+      );
     } finally {
       setSending(false);
     }
   };
 
   // ===============================
-  //  RENDER DEL COMPONENTE
+  // MANEJO DE TÉRMINOS Y PRIVACIDAD
+  // ===============================
+  const handleTermsPress = () =>
+    Alert.alert(
+      "Términos y Condiciones",
+      "Aquí se mostrará el enlace o vista de términos."
+    );
+
+  const handlePrivacyPress = () =>
+    Alert.alert(
+      "Política de Privacidad",
+      "Aquí se mostrará el enlace o vista de privacidad."
+    );
+
+  // ===============================
+  // RENDERIZADO PRINCIPAL
   // ===============================
   return (
-    // Fondo con degradado suave 
-      <LinearGradient
-       colors={colors.gradient as unknown as [import("react-native").ColorValue, import("react-native").ColorValue, ...import("react-native").ColorValue[]]}
-       style={styles.container}
+    <LinearGradient
+      colors={colors.gradient}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      className="flex-1 justify-center items-center"
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        className="flex-1 w-full justify-center items-center"
       >
-
-
-      {/* Evita que el teclado oculte los campos en iOS */}
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <ScrollView
-          contentContainerStyle={styles.scroll}
           keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ flexGrow: 1 }}
+          className="w-full px-8"
         >
-          {/* Título de la pantalla */}
-          <Text style={styles.title}>Crear cuenta</Text>
+          {/* ---------- Título ---------- */}
+          <View
+            style={{ maxWidth }}
+            className="w-full items-center mb-8 mt-8 self-center"
+          >
+            <Text
+              className={`text-3xl font-bold mb-2 text-center ${
+                isDark ? "text-white" : "text-textDark"
+              }`}
+            >
+              Crear cuenta
+            </Text>
+            <Text
+              className={`text-base text-center ${
+                isDark ? "text-gray-300" : "text-textMuted"
+              }`}
+            >
+              Regístrate para comenzar
+            </Text>
+          </View>
 
-          {/* Contenedor del formulario */}
-          <View style={[styles.form, { width: maxWidth }]}>
-            {/* Campo: Usuario */}
+          {/* ---------- Formulario ---------- */}
+          <View style={{ maxWidth }} className="self-center w-full">
+            {/* Email */}
             <CustomInput
-              placeholder="Usuario"
-              value={form.username}
-              onChangeText={(v: string) => setField('username', v)}
-              error={errors.username}
+              label="Correo electrónico"
+              placeholder="Introduce tu correo"
+              keyboardType="email-address"
+              value={form.email}
+              onChangeText={(val) => setField("email", val)}
+              error={errors.email}
             />
 
-            {/* Campo: Contraseña */}
+            {/* Contraseña */}
             <PasswordInput
-              placeholder="Contraseña"
+              label="Contraseña"
+              placeholder="Introduce tu contraseña"
               value={form.password}
-              onChangeText={(v: string) => setField('password', v)}
+              onChangeText={(val) => setField("password", val)}
               error={errors.password}
-              secureDefault={true}
             />
 
             {/* Indicador de fuerza de contraseña */}
-            {!!form.password && (
-              <Text style={[styles.strengthLabel, { color: passwordStrength.color }]}>
-                Fortaleza: {passwordStrength.label}
+            {passwordStrength.label ? (
+              <Text
+                className={`text-sm mt-1 mb-2 ${
+                  isDark ? "text-gray-200" : "text-textDark"
+                }`}
+                style={{ color: passwordStrength.color }}
+              >
+                Fuerza: {passwordStrength.label}
               </Text>
-            )}
+            ) : null}
 
-            {/* Campo: Confirmar contraseña */}
+            {/* Confirmar contraseña */}
             <PasswordInput
-              placeholder="Confirmar contraseña"
+              label="Confirmar contraseña"
+              placeholder="Repite tu contraseña"
               value={form.confirmPassword}
-              onChangeText={(v: string) => setField('confirmPassword', v)}
+              onChangeText={(val) => setField("confirmPassword", val)}
               error={errors.confirmPassword}
-              secureDefault={true}
             />
 
-            {/* Campo: Email */}
-            <CustomInput
-              placeholder="Correo electrónico"
-              value={form.email}
-              onChangeText={(v: string) => setField('email', v)}
-              error={errors.email}
-              keyboardType="email-address"
-            />
-
-            {/* Campo: Nombre completo (opcional) */}
-            <CustomInput
-              placeholder="Nombre completo (opcional)"
-              value={form.fullName}
-              onChangeText={(v: string) => setField('fullName', v)}
-            />
-
-            {/* Campo: Fecha de nacimiento (opcional AAAA/MM/DD) */}
-            <CustomInput
-              placeholder="Fecha de nacimiento (AAAA/MM/DD)"
-              value={form.birthDate}
-              onChangeText={(v: string) => setField('birthDate', v)}
-              error={errors.birthDate}
-            />
-
-            {/* Bloque de aceptación de términos */}
-            <TouchableOpacity
-              style={styles.termsRow}
-              activeOpacity={0.8}
-              onPress={() => setField('terms', !form.terms)}
-            >
+            {/* Política de privacidad */}
+            <View className="mt-4">
               <CheckBox
-                value={form.terms}
-                onValueChange={(v: boolean) => setField('terms', v)}
-                tintColors={{ true: colors.primary, false: colors.textMuted }}
+                checked={form.terms}
+                onToggle={() => setField("terms", !form.terms)}
+                label=""
               />
-              <Text style={styles.termsText}>
-                Acepto los{' '}
-                <Text
-                  style={styles.link}
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    console.log('➡️ Navegar a Términos y Condiciones');
-                  }}
-                >
-                  Términos y Condiciones
-                </Text>{' '}
-                y la{' '}
-                <Text
-                  style={styles.link}
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    console.log('➡️ Navegar a Política de Privacidad');
-                  }}
-                >
-                  Política de Privacidad
-                </Text>
+              <Text
+                className={`text-sm flex-wrap leading-5 ml-8 -mt-6 ${
+                  isDark ? "text-gray-300" : "text-textMuted"
+                }`}
+              >
+                Acepto los{" "}
+                <TouchableOpacity onPress={handleTermsPress}>
+                  <Text className="text-primary underline">
+                    Términos y Condiciones
+                  </Text>
+                </TouchableOpacity>{" "}
+                y la{" "}
+                <TouchableOpacity onPress={handlePrivacyPress}>
+                  <Text className="text-primary underline">
+                    Política de Privacidad
+                  </Text>
+                </TouchableOpacity>
               </Text>
-            </TouchableOpacity>
+              {errors.terms && (
+                <Text className="text-error text-sm mt-2 ml-8">
+                  {errors.terms}
+                </Text>
+              )}
+            </View>
 
-            {!!errors.terms && <Text style={styles.error}>{errors.terms}</Text>}
-
-            {/* Botón o loader */}
-            {sending ? (
-              <View style={{ marginTop: 10 }}>
-                <ActivityIndicator color="#fff" size="small" />
-              </View>
-            ) : (
-              <PrimaryButton text="Registrarse" onPress={onSubmit} />
-            )}
+            {/* Botón */}
+            <View className="mt-8 mb-12">
+              <PrimaryButton
+                title={sending ? "Registrando..." : "Registrar"}
+                onPress={handleSubmit}
+                loading={sending}
+              />
+            </View>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </LinearGradient>
   );
 };
-
-// ===============================
-//  Función auxiliar: parsea JSON seguro
-// ===============================
-async function safeJson(res: Response): Promise<any> {
-  try {
-    return await res.json();
-  } catch {
-    return null;
-  }
-}
-
-// ===============================
-//  ESTILOS
-// ===============================
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  scroll: {
-    flexGrow: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-    paddingHorizontal: 24,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: colors.textDark,
-    marginBottom: 28,
-    letterSpacing: 0.3,
-  },
-  form: {
-    alignItems: 'center',
-  },
-  termsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 6,
-    marginBottom: 2,
-    alignSelf: 'flex-start',
-  },
-  termsText: {
-    color: colors.textDark,
-    flexShrink: 1,
-    fontSize: 14,
-    lineHeight: 18,
-  },
-  link: {
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  error: {
-    color: colors.error,
-    fontSize: 13,
-    alignSelf: 'flex-start',
-    marginTop: 6,
-    marginBottom: 6,
-  },
-  strengthLabel: {
-    alignSelf: 'flex-start',
-    fontWeight: '600',
-    fontSize: 13,
-    marginTop: -10,
-    marginBottom: 10,
-    marginLeft: 10,
-  },
-});
 
 export default RegisterScreen;
