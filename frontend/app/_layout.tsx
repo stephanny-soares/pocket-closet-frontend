@@ -7,7 +7,7 @@ export default function RootLayout() {
     <ErrorBoundary>
       <Stack
         screenOptions={{
-          headerShown: false, 
+          headerShown: false,
         }}
       />
     </ErrorBoundary>

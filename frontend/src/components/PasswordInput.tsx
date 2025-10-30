@@ -1,7 +1,5 @@
-// ✅ PasswordInput.tsx
-// Campo de contraseña con icono de ojo (mostrar/ocultar)
 import React, { useState } from "react";
-import { View, TextInput, Text, TouchableOpacity } from "react-native";
+import { View, TextInput, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 interface PasswordInputProps {
@@ -22,21 +20,17 @@ const PasswordInput: React.FC<PasswordInputProps> = ({
   const [showPassword, setShowPassword] = useState(false);
 
   return (
-    <View className="w-full mb-4">
-      {label && <Text className="text-textDark mb-1 font-semibold">{label}</Text>}
+    <View style={styles.container as any}>
+      {label && <Text style={styles.label as any}>{label}</Text>}
 
-      <View
-        className={`flex-row items-center bg-inputBg shadow-md rounded-xl px-4 ${
-          error ? "border border-error" : ""
-        }`}
-      >
+      <View style={[styles.inputContainer, error && styles.inputContainerError] as any}>
         <TextInput
           placeholder={placeholder}
           placeholderTextColor="#888"
           secureTextEntry={!showPassword}
           value={value}
           onChangeText={onChangeText}
-          className="flex-1 py-3 text-textDark"
+          style={styles.input as any}
         />
         <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
           <Ionicons
@@ -47,9 +41,47 @@ const PasswordInput: React.FC<PasswordInputProps> = ({
         </TouchableOpacity>
       </View>
 
-      {error && <Text className="text-error text-sm mt-1">{error}</Text>}
+      {error && <Text style={styles.error as any}>{error}</Text>}
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    width: "100%",
+    marginBottom: 16,
+  } as any,
+  label: {
+    color: "#222222",
+    marginBottom: 4,
+    fontWeight: "600",
+  } as any,
+  inputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.92)",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: "#e5e5e5",
+  } as any,
+  inputContainerError: {
+    borderColor: "#E53935",
+    borderWidth: 1,
+  } as any,
+  input: {
+    flex: 1,
+    paddingVertical: 12,
+    color: "#222222",
+    fontSize: 16,
+    fontFamily: "System",
+    outlineWidth: 0,
+  } as any,
+  error: {
+    color: "#E53935",
+    fontSize: 12,
+    marginTop: 4,
+  } as any,
+});
 
 export default PasswordInput;

@@ -1,7 +1,5 @@
-// ✅ CustomInput.tsx
-// Campo de texto reutilizable con estilos NativeWind
 import React from "react";
-import { TextInput, View, Text, TextInputProps } from "react-native";
+import { TextInput, View, Text, TextInputProps, StyleSheet } from "react-native";
 
 interface CustomInputProps extends TextInputProps {
   label?: string;
@@ -14,19 +12,50 @@ const CustomInput: React.FC<CustomInputProps> = ({
   ...props
 }) => {
   return (
-    <View className="w-full mb-4">
-      {label && <Text className="text-textDark mb-1 font-semibold">{label}</Text>}
+    <View style={styles.container as any}>
+      {label && <Text style={styles.label as any}>{label}</Text>}
       <TextInput
         {...props}
         placeholderTextColor="#888"
-        className={`w-full bg-inputBg shadow-md rounded-xl px-4 py-3 text-textDark ${
-          error ? "border border-error" : ""
-        }`}
+        style={[styles.input, error && styles.inputError] as any}
       />
-      {error && <Text className="text-error text-sm mt-1">{error}</Text>}
+      {error && <Text style={styles.error as any}>{error}</Text>}
     </View>
   );
 };
 
-export default CustomInput;
+const styles = StyleSheet.create({
+  container: {
+    width: "100%",
+    marginBottom: 16,
+  } as any,
+  label: {
+    color: "#222222",
+    marginBottom: 4,
+    fontWeight: "600",
+  } as any,
+  input: {
+    width: "100%",
+    backgroundColor: "rgba(255,255,255,0.92)",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    color: "#222222",
+    borderWidth: 1,
+    borderColor: "#e5e5e5",
+    fontSize: 16,
+    fontFamily: "System",
+    outlineWidth: 0,
+  } as any,
+  inputError: {
+    borderColor: "#E53935",
+    borderWidth: 1,
+  } as any,
+  error: {
+    color: "#E53935",
+    fontSize: 12,
+    marginTop: 4,
+  } as any,
+});
 
+export default CustomInput;
