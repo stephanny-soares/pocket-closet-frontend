@@ -3,6 +3,7 @@
     "name": "Frontend",
     "slug": "Frontend",
     "version": "1.0.0",
+    "sdkVersion": "52.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "frontend",
@@ -13,8 +14,8 @@
     },
     "android": {
       "adaptiveIcon": {
-       "foregroundImage": "./assets/images/icon.png",
-       "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#ffffff"
       }
     },
     "web": {
