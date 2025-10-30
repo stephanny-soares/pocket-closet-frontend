@@ -1,15 +1,37 @@
 import React from 'react';
-import { Stack } from 'expo-router';
+import { Stack, usePathname } from 'expo-router';
+import { View, StyleSheet } from 'react-native';
 import ErrorBoundary from '../src/logger/ErrorBoundary';
+import BottomNavigation from '../src/components/BottomNavigation';
 
 export default function RootLayout() {
+  const pathname = usePathname();
+  
+  const showNavbar = !pathname.includes('login') && !pathname.includes('register') && pathname !== '/';
+
   return (
     <ErrorBoundary>
-      <Stack
-        screenOptions={{
-          headerShown: false,
-        }}
-      />
+      <View style={styles.root as any}>
+        <View style={styles.content as any}>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+            }}
+          />
+        </View>
+        {showNavbar && <BottomNavigation />}
+      </View>
     </ErrorBoundary>
   );
 }
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    flexDirection: 'column',
+  } as any,
+  content: {
+    flex: 1,
+    overflow: 'auto' as any,
+  } as any,
+});

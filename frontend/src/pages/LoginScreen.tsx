@@ -50,14 +50,21 @@ const LoginScreen: React.FC = () => {
     if (!validateForm()) return;
     setSending(true);
     try {
-      const response = await fetch(`${API_BASE}/login`, {
+      const response = await fetch(`${API_BASE}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
       const data = await response.json();
+      
       if (response.ok) {
-        Alert.alert("Inicio de sesión exitoso", data.message || "Bienvenido/a");
+        // Guardar token y datos del usuario
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('authToken', data.token);
+          localStorage.setItem('userName', data.usuario?.name || 'Usuario');
+          localStorage.setItem('userId', data.usuario?.id || '');
+        }
+        Alert.alert("Inicio de sesión exitoso", "¡Bienvenido/a!");
         router.push("/home");
       } else {
         Alert.alert("Error", data.error || "Credenciales incorrectas.");
@@ -66,7 +73,7 @@ const LoginScreen: React.FC = () => {
       console.error("Error al iniciar sesión:", error);
       Alert.alert(
         "Error de conexión",
-        "No se pudo conectar con el servidor. Inténtalo más tarde."
+        `No se pudo conectar con el servidor: ${error}`
       );
     } finally {
       setSending(false);
@@ -75,6 +82,9 @@ const LoginScreen: React.FC = () => {
 
   const handleGuestAccess = () => {
     const guestId = uuidv4();
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('guestId', guestId);
+    }
     Alert.alert("Acceso como invitado", "Has iniciado sesión como invitado.");
     router.push("/home");
   };

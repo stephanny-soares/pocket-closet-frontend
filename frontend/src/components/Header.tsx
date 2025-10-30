@@ -3,11 +3,12 @@ import { View, Text, StyleSheet } from 'react-native';
 
 interface HeaderProps {
   title: string;
+  transparent?: boolean;
 }
 
-const Header: React.FC<HeaderProps> = ({ title }) => {
+const Header: React.FC<HeaderProps> = ({ title, transparent = false }) => {
   return (
-    <View style={styles.header}>
+    <View style={[styles.header, transparent && styles.headerTransparent]}>
       <Text style={styles.title}>{title}</Text>
     </View>
   );
@@ -20,6 +21,9 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  headerTransparent: {
+    backgroundColor: 'transparent',
   },
   title: {
     color: '#fff',

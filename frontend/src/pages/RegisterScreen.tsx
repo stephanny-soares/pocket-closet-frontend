@@ -11,6 +11,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
 import CustomInput from "../components/CustomInput";
 import PasswordInput from "../components/PasswordInput";
 import CheckBox from "../components/CheckBox";
@@ -27,16 +28,18 @@ const API_BASE = (
 ).replace(/\/+$/, "");
 
 interface FormState {
+  name: string;
+  email: string;
   password: string;
   confirmPassword: string;
-  email: string;
   terms: boolean;
 }
 
 interface Errors {
+  name?: string;
+  email?: string;
   password?: string;
   confirmPassword?: string;
-  email?: string;
   terms?: string;
 }
 
@@ -51,9 +54,10 @@ const RegisterScreen: React.FC = () => {
   const maxWidth = isWeb ? Math.min(450, width * 0.9) : width * 0.9;
 
   const [form, setForm] = useState<FormState>({
+    name: "",
+    email: "",
     password: "",
     confirmPassword: "",
-    email: "",
     terms: false,
   });
 
@@ -88,6 +92,8 @@ const RegisterScreen: React.FC = () => {
   const validateForm = (): boolean => {
     const newErrors: Errors = {};
 
+    if (!form.name.trim()) newErrors.name = "El nombre es obligatorio";
+
     if (!form.email.trim()) newErrors.email = "El correo electrónico es obligatorio";
     else if (!validateEmail(form.email))
       newErrors.email = "Formato de correo electrónico inválido";
@@ -113,10 +119,11 @@ const RegisterScreen: React.FC = () => {
     setSending(true);
 
     try {
-      const response = await fetch(`${API_BASE}/register`, {
+      const response = await fetch(`${API_BASE}/api/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          name: form.name,
           email: form.email,
           password: form.password,
         }),
@@ -124,18 +131,26 @@ const RegisterScreen: React.FC = () => {
 
       const data = await response.json();
 
-      if (response.ok) {
+      if (response.ok && data.token) {
+        // Guardar token y datos del usuario
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('authToken', data.token);
+          localStorage.setItem('userName', data.usuario?.name || 'Usuario');
+          localStorage.setItem('userId', data.usuario?.id || '');
+        }
         Alert.alert(
           "Registro exitoso",
-          data.message || "Usuario creado correctamente."
+          "Usuario creado correctamente."
         );
         setForm({
+          name: "",
           email: "",
           password: "",
           confirmPassword: "",
           terms: false,
         });
         setPasswordStrength({ label: "", color: "" });
+        router.push("/home");
       } else {
         Alert.alert("Error", data.error || "No se pudo registrar el usuario.");
       }
@@ -178,14 +193,20 @@ const RegisterScreen: React.FC = () => {
           contentContainerStyle={styles.scrollContent as any}
         >
           <View style={[styles.content, { maxWidth }] as any}>
-            {/* Título centrado */}
             <View style={styles.titleSection as any}>
               <Text style={styles.title as any}>Crear cuenta</Text>
               <Text style={styles.subtitle as any}>Regístrate para comenzar</Text>
             </View>
 
-            {/* Formulario */}
             <View style={styles.formContainer as any}>
+              <CustomInput
+                label="Nombre completo"
+                placeholder="Introduce tu nombre"
+                value={form.name}
+                onChangeText={(val) => setField("name", val)}
+                error={errors.name}
+              />
+
               <CustomInput
                 label="Correo electrónico"
                 placeholder="Introduce tu correo"
