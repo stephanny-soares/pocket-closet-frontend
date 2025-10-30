@@ -8,8 +8,8 @@
 // ==============================================
 
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+//import { LinearGradient } from 'expo-linear-gradient';
 import colors from '../constants/colors';
 import { logEvent } from './logEvent';
 import { uuidv4 } from './helpers';
@@ -79,14 +79,7 @@ export default class ErrorBoundary extends React.Component<
   render() {
     if (this.state.hasError) {
       return (
-        <LinearGradient
-          colors={colors.gradient as unknown as [
-            import('react-native').ColorValue,
-            import('react-native').ColorValue,
-            ...import('react-native').ColorValue[],
-          ]}
-          style={styles.container}
-        >
+        <View style={styles.container}>
           <View style={styles.card}>
             <Text style={styles.title}>¡Vaya! 😔</Text>
             <Text style={styles.subtitle}>
@@ -100,7 +93,7 @@ export default class ErrorBoundary extends React.Component<
               <Text style={styles.buttonText}>Reintentar</Text>
             </TouchableOpacity>
           </View>
-        </LinearGradient>
+        </View>
       );
     }
 

@@ -1,2 +1,2 @@
 
-export { default } from '../src/pages/LoginScreen';
+export { default } from '../src/pages/home';
