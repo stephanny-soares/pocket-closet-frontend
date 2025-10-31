@@ -1,5 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import colors from '../constants/colors';
 
 interface HeaderProps {
   title: string;
@@ -7,23 +9,39 @@ interface HeaderProps {
 }
 
 const Header: React.FC<HeaderProps> = ({ title, transparent = false }) => {
+  if (transparent) {
+    return (
+      <View style={styles.headerTransparent}>
+        <Text style={styles.title}>{title}</Text>
+      </View>
+    );
+  }
+
   return (
-    <View style={[styles.header, transparent && styles.headerTransparent]}>
+    <LinearGradient
+      colors={colors.gradient as any}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.header as any}
+    >
       <Text style={styles.title}>{title}</Text>
-    </View>
+    </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
   header: {
-    backgroundColor: '#4A90E2',
     width: '100%',
     paddingVertical: 20,
     alignItems: 'center',
     justifyContent: 'center',
-  },
+  } as any,
   headerTransparent: {
     backgroundColor: 'transparent',
+    width: '100%',
+    paddingVertical: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
     color: '#fff',

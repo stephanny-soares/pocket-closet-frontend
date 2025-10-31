@@ -1,0 +1,384 @@
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Image,
+  ActivityIndicator,
+  Alert,
+  FlatList,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
+import Header from '../components/Header';
+import colors from '../constants/colors';
+
+const API_BASE = (
+  process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000'
+).replace(/\/+$/, '');
+
+interface Prenda {
+  id: string;
+  nombre: string;
+  tipo: string;
+  color: string;
+  imagen: string;
+  ocasion?: string;
+  estacion?: string;
+  marca?: string;
+  createdAt: string;
+}
+
+export default function MiArmario() {
+  const [prendas, setPrendas] = useState<Prenda[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [filtro, setFiltro] = useState<string>('todas');
+
+  useEffect(() => {
+    cargarPrendas();
+  }, []);
+
+  const cargarPrendas = async () => {
+    try {
+      setLoading(true);
+      const token = typeof localStorage !== 'undefined' ? localStorage.getItem('authToken') : null;
+
+      if (!token) {
+        Alert.alert('Error', 'Token no encontrado. Por favor, inicia sesión.');
+        router.push('/login');
+        return;
+      }
+
+      const response = await fetch(`${API_BASE}/api/prendas`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.prendas) {
+        setPrendas(data.prendas);
+      } else {
+        Alert.alert('Error', data.error || 'No se pudieron cargar las prendas');
+      }
+    } catch (error) {
+      console.error('Error al cargar prendas:', error);
+      Alert.alert('Error de conexión', 'No se pudo conectar con el servidor');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEliminarPrenda = (id: string, nombre: string) => {
+    Alert.alert('Eliminar prenda', `¿Estás seguro de que quieres eliminar "${nombre}"?`, [
+      { text: 'Cancelar', onPress: () => {}, style: 'cancel' },
+      {
+        text: 'Eliminar',
+        onPress: async () => {
+          try {
+            const token = typeof localStorage !== 'undefined' ? localStorage.getItem('authToken') : null;
+
+            const response = await fetch(`${API_BASE}/api/prendas/${id}`, {
+              method: 'DELETE',
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            });
+
+            if (response.ok) {
+              setPrendas(prendas.filter((p) => p.id !== id));
+              Alert.alert('Éxito', 'Prenda eliminada correctamente');
+              cargarPrendas(); // Recargar lista
+            } else {
+              Alert.alert('Error', 'No se pudo eliminar la prenda');
+            }
+          } catch (error) {
+            Alert.alert('Error', 'Error al eliminar la prenda');
+          }
+        },
+        style: 'destructive',
+      },
+    ]);
+  };
+
+  const prendasFiltradas =
+    filtro === 'todas'
+      ? prendas
+      : prendas.filter((p) => p.tipo.toLowerCase() === filtro.toLowerCase());
+
+  const renderPrenda = ({ item }: { item: Prenda }) => (
+    <View style={styles.prendaCard as any}>
+      <Image
+        source={{ uri: item.imagen }}
+        style={styles.prendaImagen as any}
+      />
+      <View style={styles.prendaInfo as any}>
+        <Text style={styles.prendaNombre as any}>{item.nombre}</Text>
+        <View style={styles.prendaDetalles as any}>
+          <Text style={styles.detalle as any}>
+            📌 {item.tipo}
+          </Text>
+          {item.ocasion && (
+            <Text style={styles.detalle as any}>
+              📅 {item.ocasion}
+            </Text>
+          )}
+        </View>
+      </View>
+      <View style={styles.prendaAcciones as any}>
+        <TouchableOpacity
+          style={styles.btnAccion as any}
+          onPress={() => router.push({
+            pathname: '/editar-prenda/[id]',
+            params: { id: item.id }
+          })}
+          activeOpacity={0.6}
+        >
+          <Text style={styles.btnText as any}>✏️</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.btnAccion, { backgroundColor: '#FFE5E5' }] as any}
+          onPress={() => handleEliminarPrenda(item.id, item.nombre)}
+          activeOpacity={0.6}
+        >
+          <Text style={styles.btnText as any}>🗑️</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  return (
+    <LinearGradient
+      colors={colors.gradient as any}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.gradient as any}
+    >
+      <ScrollView style={styles.scroll as any} scrollEnabled={false}>
+        <Header title="Mi Armario" />
+
+        {/* Botón Agregar Prenda */}
+        <View style={styles.headerAccion as any}>
+          <TouchableOpacity
+            style={styles.btnAgregar as any}
+            onPress={() => router.push('/agregar-prenda')}
+          >
+            <Text style={styles.btnAgregarEmoji as any}>➕</Text>
+            <Text style={styles.btnAgregarText as any}>Agregar Prenda</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Filtros */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.filtrosScroll as any}
+        >
+          {['todas', 'camiseta', 'pantalón', 'falda', 'vestido', 'chaqueta', 'zapatos'].map((tipo) => (
+            <TouchableOpacity
+              key={tipo}
+              style={[
+                styles.filtroBtn as any,
+                filtro === tipo && (styles.filtroBtnActive as any),
+              ]}
+              onPress={() => setFiltro(tipo)}
+            >
+              <Text
+                style={[
+                  styles.filtroBtnText as any,
+                  filtro === tipo && (styles.filtroBtnTextActive as any),
+                ]}
+              >
+                {tipo.charAt(0).toUpperCase() + tipo.slice(1)}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* Lista de Prendas */}
+        {loading ? (
+          <View style={styles.loadingContainer as any}>
+            <ActivityIndicator size="large" color="#4B0082" />
+            <Text style={styles.loadingText as any}>Cargando prendas...</Text>
+          </View>
+        ) : prendasFiltradas.length === 0 ? (
+          <View style={styles.emptyContainer as any}>
+            <Text style={styles.emptyTextLarge as any}>👕</Text>
+            <Text style={styles.emptyText as any}>No tienes prendas aún</Text>
+            <TouchableOpacity
+              style={styles.btnAgregarEmpty as any}
+              onPress={() => router.push('/agregar-prenda')}
+            >
+              <Text style={styles.btnAgregarEmptyText as any}>Agregar primera prenda</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <FlatList
+            data={prendasFiltradas}
+            renderItem={renderPrenda}
+            keyExtractor={(item) => item.id}
+            scrollEnabled={false}
+            contentContainerStyle={styles.listContainer as any}
+          />
+        )}
+      </ScrollView>
+    </LinearGradient>
+  );
+}
+
+const styles = StyleSheet.create({
+  gradient: {
+    flex: 1,
+  } as any,
+  scroll: {
+    flex: 1,
+  } as any,
+  headerAccion: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 8,
+  } as any,
+  btnAgregar: {
+    backgroundColor: '#4B0082',
+    borderRadius: 12,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 14,
+    gap: 8,
+  } as any,
+  btnAgregarEmoji: {
+    fontSize: 20,
+  } as any,
+  btnAgregarText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  } as any,
+  filtrosScroll: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  } as any,
+  filtroBtn: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: '#EEEEEE',
+  } as any,
+  filtroBtnActive: {
+    backgroundColor: '#4B0082',
+    borderColor: '#4B0082',
+  } as any,
+  filtroBtnText: {
+    color: '#666666',
+    fontSize: 13,
+    fontWeight: '500',
+  } as any,
+  filtroBtnTextActive: {
+    color: '#FFFFFF',
+  } as any,
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: 300,
+  } as any,
+  loadingText: {
+    marginTop: 12,
+    color: '#666666',
+    fontSize: 14,
+  } as any,
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: 300,
+  } as any,
+  emptyTextLarge: {
+    fontSize: 64,
+    marginBottom: 16,
+  } as any,
+  emptyText: {
+    fontSize: 16,
+    color: '#999999',
+    marginBottom: 20,
+  } as any,
+  btnAgregarEmpty: {
+    backgroundColor: '#4B0082',
+    borderRadius: 12,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+  } as any,
+  btnAgregarEmptyText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  } as any,
+  listContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 20,
+  } as any,
+  prendaCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    marginBottom: 12,
+    overflow: 'hidden',
+    flexDirection: 'row',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 3,
+  } as any,
+  prendaImagen: {
+    width: 100,
+    height: 100,
+    backgroundColor: '#F0F0F0',
+  } as any,
+  prendaInfo: {
+    flex: 1,
+    padding: 12,
+    justifyContent: 'center',
+  } as any,
+  prendaNombre: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1E1E1E',
+    marginBottom: 8,
+  } as any,
+  prendaDetalles: {
+    gap: 4,
+  } as any,
+  detalle: {
+    fontSize: 12,
+    color: '#666666',
+  } as any,
+  prendaAcciones: {
+    paddingRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    flexDirection: 'column',
+  } as any,
+  btnAccion: {
+    backgroundColor: '#F0F0F0',
+    borderRadius: 8,
+    padding: 10,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  } as any,
+  btnText: {
+    fontSize: 18,
+  } as any,
+});
