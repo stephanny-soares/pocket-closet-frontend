@@ -1,0 +1,17 @@
+import React from "react";
+import { View, Text, Button, StyleSheet } from "react-native";
+import { router } from "expo-router";
+
+export default function RegisterScreen() {
+  return (
+    <View style={styles.container}>
+      <Text style={styles.text}>Pantalla de Registro</Text>
+      <Button title="Volver al Login" onPress={() => router.push("/")} />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, alignItems: "center", justifyContent: "center" },
+  text: { fontSize: 20 },
+});

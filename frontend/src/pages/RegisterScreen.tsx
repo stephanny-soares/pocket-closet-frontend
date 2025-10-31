@@ -237,13 +237,7 @@ const RegisterScreen: React.FC = () => {
             >
               Crear cuenta
             </Text>
-            <Text
-              className={`text-base text-center ${
-                isDark ? "text-gray-300" : "text-textMuted"
-              }`}
-            >
-              Regístrate para comenzar
-            </Text>
+
           </View>
 
           {/* ---------- Formulario ---------- */}
