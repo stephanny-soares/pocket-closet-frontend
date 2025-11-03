@@ -174,8 +174,10 @@ const LoginScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   gradient: {
-    flex: 1,
-    minHeight: "100vh" as any,
+   height: "100%",
+   flex: 1,
+   minHeight: "100vh" as any,
+
   } as any,
   keyboardView: {
     flex: 1,
