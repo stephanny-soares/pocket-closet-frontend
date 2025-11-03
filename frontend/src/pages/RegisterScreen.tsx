@@ -12,10 +12,10 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import CustomInput from "../components/CustomInput";
-import PasswordInput from "../components/PasswordInput";
-import CheckBox from "../components/CheckBox";
-import PrimaryButton from "../components/PrimaryButton";
+import CustomInput from "components/CustomInput";
+import PasswordInput from "components/PasswordInput";
+import CheckBox from "components/CheckBox";
+import PrimaryButton from "components/PrimaryButton";
 import colors from "../constants/colors";
 import {
   validateEmail,
@@ -129,7 +129,7 @@ const RegisterScreen: React.FC = () => {
         }),
       });
 
-      const data = await response.json();
+      const data: any = await response.json();
 
       if (response.ok && data.token) {
         // Guardar token y datos del usuario
@@ -203,7 +203,7 @@ const RegisterScreen: React.FC = () => {
                 label="Nombre completo"
                 placeholder="Introduce tu nombre"
                 value={form.name}
-                onChangeText={(val) => setField("name", val)}
+                onChangeText={(val: string) => setField("name", val)}
                 error={errors.name}
               />
 
@@ -212,7 +212,7 @@ const RegisterScreen: React.FC = () => {
                 placeholder="Introduce tu correo"
                 keyboardType="email-address"
                 value={form.email}
-                onChangeText={(val) => setField("email", val)}
+                onChangeText={(val: string) => setField("email", val)}
                 error={errors.email}
               />
 
@@ -220,7 +220,7 @@ const RegisterScreen: React.FC = () => {
                 label="Contraseña"
                 placeholder="Introduce tu contraseña"
                 value={form.password}
-                onChangeText={(val) => setField("password", val)}
+                onChangeText={(val: string) => setField("password", val)}
                 error={errors.password}
               />
 
@@ -236,7 +236,7 @@ const RegisterScreen: React.FC = () => {
                 label="Confirmar contraseña"
                 placeholder="Repite tu contraseña"
                 value={form.confirmPassword}
-                onChangeText={(val) => setField("confirmPassword", val)}
+                onChangeText={(val: string) => setField("confirmPassword", val)}
                 error={errors.confirmPassword}
               />
 

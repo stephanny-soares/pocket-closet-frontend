@@ -13,7 +13,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import Header from '../components/Header';
+import Header from 'components/Header';
 import colors from '../constants/colors';
 
 const API_BASE = (
@@ -60,7 +60,7 @@ export default function MiArmario() {
         },
       });
 
-      const data = await response.json();
+      const data: any = await response.json();
 
       if (response.ok && data.prendas) {
         setPrendas(data.prendas);
@@ -135,7 +135,7 @@ export default function MiArmario() {
         <TouchableOpacity
           style={styles.btnAccion as any}
           onPress={() => router.push({
-            pathname: '/editar-prenda/[id]',
+            pathname: '/editar-prenda/[id]' as any,
             params: { id: item.id }
           })}
           activeOpacity={0.6}

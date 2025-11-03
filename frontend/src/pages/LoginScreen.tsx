@@ -15,7 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { v4 as uuidv4 } from "uuid";
 import CustomInput from "../components/CustomInput";
-import PasswordInput from "../components/PasswordInput";
+import PasswordInput from "components/PasswordInput";
 import PrimaryButton from "../components/PrimaryButton";
 import colors from "../constants/colors";
 import { validateEmail, validatePassword } from "../utils/validation";
@@ -55,7 +55,7 @@ const LoginScreen: React.FC = () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-      const data = await response.json();
+      const data: any = await response.json();
       
       if (response.ok) {
         // Guardar token y datos del usuario

@@ -27,7 +27,7 @@ export default function Home() {
       const response = await fetch(
         'https://api.open-meteo.com/v1/forecast?latitude=38.3452&longitude=-0.4810&current=temperature_2m,weather_code&timezone=Europe/Madrid'
       );
-      const data = await response.json();
+      const data: any = await response.json();
       const temp = Math.round(data.current.temperature_2m);
       const code = data.current.weather_code;
       

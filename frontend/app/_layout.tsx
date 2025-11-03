@@ -11,27 +11,10 @@ export default function RootLayout() {
 
   return (
     <ErrorBoundary>
-      <View style={styles.root as any}>
-        <View style={styles.content as any}>
-          <Stack
-            screenOptions={{
-              headerShown: false,
-            }}
-          />
-        </View>
+      <View style={{ flex: 1 }}>
+        <Stack />
         {showNavbar && <BottomNavigation />}
       </View>
     </ErrorBoundary>
   );
 }
-
-const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    flexDirection: 'column',
-  } as any,
-  content: {
-    flex: 1,
-    overflow: 'auto' as any,
-  } as any,
-});

@@ -11,7 +11,7 @@ export const useResponsiveStyles = (mobileStyles: any, webStyles: any) => {
 // Hook para aplicar estilos globales en web
 export const useWebGlobalStyles = () => {
   React.useEffect(() => {
-    if (Platform.OS === 'web') {
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
       const style = document.createElement('style');
       style.textContent = `
         html, body {
@@ -26,7 +26,7 @@ export const useWebGlobalStyles = () => {
           height: 100%;
         }
       `;
-      document.head.appendChild(style);
+      document.head?.appendChild(style);
     }
   }, []);
 };
