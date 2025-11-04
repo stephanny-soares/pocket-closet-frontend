@@ -6,7 +6,7 @@
     "moduleResolution": "bundler",
     "target": "esnext",
     "lib": ["esnext"],
-    "types": ["react", "react-native", "expo"],
+    "types": ["jest", "react", "react-native", "expo"],
     "skipLibCheck": true,
     "baseUrl": "./",
     "paths": {
@@ -25,6 +25,8 @@
   "include": [
     "**/*.ts",
     "**/*.tsx",
+    "**/*.test.ts",
+    "**/*.test.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts",
     "nativewind-env.d.ts",
