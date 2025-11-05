@@ -22,38 +22,16 @@ import {
   validatePassword,
   validatePasswordMatch,
 } from "../utils/validation";
+import { storage } from "../utils/storage";
 
-const API_BASE = (
-  process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000"
-).replace(/\/+$/, "");
-
-interface FormState {
-  name: string;
-  email: string;
-  password: string;
-  confirmPassword: string;
-  terms: boolean;
-}
-
-interface Errors {
-  name?: string;
-  email?: string;
-  password?: string;
-  confirmPassword?: string;
-  terms?: string;
-}
-
-interface PasswordStrength {
-  label: string;
-  color: string;
-}
+const API_BASE = (process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000").replace(/\/+$/, "");
 
 const RegisterScreen: React.FC = () => {
   const { width } = useWindowDimensions();
   const isWeb = Platform.OS === "web";
   const maxWidth = isWeb ? Math.min(450, width * 0.9) : width * 0.9;
 
-  const [form, setForm] = useState<FormState>({
+  const [form, setForm] = useState({
     name: "",
     email: "",
     password: "",
@@ -61,14 +39,11 @@ const RegisterScreen: React.FC = () => {
     terms: false,
   });
 
-  const [errors, setErrors] = useState<Errors>({});
+  const [errors, setErrors] = useState<any>({});
   const [sending, setSending] = useState(false);
-  const [passwordStrength, setPasswordStrength] = useState<PasswordStrength>({
-    label: "",
-    color: "",
-  });
+  const [passwordStrength, setPasswordStrength] = useState({ label: "", color: "" });
 
-  const setField = (key: keyof FormState, val: string | boolean) => {
+  const setField = (key: keyof typeof form, val: string | boolean) => {
     setForm((s) => ({ ...s, [key]: val }));
     if (key === "password" && typeof val === "string") evaluatePasswordStrength(val);
   };
@@ -80,42 +55,29 @@ const RegisterScreen: React.FC = () => {
     if (/[0-9]/.test(password)) score++;
     if (/[!@#$%^&*()_+.,;:?\-=]/.test(password)) score++;
 
-    if (score <= 1)
-      setPasswordStrength({ label: "Débil", color: "#E53935" });
-    else if (score === 2)
-      setPasswordStrength({ label: "Media", color: "#FFA726" });
-    else if (score >= 3)
-      setPasswordStrength({ label: "Fuerte", color: "#43A047" });
+    if (score <= 1) setPasswordStrength({ label: "Débil", color: "#E53935" });
+    else if (score === 2) setPasswordStrength({ label: "Media", color: "#FFA726" });
+    else if (score >= 3) setPasswordStrength({ label: "Fuerte", color: "#43A047" });
     else setPasswordStrength({ label: "", color: "" });
   };
 
   const validateForm = (): boolean => {
-    const newErrors: Errors = {};
-
+    const newErrors: any = {};
     if (!form.name.trim()) newErrors.name = "El nombre es obligatorio";
-
     if (!form.email.trim()) newErrors.email = "El correo electrónico es obligatorio";
-    else if (!validateEmail(form.email))
-      newErrors.email = "Formato de correo electrónico inválido";
-
+    else if (!validateEmail(form.email)) newErrors.email = "Formato de correo electrónico inválido";
     if (!validatePassword(form.password))
-      newErrors.password =
-        "La contraseña debe tener al menos 8 caracteres, un número y un símbolo";
-
+      newErrors.password = "La contraseña debe tener al menos 8 caracteres, un número y un símbolo";
     if (!validatePasswordMatch(form.password, form.confirmPassword))
       newErrors.confirmPassword = "Las contraseñas no coinciden";
-
     if (!form.terms)
-      newErrors.terms =
-        "Debes aceptar los Términos y la Política de Privacidad";
-
+      newErrors.terms = "Debes aceptar los Términos y la Política de Privacidad";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async () => {
     if (!validateForm()) return;
-
     setSending(true);
 
     try {
@@ -132,73 +94,46 @@ const RegisterScreen: React.FC = () => {
       const data: any = await response.json();
 
       if (response.ok && data.token) {
-        // Guardar token y datos del usuario
-        if (typeof localStorage !== 'undefined') {
-          localStorage.setItem('authToken', data.token);
-          localStorage.setItem('userName', data.usuario?.name || 'Usuario');
-          localStorage.setItem('userId', data.usuario?.id || '');
-        }
-        Alert.alert(
-          "Registro exitoso",
-          "Usuario creado correctamente."
-        );
-        setForm({
-          name: "",
-          email: "",
-          password: "",
-          confirmPassword: "",
-          terms: false,
-        });
-        setPasswordStrength({ label: "", color: "" });
+        await storage.setItem("authToken", data.token);
+        await storage.setItem("userName", data.usuario?.nombre || data.usuario?.name || "Usuario");
+        await storage.setItem("userId", data.usuario?.id || "");
+        Alert.alert("Registro exitoso", "Usuario creado correctamente.");
         router.push("/home");
       } else {
         Alert.alert("Error", data.error || "No se pudo registrar el usuario.");
       }
     } catch (error) {
       console.error("Error al registrar:", error);
-      Alert.alert(
-        "Error de conexión",
-        "No se pudo conectar con el servidor. Inténtalo más tarde."
-      );
+      Alert.alert("Error de conexión", "No se pudo conectar con el servidor. Inténtalo más tarde.");
     } finally {
       setSending(false);
     }
   };
 
   const handleTermsPress = () =>
-    Alert.alert(
-      "Términos y Condiciones",
-      "Aquí se mostrará el enlace o vista de términos."
-    );
-
+    Alert.alert("Términos y Condiciones", "Aquí se mostrará el enlace o vista de términos.");
   const handlePrivacyPress = () =>
-    Alert.alert(
-      "Política de Privacidad",
-      "Aquí se mostrará el enlace o vista de privacidad."
-    );
+    Alert.alert("Política de Privacidad", "Aquí se mostrará el enlace o vista de privacidad.");
 
   return (
     <LinearGradient
       colors={colors.gradient as any}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
-      style={styles.gradient as any}
+      style={styles.gradient}
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.keyboardView as any}
+        style={styles.keyboardView}
       >
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={styles.scrollContent as any}
-        >
-          <View style={[styles.content, { maxWidth }] as any}>
-            <View style={styles.titleSection as any}>
-              <Text style={styles.title as any}>Crear cuenta</Text>
-              <Text style={styles.subtitle as any}>Regístrate para comenzar</Text>
+        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scrollContent}>
+          <View style={[styles.content, { maxWidth }]}>
+            <View style={styles.titleSection}>
+              <Text style={styles.title}>Crear cuenta</Text>
+              <Text style={styles.subtitle}>Regístrate para comenzar</Text>
             </View>
 
-            <View style={styles.formContainer as any}>
+            <View style={styles.formContainer}>
               <CustomInput
                 label="Nombre completo"
                 placeholder="Introduce tu nombre"
@@ -225,9 +160,7 @@ const RegisterScreen: React.FC = () => {
               />
 
               {passwordStrength.label ? (
-                <Text
-                  style={[styles.strengthText as any, { color: passwordStrength.color }]}
-                >
+                <Text style={[styles.strengthText, { color: passwordStrength.color }]}>
                   Fuerza: {passwordStrength.label}
                 </Text>
               ) : null}
@@ -240,32 +173,22 @@ const RegisterScreen: React.FC = () => {
                 error={errors.confirmPassword}
               />
 
-              <View style={styles.termsSection as any}>
-                <CheckBox
-                  checked={form.terms}
-                  onToggle={() => setField("terms", !form.terms)}
-                  label=""
-                />
-                <Text style={styles.termsText as any}>
+              <View style={styles.termsSection}>
+                <CheckBox checked={form.terms} onToggle={() => setField("terms", !form.terms)} label="" />
+                <Text style={styles.termsText}>
                   Acepto los{" "}
                   <TouchableOpacity onPress={handleTermsPress}>
-                    <Text style={styles.termsLink as any}>
-                      Términos y Condiciones
-                    </Text>
+                    <Text style={styles.termsLink}>Términos y Condiciones</Text>
                   </TouchableOpacity>{" "}
                   y la{" "}
                   <TouchableOpacity onPress={handlePrivacyPress}>
-                    <Text style={styles.termsLink as any}>
-                      Política de Privacidad
-                    </Text>
+                    <Text style={styles.termsLink}>Política de Privacidad</Text>
                   </TouchableOpacity>
                 </Text>
               </View>
-              {errors.terms && (
-                <Text style={styles.error as any}>{errors.terms}</Text>
-              )}
+              {errors.terms && <Text style={styles.error}>{errors.terms}</Text>}
 
-              <View style={styles.buttonContainer as any}>
+              <View style={styles.buttonContainer}>
                 <PrimaryButton
                   title={sending ? "Registrando..." : "Registrar"}
                   onPress={handleSubmit}
@@ -281,40 +204,19 @@ const RegisterScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  gradient: {
-    flex: 1,
-    minHeight: "100vh" as any,
-  } as any,
-  keyboardView: {
-    flex: 1,
-  } as any,
+  gradient: { flex: 1, minHeight: "100vh" as any },
+  keyboardView: { flex: 1 },
   scrollContent: {
     flexGrow: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 16,
     paddingVertical: 40,
-  } as any,
-  content: {
-    width: "100%",
-    alignSelf: "center",
-  } as any,
-  titleSection: {
-    marginBottom: 40,
-    alignItems: "center",
-  } as any,
-  title: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "#1E1E1E",
-    marginBottom: 8,
-    textAlign: "center",
-  } as any,
-  subtitle: {
-    fontSize: 16,
-    color: "#666666",
-    textAlign: "center",
-  } as any,
+  },
+  content: { width: "100%", alignSelf: "center" },
+  titleSection: { marginBottom: 40, alignItems: "center" },
+  title: { fontSize: 32, fontWeight: "bold", color: "#1E1E1E", marginBottom: 8, textAlign: "center" },
+  subtitle: { fontSize: 16, color: "#666666", textAlign: "center" },
   formContainer: {
     backgroundColor: "#FFFFFF",
     borderRadius: 24,
@@ -325,33 +227,13 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 8,
     elevation: 5,
-  } as any,
-  strengthText: {
-    fontSize: 12,
-    marginBottom: 12,
-  } as any,
-  termsSection: {
-    marginTop: 16,
-    marginBottom: 16,
-  } as any,
-  termsText: {
-    color: "#666666",
-    fontSize: 14,
-    marginLeft: 32,
-    marginTop: -24,
-  } as any,
-  termsLink: {
-    color: "#4B0082",
-    textDecorationLine: "underline",
-  } as any,
-  error: {
-    color: "#E53935",
-    fontSize: 12,
-    marginTop: 8,
-  } as any,
-  buttonContainer: {
-    marginTop: 24,
-  } as any,
+  },
+  strengthText: { fontSize: 12, marginBottom: 12 },
+  termsSection: { marginTop: 16, marginBottom: 16 },
+  termsText: { color: "#666666", fontSize: 14, marginLeft: 32, marginTop: -24 },
+  termsLink: { color: "#4B0082", textDecorationLine: "underline" },
+  error: { color: "#E53935", fontSize: 12, marginTop: 8 },
+  buttonContainer: { marginTop: 24 },
 });
 
 export default RegisterScreen;

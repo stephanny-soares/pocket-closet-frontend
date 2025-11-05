@@ -19,10 +19,9 @@ import PasswordInput from "components/PasswordInput";
 import PrimaryButton from "../components/PrimaryButton";
 import colors from "../constants/colors";
 import { validateEmail, validatePassword } from "../utils/validation";
+import { storage } from "../utils/storage";
 
-const API_BASE = (
-  process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000"
-).replace(/\/+$/, "");
+const API_BASE = (process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000").replace(/\/+$/, "");
 
 const LoginScreen: React.FC = () => {
   const { width } = useWindowDimensions();
@@ -37,11 +36,9 @@ const LoginScreen: React.FC = () => {
   const validateForm = () => {
     const newErrors: typeof errors = {};
     if (!email.trim()) newErrors.email = "El correo electrónico es obligatorio";
-    else if (!validateEmail(email))
-      newErrors.email = "Formato de correo electrónico inválido";
+    else if (!validateEmail(email)) newErrors.email = "Formato de correo electrónico inválido";
     if (!validatePassword(password))
-      newErrors.password =
-        "La contraseña debe tener al menos 8 caracteres, un número y un símbolo";
+      newErrors.password = "La contraseña debe tener al menos 8 caracteres, un número y un símbolo";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -56,14 +53,11 @@ const LoginScreen: React.FC = () => {
         body: JSON.stringify({ email, password }),
       });
       const data: any = await response.json();
-      
+
       if (response.ok) {
-        // Guardar token y datos del usuario
-        if (typeof localStorage !== 'undefined') {
-          localStorage.setItem('authToken', data.token);
-          localStorage.setItem('userName', data.usuario?.name || 'Usuario');
-          localStorage.setItem('userId', data.usuario?.id || '');
-        }
+        await storage.setItem("authToken", data.token);
+        await storage.setItem("userName", data.usuario?.nombre || data.usuario?.name || "Usuario");
+        await storage.setItem("userId", data.usuario?.id || "");
         Alert.alert("Inicio de sesión exitoso", "¡Bienvenido/a!");
         router.push("/home");
       } else {
@@ -71,20 +65,15 @@ const LoginScreen: React.FC = () => {
       }
     } catch (error) {
       console.error("Error al iniciar sesión:", error);
-      Alert.alert(
-        "Error de conexión",
-        `No se pudo conectar con el servidor: ${error}`
-      );
+      Alert.alert("Error de conexión", `No se pudo conectar con el servidor: ${error}`);
     } finally {
       setSending(false);
     }
   };
 
-  const handleGuestAccess = () => {
+  const handleGuestAccess = async () => {
     const guestId = uuidv4();
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('guestId', guestId);
-    }
+    await storage.setItem("guestId", guestId);
     Alert.alert("Acceso como invitado", "Has iniciado sesión como invitado.");
     router.push("/home");
   };
@@ -94,23 +83,20 @@ const LoginScreen: React.FC = () => {
       colors={colors.gradient as any}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
-      style={styles.gradient as any}
+      style={styles.gradient}
     >
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.keyboardView as any}
+        style={styles.keyboardView}
       >
-        <ScrollView
-          keyboardShouldPersistTaps="handled"
-          contentContainerStyle={styles.scrollContent as any}
-        >
-          <View style={[styles.content, { maxWidth }] as any}>
-            <View style={styles.titleSection as any}>
-              <Text style={styles.title as any}>Bienvenido</Text>
-              <Text style={styles.subtitle as any}>Inicia sesión para continuar</Text>
+        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scrollContent}>
+          <View style={[styles.content, { maxWidth }]}>
+            <View style={styles.titleSection}>
+              <Text style={styles.title}>Bienvenido</Text>
+              <Text style={styles.subtitle}>Inicia sesión para continuar</Text>
             </View>
 
-            <View style={styles.formContainer as any}>
+            <View style={styles.formContainer}>
               <CustomInput
                 label="Correo electrónico"
                 placeholder="Introduce tu correo"
@@ -128,7 +114,7 @@ const LoginScreen: React.FC = () => {
                 error={errors.password}
               />
 
-              <View style={styles.buttonContainer as any}>
+              <View style={styles.buttonContainer}>
                 <PrimaryButton
                   title={sending ? "Ingresando..." : "Iniciar sesión"}
                   onPress={handleLogin}
@@ -136,33 +122,33 @@ const LoginScreen: React.FC = () => {
                 />
               </View>
 
-              <TouchableOpacity onPress={handleGuestAccess} style={styles.guestButton as any}>
-                <Text style={styles.guestButtonText as any}>Acceder como invitado</Text>
+              <TouchableOpacity onPress={handleGuestAccess} style={styles.guestButton}>
+                <Text style={styles.guestButtonText}>Acceder como invitado</Text>
               </TouchableOpacity>
             </View>
 
-            <View style={styles.socialSection as any}>
-              <Text style={styles.socialLabel as any}>O inicia sesión con</Text>
-              <View style={styles.socialButtons as any}>
+            <View style={styles.socialSection}>
+              <Text style={styles.socialLabel}>O inicia sesión con</Text>
+              <View style={styles.socialButtons}>
                 <TouchableOpacity
                   onPress={() => Alert.alert("Google", "Inicio con Google")}
-                  style={styles.socialIcon as any}
+                  style={styles.socialIcon}
                 >
                   <Ionicons name="logo-google" size={26} color="#DB4437" />
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={() => Alert.alert("Apple", "Inicio con Apple")}
-                  style={styles.socialIcon as any}
+                  style={styles.socialIcon}
                 >
                   <Ionicons name="logo-apple" size={26} color="#000" />
                 </TouchableOpacity>
               </View>
             </View>
 
-            <View style={styles.registerSection as any}>
-              <Text style={styles.registerLabel as any}>¿No tienes cuenta?</Text>
+            <View style={styles.registerSection}>
+              <Text style={styles.registerLabel}>¿No tienes cuenta?</Text>
               <TouchableOpacity onPress={() => router.push("/register")}>
-                <Text style={styles.registerLink as any}>Regístrate aquí</Text>
+                <Text style={styles.registerLink}>Regístrate aquí</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -173,42 +159,19 @@ const LoginScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  gradient: {
-   height: "100%",
-   flex: 1,
-   minHeight: "100vh" as any,
-
-  } as any,
-  keyboardView: {
-    flex: 1,
-  } as any,
+  gradient: { height: "100%", flex: 1, minHeight: "100vh" as any },
+  keyboardView: { flex: 1 },
   scrollContent: {
     flexGrow: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 16,
     paddingVertical: 40,
-  } as any,
-  content: {
-    width: "100%",
-    alignSelf: "center",
-  } as any,
-  titleSection: {
-    marginBottom: 40,
-    alignItems: "center",
-  } as any,
-  title: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "#1E1E1E",
-    marginBottom: 8,
-    textAlign: "center",
-  } as any,
-  subtitle: {
-    fontSize: 16,
-    color: "#666666",
-    textAlign: "center",
-  } as any,
+  },
+  content: { width: "100%", alignSelf: "center" },
+  titleSection: { marginBottom: 40, alignItems: "center" },
+  title: { fontSize: 32, fontWeight: "bold", color: "#1E1E1E", marginBottom: 8, textAlign: "center" },
+  subtitle: { fontSize: 16, color: "#666666", textAlign: "center" },
   formContainer: {
     backgroundColor: "#FFFFFF",
     borderRadius: 24,
@@ -219,33 +182,13 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 8,
     elevation: 5,
-  } as any,
-  buttonContainer: {
-    marginTop: 24,
-  } as any,
-  guestButton: {
-    marginTop: 16,
-    alignItems: "center",
-  } as any,
-  guestButtonText: {
-    color: "#4B0082",
-    textDecorationLine: "underline",
-    fontWeight: "500",
-  } as any,
-  socialSection: {
-    alignItems: "center",
-    marginBottom: 32,
-  } as any,
-  socialLabel: {
-    fontSize: 16,
-    color: "#666666",
-    marginBottom: 16,
-  } as any,
-  socialButtons: {
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 24,
-  } as any,
+  },
+  buttonContainer: { marginTop: 24 },
+  guestButton: { marginTop: 16, alignItems: "center" },
+  guestButtonText: { color: "#4B0082", textDecorationLine: "underline", fontWeight: "500" },
+  socialSection: { alignItems: "center", marginBottom: 32 },
+  socialLabel: { fontSize: 16, color: "#666666", marginBottom: 16 },
+  socialButtons: { flexDirection: "row", justifyContent: "center", gap: 24 },
   socialIcon: {
     padding: 12,
     borderRadius: 999,
@@ -255,20 +198,10 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 4,
     elevation: 3,
-  } as any,
-  registerSection: {
-    alignItems: "center",
-  } as any,
-  registerLabel: {
-    fontSize: 16,
-    color: "#666666",
-  } as any,
-  registerLink: {
-    color: "#4B0082",
-    fontWeight: "600",
-    marginTop: 4,
-    textDecorationLine: "underline",
-  } as any,
+  },
+  registerSection: { alignItems: "center" },
+  registerLabel: { fontSize: 16, color: "#666666" },
+  registerLink: { color: "#4B0082", fontWeight: "600", marginTop: 4, textDecorationLine: "underline" },
 });
 
 export default LoginScreen;

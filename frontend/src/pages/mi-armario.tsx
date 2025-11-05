@@ -11,10 +11,10 @@ import {
   FlatList,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import Header from 'components/Header';
 import colors from '../constants/colors';
+import { storage } from '../utils/storage';
 
 const API_BASE = (
   process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000'
@@ -44,7 +44,7 @@ export default function MiArmario() {
   const cargarPrendas = async () => {
     try {
       setLoading(true);
-      const token = typeof localStorage !== 'undefined' ? localStorage.getItem('authToken') : null;
+      const token = await storage.getItem('authToken');
 
       if (!token) {
         Alert.alert('Error', 'Token no encontrado. Por favor, inicia sesión.');
@@ -77,24 +77,23 @@ export default function MiArmario() {
 
   const handleEliminarPrenda = (id: string, nombre: string) => {
     Alert.alert('Eliminar prenda', `¿Estás seguro de que quieres eliminar "${nombre}"?`, [
-      { text: 'Cancelar', onPress: () => {}, style: 'cancel' },
+      { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Eliminar',
         onPress: async () => {
           try {
-            const token = typeof localStorage !== 'undefined' ? localStorage.getItem('authToken') : null;
+            const token = await storage.getItem('authToken');
+            if (!token) return;
 
             const response = await fetch(`${API_BASE}/api/prendas/${id}`, {
               method: 'DELETE',
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
+              headers: { Authorization: `Bearer ${token}` },
             });
 
             if (response.ok) {
               setPrendas(prendas.filter((p) => p.id !== id));
               Alert.alert('Éxito', 'Prenda eliminada correctamente');
-              cargarPrendas(); // Recargar lista
+              cargarPrendas();
             } else {
               Alert.alert('Error', 'No se pudo eliminar la prenda');
             }
@@ -113,41 +112,34 @@ export default function MiArmario() {
       : prendas.filter((p) => p.tipo.toLowerCase() === filtro.toLowerCase());
 
   const renderPrenda = ({ item }: { item: Prenda }) => (
-    <View style={styles.prendaCard as any}>
-      <Image
-        source={{ uri: item.imagen }}
-        style={styles.prendaImagen as any}
-      />
-      <View style={styles.prendaInfo as any}>
-        <Text style={styles.prendaNombre as any}>{item.nombre}</Text>
-        <View style={styles.prendaDetalles as any}>
-          <Text style={styles.detalle as any}>
-            📌 {item.tipo}
-          </Text>
-          {item.ocasion && (
-            <Text style={styles.detalle as any}>
-              📅 {item.ocasion}
-            </Text>
-          )}
+    <View style={styles.prendaCard}>
+      <Image source={{ uri: item.imagen }} style={styles.prendaImagen} />
+      <View style={styles.prendaInfo}>
+        <Text style={styles.prendaNombre}>{item.nombre}</Text>
+        <View style={styles.prendaDetalles}>
+          <Text style={styles.detalle}>📌 {item.tipo}</Text>
+          {item.ocasion && <Text style={styles.detalle}>📅 {item.ocasion}</Text>}
         </View>
       </View>
-      <View style={styles.prendaAcciones as any}>
+      <View style={styles.prendaAcciones}>
         <TouchableOpacity
-          style={styles.btnAccion as any}
-          onPress={() => router.push({
-            pathname: '/editar-prenda/[id]' as any,
-            params: { id: item.id }
-          })}
+          style={styles.btnAccion}
+          onPress={() =>
+            router.push({
+              pathname: '/editar-prenda/[id]' as any,
+              params: { id: item.id },
+            })
+          }
           activeOpacity={0.6}
         >
-          <Text style={styles.btnText as any}>✏️</Text>
+          <Text style={styles.btnText}>✏️</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.btnAccion, { backgroundColor: '#FFE5E5' }] as any}
+          style={[styles.btnAccion, { backgroundColor: '#FFE5E5' }]}
           onPress={() => handleEliminarPrenda(item.id, item.nombre)}
           activeOpacity={0.6}
         >
-          <Text style={styles.btnText as any}>🗑️</Text>
+          <Text style={styles.btnText}>🗑️</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -158,41 +150,37 @@ export default function MiArmario() {
       colors={colors.gradient as any}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
-      style={styles.gradient as any}
+      style={styles.gradient}
     >
-      <ScrollView style={styles.scroll as any} scrollEnabled={false}>
+      <ScrollView style={styles.scroll} scrollEnabled={false}>
         <Header title="Mi Armario" />
 
         {/* Botón Agregar Prenda */}
-        <View style={styles.headerAccion as any}>
+        <View style={styles.headerAccion}>
           <TouchableOpacity
-            style={styles.btnAgregar as any}
+            style={styles.btnAgregar}
             onPress={() => router.push('/agregar-prenda')}
           >
-            <Text style={styles.btnAgregarEmoji as any}>➕</Text>
-            <Text style={styles.btnAgregarText as any}>Agregar Prenda</Text>
+            <Text style={styles.btnAgregarEmoji}>➕</Text>
+            <Text style={styles.btnAgregarText}>Agregar Prenda</Text>
           </TouchableOpacity>
         </View>
 
         {/* Filtros */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.filtrosScroll as any}
-        >
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtrosScroll}>
           {['todas', 'camiseta', 'pantalón', 'falda', 'vestido', 'chaqueta', 'zapatos'].map((tipo) => (
             <TouchableOpacity
               key={tipo}
               style={[
-                styles.filtroBtn as any,
-                filtro === tipo && (styles.filtroBtnActive as any),
+                styles.filtroBtn,
+                filtro === tipo && styles.filtroBtnActive,
               ]}
               onPress={() => setFiltro(tipo)}
             >
               <Text
                 style={[
-                  styles.filtroBtnText as any,
-                  filtro === tipo && (styles.filtroBtnTextActive as any),
+                  styles.filtroBtnText,
+                  filtro === tipo && styles.filtroBtnTextActive,
                 ]}
               >
                 {tipo.charAt(0).toUpperCase() + tipo.slice(1)}
@@ -203,19 +191,19 @@ export default function MiArmario() {
 
         {/* Lista de Prendas */}
         {loading ? (
-          <View style={styles.loadingContainer as any}>
+          <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#4B0082" />
-            <Text style={styles.loadingText as any}>Cargando prendas...</Text>
+            <Text style={styles.loadingText}>Cargando prendas...</Text>
           </View>
         ) : prendasFiltradas.length === 0 ? (
-          <View style={styles.emptyContainer as any}>
-            <Text style={styles.emptyTextLarge as any}>👕</Text>
-            <Text style={styles.emptyText as any}>No tienes prendas aún</Text>
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyTextLarge}>👕</Text>
+            <Text style={styles.emptyText}>No tienes prendas aún</Text>
             <TouchableOpacity
-              style={styles.btnAgregarEmpty as any}
+              style={styles.btnAgregarEmpty}
               onPress={() => router.push('/agregar-prenda')}
             >
-              <Text style={styles.btnAgregarEmptyText as any}>Agregar primera prenda</Text>
+              <Text style={styles.btnAgregarEmptyText}>Agregar primera prenda</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -224,7 +212,7 @@ export default function MiArmario() {
             renderItem={renderPrenda}
             keyExtractor={(item) => item.id}
             scrollEnabled={false}
-            contentContainerStyle={styles.listContainer as any}
+            contentContainerStyle={styles.listContainer}
           />
         )}
       </ScrollView>
@@ -233,17 +221,9 @@ export default function MiArmario() {
 }
 
 const styles = StyleSheet.create({
-  gradient: {
-    flex: 1,
-  } as any,
-  scroll: {
-    flex: 1,
-  } as any,
-  headerAccion: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 8,
-  } as any,
+  gradient: { flex: 1 },
+  scroll: { flex: 1 },
+  headerAccion: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
   btnAgregar: {
     backgroundColor: '#4B0082',
     borderRadius: 12,
@@ -252,19 +232,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 14,
     gap: 8,
-  } as any,
-  btnAgregarEmoji: {
-    fontSize: 20,
-  } as any,
-  btnAgregarText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
-  } as any,
-  filtrosScroll: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  } as any,
+  },
+  btnAgregarEmoji: { fontSize: 20 },
+  btnAgregarText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+  filtrosScroll: { paddingHorizontal: 16, paddingVertical: 12 },
   filtroBtn: {
     backgroundColor: '#FFFFFF',
     borderRadius: 20,
@@ -273,60 +244,23 @@ const styles = StyleSheet.create({
     marginRight: 10,
     borderWidth: 1,
     borderColor: '#EEEEEE',
-  } as any,
-  filtroBtnActive: {
-    backgroundColor: '#4B0082',
-    borderColor: '#4B0082',
-  } as any,
-  filtroBtnText: {
-    color: '#666666',
-    fontSize: 13,
-    fontWeight: '500',
-  } as any,
-  filtroBtnTextActive: {
-    color: '#FFFFFF',
-  } as any,
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    minHeight: 300,
-  } as any,
-  loadingText: {
-    marginTop: 12,
-    color: '#666666',
-    fontSize: 14,
-  } as any,
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    minHeight: 300,
-  } as any,
-  emptyTextLarge: {
-    fontSize: 64,
-    marginBottom: 16,
-  } as any,
-  emptyText: {
-    fontSize: 16,
-    color: '#999999',
-    marginBottom: 20,
-  } as any,
+  },
+  filtroBtnActive: { backgroundColor: '#4B0082', borderColor: '#4B0082' },
+  filtroBtnText: { color: '#666666', fontSize: 13, fontWeight: '500' },
+  filtroBtnTextActive: { color: '#FFFFFF' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', minHeight: 300 },
+  loadingText: { marginTop: 12, color: '#666666', fontSize: 14 },
+  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', minHeight: 300 },
+  emptyTextLarge: { fontSize: 64, marginBottom: 16 },
+  emptyText: { fontSize: 16, color: '#999999', marginBottom: 20 },
   btnAgregarEmpty: {
     backgroundColor: '#4B0082',
     borderRadius: 12,
     paddingHorizontal: 24,
     paddingVertical: 12,
-  } as any,
-  btnAgregarEmptyText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  } as any,
-  listContainer: {
-    paddingHorizontal: 16,
-    paddingBottom: 20,
-  } as any,
+  },
+  btnAgregarEmptyText: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
+  listContainer: { paddingHorizontal: 16, paddingBottom: 20 },
   prendaCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
@@ -338,37 +272,19 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 4,
     elevation: 3,
-  } as any,
-  prendaImagen: {
-    width: 100,
-    height: 100,
-    backgroundColor: '#F0F0F0',
-  } as any,
-  prendaInfo: {
-    flex: 1,
-    padding: 12,
-    justifyContent: 'center',
-  } as any,
-  prendaNombre: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1E1E1E',
-    marginBottom: 8,
-  } as any,
-  prendaDetalles: {
-    gap: 4,
-  } as any,
-  detalle: {
-    fontSize: 12,
-    color: '#666666',
-  } as any,
+  },
+  prendaImagen: { width: 100, height: 100, backgroundColor: '#F0F0F0' },
+  prendaInfo: { flex: 1, padding: 12, justifyContent: 'center' },
+  prendaNombre: { fontSize: 15, fontWeight: '600', color: '#1E1E1E', marginBottom: 8 },
+  prendaDetalles: { gap: 4 },
+  detalle: { fontSize: 12, color: '#666666' },
   prendaAcciones: {
     paddingRight: 12,
     justifyContent: 'center',
     alignItems: 'center',
     gap: 8,
     flexDirection: 'column',
-  } as any,
+  },
   btnAccion: {
     backgroundColor: '#F0F0F0',
     borderRadius: 8,
@@ -377,8 +293,6 @@ const styles = StyleSheet.create({
     height: 40,
     justifyContent: 'center',
     alignItems: 'center',
-  } as any,
-  btnText: {
-    fontSize: 18,
-  } as any,
+  },
+  btnText: { fontSize: 18 },
 });
