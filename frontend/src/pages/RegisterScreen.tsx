@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+// src/pages/RegisterScreen.tsx
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -17,12 +18,8 @@ import PasswordInput from "components/PasswordInput";
 import CheckBox from "components/CheckBox";
 import PrimaryButton from "components/PrimaryButton";
 import colors from "../constants/colors";
-import {
-  validateEmail,
-  validatePassword,
-  validatePasswordMatch,
-} from "../utils/validation";
-import { storage } from "../utils/storage";
+import { validateEmail, validatePassword, validatePasswordMatch } from "../utils/validation";
+import { useAuth } from "../hooks/useAuth";
 
 const API_BASE = (process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000").replace(/\/+$/, "");
 
@@ -42,6 +39,12 @@ const RegisterScreen: React.FC = () => {
   const [errors, setErrors] = useState<any>({});
   const [sending, setSending] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState({ label: "", color: "" });
+
+  const { login, isAuthenticated } = useAuth();
+
+  useEffect(() => {
+    if (isAuthenticated) router.replace("/home");
+  }, [isAuthenticated]);
 
   const setField = (key: keyof typeof form, val: string | boolean) => {
     setForm((s) => ({ ...s, [key]: val }));
@@ -94,9 +97,7 @@ const RegisterScreen: React.FC = () => {
       const data: any = await response.json();
 
       if (response.ok && data.token) {
-        await storage.setItem("authToken", data.token);
-        await storage.setItem("userName", data.usuario?.nombre || data.usuario?.name || "Usuario");
-        await storage.setItem("userId", data.usuario?.id || "");
+        await login(data.token, data.usuario?.nombre || data.usuario?.name, data.usuario?.id);
 
         Toast.show({
           type: "success",
@@ -106,8 +107,6 @@ const RegisterScreen: React.FC = () => {
           visibilityTime: 3000,
           bottomOffset: 70,
         });
-
-        router.push("/home");
       } else {
         Toast.show({
           type: "error",
@@ -133,24 +132,6 @@ const RegisterScreen: React.FC = () => {
     }
   };
 
-  const handleTermsPress = () =>
-    Toast.show({
-      type: "info",
-      text1: "📜 Términos y Condiciones",
-      text2: "Aquí se mostrará el enlace o vista de términos.",
-      position: "bottom",
-      bottomOffset: 70,
-    });
-
-  const handlePrivacyPress = () =>
-    Toast.show({
-      type: "info",
-      text1: "🔒 Política de Privacidad",
-      text2: "Aquí se mostrará el enlace o vista de privacidad.",
-      position: "bottom",
-      bottomOffset: 70,
-    });
-
   return (
     <LinearGradient colors={colors.gradient as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.gradient}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.keyboardView}>
@@ -162,11 +143,30 @@ const RegisterScreen: React.FC = () => {
             </View>
 
             <View style={styles.formContainer}>
-              <CustomInput label="Nombre completo" placeholder="Introduce tu nombre" value={form.name} onChangeText={(val: string) => setField("name", val)} error={errors.name} />
+              <CustomInput
+                label="Nombre completo"
+                placeholder="Introduce tu nombre"
+                value={form.name}
+                onChangeText={(val: string) => setField("name", val)}
+                error={errors.name}
+              />
 
-              <CustomInput label="Correo electrónico" placeholder="Introduce tu correo" keyboardType="email-address" value={form.email} onChangeText={(val: string) => setField("email", val)} error={errors.email} />
+              <CustomInput
+                label="Correo electrónico"
+                placeholder="Introduce tu correo"
+                keyboardType="email-address"
+                value={form.email}
+                onChangeText={(val: string) => setField("email", val)}
+                error={errors.email}
+              />
 
-              <PasswordInput label="Contraseña" placeholder="Introduce tu contraseña" value={form.password} onChangeText={(val: string) => setField("password", val)} error={errors.password} />
+              <PasswordInput
+                label="Contraseña"
+                placeholder="Introduce tu contraseña"
+                value={form.password}
+                onChangeText={(val: string) => setField("password", val)}
+                error={errors.password}
+              />
 
               {passwordStrength.label ? (
                 <Text style={[styles.strengthText, { color: passwordStrength.color }]}>
@@ -174,17 +174,23 @@ const RegisterScreen: React.FC = () => {
                 </Text>
               ) : null}
 
-              <PasswordInput label="Confirmar contraseña" placeholder="Repite tu contraseña" value={form.confirmPassword} onChangeText={(val: string) => setField("confirmPassword", val)} error={errors.confirmPassword} />
+              <PasswordInput
+                label="Confirmar contraseña"
+                placeholder="Repite tu contraseña"
+                value={form.confirmPassword}
+                onChangeText={(val: string) => setField("confirmPassword", val)}
+                error={errors.confirmPassword}
+              />
 
               <View style={styles.termsSection}>
                 <CheckBox checked={form.terms} onToggle={() => setField("terms", !form.terms)} label="" />
                 <Text style={styles.termsText}>
                   Acepto los{" "}
-                  <TouchableOpacity onPress={handleTermsPress}>
+                  <TouchableOpacity>
                     <Text style={styles.termsLink}>Términos y Condiciones</Text>
                   </TouchableOpacity>{" "}
                   y la{" "}
-                  <TouchableOpacity onPress={handlePrivacyPress}>
+                  <TouchableOpacity>
                     <Text style={styles.termsLink}>Política de Privacidad</Text>
                   </TouchableOpacity>
                 </Text>

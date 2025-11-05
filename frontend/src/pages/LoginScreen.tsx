@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+// src/pages/LoginScreen.tsx
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -17,7 +18,7 @@ import PasswordInput from "components/PasswordInput";
 import PrimaryButton from "components/PrimaryButton";
 import colors from "../constants/colors";
 import { validateEmail } from "../utils/validation";
-import { storage } from "../utils/storage";
+import { useAuth } from "../hooks/useAuth";
 
 const API_BASE = (process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000").replace(/\/+$/, "");
 
@@ -29,6 +30,12 @@ const LoginScreen: React.FC = () => {
   const [form, setForm] = useState({ email: "", password: "" });
   const [errors, setErrors] = useState<any>({});
   const [loading, setLoading] = useState(false);
+
+  const { login, isAuthenticated } = useAuth();
+
+  useEffect(() => {
+    if (isAuthenticated) router.replace("/home");
+  }, [isAuthenticated]);
 
   const setField = (key: keyof typeof form, val: string) => {
     setForm((s) => ({ ...s, [key]: val }));
@@ -60,9 +67,7 @@ const LoginScreen: React.FC = () => {
       const data: any = await response.json();
 
       if (response.ok && data.token) {
-        await storage.setItem("authToken", data.token);
-        await storage.setItem("userName", data.usuario?.nombre || data.usuario?.name || "Usuario");
-        await storage.setItem("userId", data.usuario?.id || "");
+        await login(data.token, data.usuario?.nombre || data.usuario?.name, data.usuario?.id);
 
         Toast.show({
           type: "success",
@@ -72,8 +77,6 @@ const LoginScreen: React.FC = () => {
           visibilityTime: 3000,
           bottomOffset: 70,
         });
-
-        router.push("/home");
       } else {
         Toast.show({
           type: "error",
