@@ -3,7 +3,6 @@ import {
   View,
   Text,
   TouchableOpacity,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -12,6 +11,7 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
+import Toast from "react-native-toast-message";
 import CustomInput from "components/CustomInput";
 import PasswordInput from "components/PasswordInput";
 import CheckBox from "components/CheckBox";
@@ -97,35 +97,63 @@ const RegisterScreen: React.FC = () => {
         await storage.setItem("authToken", data.token);
         await storage.setItem("userName", data.usuario?.nombre || data.usuario?.name || "Usuario");
         await storage.setItem("userId", data.usuario?.id || "");
-        Alert.alert("Registro exitoso", "Usuario creado correctamente.");
+
+        Toast.show({
+          type: "success",
+          text1: "🎉 Registro exitoso",
+          text2: "Usuario creado correctamente.",
+          position: "bottom",
+          visibilityTime: 3000,
+          bottomOffset: 70,
+        });
+
         router.push("/home");
       } else {
-        Alert.alert("Error", data.error || "No se pudo registrar el usuario.");
+        Toast.show({
+          type: "error",
+          text1: "⚠️ Error",
+          text2: data.error || "No se pudo registrar el usuario.",
+          position: "bottom",
+          visibilityTime: 3000,
+          bottomOffset: 70,
+        });
       }
     } catch (error) {
       console.error("Error al registrar:", error);
-      Alert.alert("Error de conexión", "No se pudo conectar con el servidor. Inténtalo más tarde.");
+      Toast.show({
+        type: "error",
+        text1: "⚠️ Error de conexión",
+        text2: "No se pudo conectar con el servidor. Inténtalo más tarde.",
+        position: "bottom",
+        visibilityTime: 3000,
+        bottomOffset: 70,
+      });
     } finally {
       setSending(false);
     }
   };
 
   const handleTermsPress = () =>
-    Alert.alert("Términos y Condiciones", "Aquí se mostrará el enlace o vista de términos.");
+    Toast.show({
+      type: "info",
+      text1: "📜 Términos y Condiciones",
+      text2: "Aquí se mostrará el enlace o vista de términos.",
+      position: "bottom",
+      bottomOffset: 70,
+    });
+
   const handlePrivacyPress = () =>
-    Alert.alert("Política de Privacidad", "Aquí se mostrará el enlace o vista de privacidad.");
+    Toast.show({
+      type: "info",
+      text1: "🔒 Política de Privacidad",
+      text2: "Aquí se mostrará el enlace o vista de privacidad.",
+      position: "bottom",
+      bottomOffset: 70,
+    });
 
   return (
-    <LinearGradient
-      colors={colors.gradient as any}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.gradient}
-    >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.keyboardView}
-      >
+    <LinearGradient colors={colors.gradient as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.gradient}>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.keyboardView}>
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scrollContent}>
           <View style={[styles.content, { maxWidth }]}>
             <View style={styles.titleSection}>
@@ -134,30 +162,11 @@ const RegisterScreen: React.FC = () => {
             </View>
 
             <View style={styles.formContainer}>
-              <CustomInput
-                label="Nombre completo"
-                placeholder="Introduce tu nombre"
-                value={form.name}
-                onChangeText={(val: string) => setField("name", val)}
-                error={errors.name}
-              />
+              <CustomInput label="Nombre completo" placeholder="Introduce tu nombre" value={form.name} onChangeText={(val: string) => setField("name", val)} error={errors.name} />
 
-              <CustomInput
-                label="Correo electrónico"
-                placeholder="Introduce tu correo"
-                keyboardType="email-address"
-                value={form.email}
-                onChangeText={(val: string) => setField("email", val)}
-                error={errors.email}
-              />
+              <CustomInput label="Correo electrónico" placeholder="Introduce tu correo" keyboardType="email-address" value={form.email} onChangeText={(val: string) => setField("email", val)} error={errors.email} />
 
-              <PasswordInput
-                label="Contraseña"
-                placeholder="Introduce tu contraseña"
-                value={form.password}
-                onChangeText={(val: string) => setField("password", val)}
-                error={errors.password}
-              />
+              <PasswordInput label="Contraseña" placeholder="Introduce tu contraseña" value={form.password} onChangeText={(val: string) => setField("password", val)} error={errors.password} />
 
               {passwordStrength.label ? (
                 <Text style={[styles.strengthText, { color: passwordStrength.color }]}>
@@ -165,13 +174,7 @@ const RegisterScreen: React.FC = () => {
                 </Text>
               ) : null}
 
-              <PasswordInput
-                label="Confirmar contraseña"
-                placeholder="Repite tu contraseña"
-                value={form.confirmPassword}
-                onChangeText={(val: string) => setField("confirmPassword", val)}
-                error={errors.confirmPassword}
-              />
+              <PasswordInput label="Confirmar contraseña" placeholder="Repite tu contraseña" value={form.confirmPassword} onChangeText={(val: string) => setField("confirmPassword", val)} error={errors.confirmPassword} />
 
               <View style={styles.termsSection}>
                 <CheckBox checked={form.terms} onToggle={() => setField("terms", !form.terms)} label="" />
@@ -189,11 +192,7 @@ const RegisterScreen: React.FC = () => {
               {errors.terms && <Text style={styles.error}>{errors.terms}</Text>}
 
               <View style={styles.buttonContainer}>
-                <PrimaryButton
-                  title={sending ? "Registrando..." : "Registrar"}
-                  onPress={handleSubmit}
-                  loading={sending}
-                />
+                <PrimaryButton title={sending ? "Registrando..." : "Registrar"} onPress={handleSubmit} loading={sending} />
               </View>
             </View>
           </View>

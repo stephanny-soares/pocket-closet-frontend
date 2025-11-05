@@ -3,7 +3,6 @@ import {
   View,
   Text,
   TouchableOpacity,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -11,14 +10,13 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { v4 as uuidv4 } from "uuid";
-import CustomInput from "../components/CustomInput";
+import Toast from "react-native-toast-message";
+import CustomInput from "components/CustomInput";
 import PasswordInput from "components/PasswordInput";
-import PrimaryButton from "../components/PrimaryButton";
+import PrimaryButton from "components/PrimaryButton";
 import colors from "../constants/colors";
-import { validateEmail, validatePassword } from "../utils/validation";
+import { validateEmail } from "../utils/validation";
 import { storage } from "../utils/storage";
 
 const API_BASE = (process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000").replace(/\/+$/, "");
@@ -28,72 +26,91 @@ const LoginScreen: React.FC = () => {
   const isWeb = Platform.OS === "web";
   const maxWidth = isWeb ? Math.min(450, width * 0.9) : width * 0.9;
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
-  const [sending, setSending] = useState(false);
+  const [form, setForm] = useState({ email: "", password: "" });
+  const [errors, setErrors] = useState<any>({});
+  const [loading, setLoading] = useState(false);
 
-  const validateForm = () => {
-    const newErrors: typeof errors = {};
-    if (!email.trim()) newErrors.email = "El correo electrónico es obligatorio";
-    else if (!validateEmail(email)) newErrors.email = "Formato de correo electrónico inválido";
-    if (!validatePassword(password))
-      newErrors.password = "La contraseña debe tener al menos 8 caracteres, un número y un símbolo";
+  const setField = (key: keyof typeof form, val: string) => {
+    setForm((s) => ({ ...s, [key]: val }));
+  };
+
+  const validateForm = (): boolean => {
+    const newErrors: any = {};
+    if (!form.email.trim()) newErrors.email = "El correo electrónico es obligatorio";
+    else if (!validateEmail(form.email)) newErrors.email = "Formato de correo electrónico inválido";
+    if (!form.password.trim()) newErrors.password = "La contraseña es obligatoria";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const handleLogin = async () => {
     if (!validateForm()) return;
-    setSending(true);
+    setLoading(true);
+
     try {
       const response = await fetch(`${API_BASE}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({
+          email: form.email,
+          password: form.password,
+        }),
       });
+
       const data: any = await response.json();
 
-      if (response.ok) {
+      if (response.ok && data.token) {
         await storage.setItem("authToken", data.token);
         await storage.setItem("userName", data.usuario?.nombre || data.usuario?.name || "Usuario");
         await storage.setItem("userId", data.usuario?.id || "");
-        Alert.alert("Inicio de sesión exitoso", "¡Bienvenido/a!");
+
+        Toast.show({
+          type: "success",
+          text1: "✅ Inicio de sesión exitoso",
+          text2: "¡Bienvenido/a!",
+          position: "bottom",
+          visibilityTime: 3000,
+          bottomOffset: 70,
+        });
+
         router.push("/home");
       } else {
-        Alert.alert("Error", data.error || "Credenciales incorrectas.");
+        Toast.show({
+          type: "error",
+          text1: "⚠️ Error",
+          text2: data.error || "Credenciales incorrectas.",
+          position: "bottom",
+          visibilityTime: 3000,
+          bottomOffset: 70,
+        });
       }
     } catch (error) {
       console.error("Error al iniciar sesión:", error);
-      Alert.alert("Error de conexión", `No se pudo conectar con el servidor: ${error}`);
+      Toast.show({
+        type: "error",
+        text1: "⚠️ Error de conexión",
+        text2: "No se pudo conectar con el servidor.",
+        position: "bottom",
+        visibilityTime: 3000,
+        bottomOffset: 70,
+      });
     } finally {
-      setSending(false);
+      setLoading(false);
     }
   };
 
-  const handleGuestAccess = async () => {
-    const guestId = uuidv4();
-    await storage.setItem("guestId", guestId);
-    Alert.alert("Acceso como invitado", "Has iniciado sesión como invitado.");
-    router.push("/home");
+  const handleRegisterPress = () => {
+    router.push("/register");
   };
 
   return (
-    <LinearGradient
-      colors={colors.gradient as any}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.gradient}
-    >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.keyboardView}
-      >
+    <LinearGradient colors={colors.gradient as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.gradient}>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.keyboardView}>
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scrollContent}>
           <View style={[styles.content, { maxWidth }]}>
             <View style={styles.titleSection}>
-              <Text style={styles.title}>Bienvenido</Text>
-              <Text style={styles.subtitle}>Inicia sesión para continuar</Text>
+              <Text style={styles.title}>Iniciar sesión</Text>
+              <Text style={styles.subtitle}>Accede a tu cuenta para continuar</Text>
             </View>
 
             <View style={styles.formContainer}>
@@ -101,55 +118,33 @@ const LoginScreen: React.FC = () => {
                 label="Correo electrónico"
                 placeholder="Introduce tu correo"
                 keyboardType="email-address"
-                value={email}
-                onChangeText={setEmail}
+                value={form.email}
+                onChangeText={(val: string) => setField("email", val)}
                 error={errors.email}
               />
 
               <PasswordInput
                 label="Contraseña"
                 placeholder="Introduce tu contraseña"
-                value={password}
-                onChangeText={setPassword}
+                value={form.password}
+                onChangeText={(val: string) => setField("password", val)}
                 error={errors.password}
               />
 
               <View style={styles.buttonContainer}>
                 <PrimaryButton
-                  title={sending ? "Ingresando..." : "Iniciar sesión"}
+                  title={loading ? "Iniciando..." : "Iniciar sesión"}
                   onPress={handleLogin}
-                  loading={sending}
+                  loading={loading}
                 />
               </View>
 
-              <TouchableOpacity onPress={handleGuestAccess} style={styles.guestButton}>
-                <Text style={styles.guestButtonText}>Acceder como invitado</Text>
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.socialSection}>
-              <Text style={styles.socialLabel}>O inicia sesión con</Text>
-              <View style={styles.socialButtons}>
-                <TouchableOpacity
-                  onPress={() => Alert.alert("Google", "Inicio con Google")}
-                  style={styles.socialIcon}
-                >
-                  <Ionicons name="logo-google" size={26} color="#DB4437" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => Alert.alert("Apple", "Inicio con Apple")}
-                  style={styles.socialIcon}
-                >
-                  <Ionicons name="logo-apple" size={26} color="#000" />
+              <View style={styles.registerContainer}>
+                <Text style={styles.registerText}>¿No tienes cuenta?</Text>
+                <TouchableOpacity onPress={handleRegisterPress}>
+                  <Text style={styles.registerLink}> Regístrate</Text>
                 </TouchableOpacity>
               </View>
-            </View>
-
-            <View style={styles.registerSection}>
-              <Text style={styles.registerLabel}>¿No tienes cuenta?</Text>
-              <TouchableOpacity onPress={() => router.push("/register")}>
-                <Text style={styles.registerLink}>Regístrate aquí</Text>
-              </TouchableOpacity>
             </View>
           </View>
         </ScrollView>
@@ -159,7 +154,7 @@ const LoginScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  gradient: { height: "100%", flex: 1, minHeight: "100vh" as any },
+  gradient: { flex: 1, minHeight: "100vh" as any },
   keyboardView: { flex: 1 },
   scrollContent: {
     flexGrow: 1,
@@ -184,24 +179,13 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   buttonContainer: { marginTop: 24 },
-  guestButton: { marginTop: 16, alignItems: "center" },
-  guestButtonText: { color: "#4B0082", textDecorationLine: "underline", fontWeight: "500" },
-  socialSection: { alignItems: "center", marginBottom: 32 },
-  socialLabel: { fontSize: 16, color: "#666666", marginBottom: 16 },
-  socialButtons: { flexDirection: "row", justifyContent: "center", gap: 24 },
-  socialIcon: {
-    padding: 12,
-    borderRadius: 999,
-    backgroundColor: "#FFFFFF",
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 3,
+  registerContainer: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: 20,
   },
-  registerSection: { alignItems: "center" },
-  registerLabel: { fontSize: 16, color: "#666666" },
-  registerLink: { color: "#4B0082", fontWeight: "600", marginTop: 4, textDecorationLine: "underline" },
+  registerText: { color: "#666666" },
+  registerLink: { color: "#4B0082", fontWeight: "bold" },
 });
 
 export default LoginScreen;
