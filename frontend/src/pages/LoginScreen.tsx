@@ -32,6 +32,13 @@ const LoginScreen: React.FC = () => {
   const [errors, setErrors] = useState<any>({});
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const MAX_ATTEMPTS = 3;
+  const LOCK_TIME = 30; // segundos
+
+  const [attempts, setAttempts] = useState(0);
+  const [locked, setLocked] = useState(false);
+  const [lockTimer, setLockTimer] = useState(0);
+
 
   const { login, isAuthenticated } = useAuth();
 
@@ -94,23 +101,56 @@ const LoginScreen: React.FC = () => {
           bottomOffset: 70,
         });
       } else {
-        await logEvent({
-          level: "warn",
-          event: "LoginFailed",
-          message: data.error || "Credenciales incorrectas",
-          extra: { email: form.email },
-          requestId,
-          correlationId,
-        });
-        Toast.show({
-          type: "error",
-          text1: "⚠️ Error",
-          text2: data.error || "Credenciales incorrectas.",
-          position: "bottom",
-          visibilityTime: 3000,
-          bottomOffset: 70,
-        });
+          await logEvent({
+            level: "warn",
+            event: "LoginFailed",
+            message: data.error || "Credenciales incorrectas",
+            extra: { email: form.email },
+            requestId,
+            correlationId,
+          });
+
+          // Incrementar contador de intentos
+          setAttempts((prev) => {
+            const newAttempts = prev + 1;
+            if (newAttempts >= MAX_ATTEMPTS) {
+             setLocked(true);
+             setLockTimer(LOCK_TIME);
+
+             // Log del bloqueo
+             logEvent({
+               level: "warn",
+               event: "AccountTemporarilyLocked",
+               message: `Cuenta bloqueada temporalmente tras ${MAX_ATTEMPTS} intentos fallidos`,
+               extra: { email: form.email },
+              });
+
+             // Iniciar temporizador
+             const interval = setInterval(() => {
+               setLockTimer((t) => {
+                 if (t <= 1) {
+                   clearInterval(interval);
+                   setLocked(false);
+                   setAttempts(0);
+                   return 0;
+                  }
+                 return t - 1;
+                });
+              }, 1000);
+            }
+             return newAttempts;
+          });
+
+          Toast.show({
+           type: "error",
+            text1: "⚠️ Error",
+           text2: data.error || "Credenciales incorrectas.",
+           position: "bottom",
+           visibilityTime: 3000,
+           bottomOffset: 70,
+          });
       }
+
     } catch (error: any) {
       await logEvent({
         level: "warn",
@@ -176,11 +216,24 @@ const LoginScreen: React.FC = () => {
 
               <View style={styles.buttonContainer}>
                 <PrimaryButton
-                  title={loading ? "Iniciando..." : "Iniciar sesión"}
+                  title={
+                    locked
+                    ? `Bloqueado (${lockTimer}s)`
+                    : loading
+                    ? "Iniciando..."
+                    : "Iniciar sesión"
+                  }
                   onPress={handleLogin}
                   loading={loading}
+                  disabled={locked}
                 />
-              </View>
+                
+            </View>
+            {locked && (
+              <Text style={{ color: "#E53935", textAlign: "center", marginTop: 12 }}>
+               Demasiados intentos fallidos. Intenta nuevamente en {lockTimer}s.
+              </Text>
+            )}
 
               <View style={styles.registerContainer}>
                 <Text style={styles.registerText}>¿No tienes cuenta?</Text>
