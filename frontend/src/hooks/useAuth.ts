@@ -5,6 +5,20 @@ import { storage } from "../utils/storage";
 import { logEvent } from "../logger/logEvent";
 import { Platform } from "react-native";
 
+// 🧩 Decodificar JWT sin dependencias (compatible web/móvil)
+function decodeJWT(token: string): { exp?: number } | null {
+  try {
+    const [, payloadBase64] = token.split(".");
+    // Soporte multiplataforma: usar Buffer en lugar de atob()
+    const base64 = payloadBase64.replace(/-/g, "+").replace(/_/g, "/");
+    const jsonPayload = Buffer.from(base64, "base64").toString("utf-8");
+    return JSON.parse(jsonPayload);
+  } catch (err) {
+    console.error("Error decodificando JWT:", err);
+    return null;
+  }
+}
+
 
 
 interface AuthState {
@@ -27,6 +41,21 @@ export function useAuth() {
    let token = await storage.getItem("authToken");
    let userName = await storage.getItem("userName");
    let userId = await storage.getItem("userId");
+
+  // 🕒 Verificar si el token ya expiró
+  if (token) {
+    const decoded = decodeJWT(token);
+    if (decoded?.exp && decoded.exp * 1000 < Date.now()) {
+      console.warn("Token expirado, cerrando sesión automáticamente");
+      await storage.removeItem("authToken");
+      await storage.removeItem("userName");
+      await storage.removeItem("userId");
+      token = null;
+      userName = null;
+      userId = null;
+    }
+  }
+
 
 // 🔍 Si no hay token en AsyncStorage/localStorage, intenta sessionStorage
 // 🔍 Si estamos en web y no hay token, intenta sessionStorage
@@ -72,6 +101,24 @@ const login = async (
     }
 
     setAuth({ token, userName: userName || null, userId: userId || null });
+    // ⏳ Programar cierre automático según exp del JWT
+    const decoded = decodeJWT(token);
+    if (decoded?.exp) {
+      const expiresInMs = decoded.exp * 1000 - Date.now();
+
+      if (expiresInMs > 0) {
+        setTimeout(async () => {
+          await logEvent({
+            level: "info",
+            event: "TokenExpired",
+            message: "El token JWT expiró automáticamente",
+            userId,
+          });
+          await logout();
+        }, expiresInMs);
+      }
+    }
+
     router.replace("/home");
   } catch (err) {
     console.error("Error al guardar sesión:", err);
