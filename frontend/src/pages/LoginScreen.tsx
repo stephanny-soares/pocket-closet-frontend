@@ -20,6 +20,10 @@ import colors from "../constants/colors";
 import { validateEmail } from "../utils/validation";
 import { useAuth } from "../hooks/useAuth";
 import { logEvent } from "../logger/logEvent";
+import { getClientInfo } from "../utils/getClientInfo";
+
+declare const window: any;
+
 
 const API_BASE = (process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000").replace(/\/+$/, "");
 
@@ -32,19 +36,38 @@ const LoginScreen: React.FC = () => {
   const [errors, setErrors] = useState<any>({});
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+
   const MAX_ATTEMPTS = 3;
   const LOCK_TIME = 30; // segundos
-
   const [attempts, setAttempts] = useState(0);
   const [locked, setLocked] = useState(false);
   const [lockTimer, setLockTimer] = useState(0);
 
-
   const { login, isAuthenticated } = useAuth();
+  
 
+
+  // ✅ Redirección si ya está autenticado
   useEffect(() => {
-    if (isAuthenticated) router.replace("/home");
+    if (isAuthenticated) router.replace("/(protected)/home");
   }, [isAuthenticated]);
+
+  // ✅ Mostrar mensaje si la sesión expiró (redirigido desde apiClient)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("expired")) {
+        Toast.show({
+          type: "info",
+          text1: "Tu sesión ha expirado",
+          text2: "Por favor inicia sesión nuevamente.",
+          position: "bottom",
+          visibilityTime: 3000,
+          bottomOffset: 70,
+        });
+      }
+    }
+  }, []);
 
   const setField = (key: keyof typeof form, val: string) => {
     setForm((s) => ({ ...s, [key]: val }));
@@ -78,6 +101,7 @@ const LoginScreen: React.FC = () => {
       const correlationId = response.headers.get("x-correlation-id") || undefined;
 
       if (response.ok && data.token) {
+        // ✅ Guardar sesión
         await login(
           data.token,
           data.usuario?.nombre || data.usuario?.name,
@@ -85,13 +109,24 @@ const LoginScreen: React.FC = () => {
           rememberMe
         );
 
+        // 🌍 Obtener IP y ubicación del cliente
+        const clientInfo = await getClientInfo();
+
+        // 🧾 Registrar evento de login exitoso con info extra
         await logEvent({
           event: "UserLogin",
           message: "Inicio de sesión exitoso",
           userId: data.usuario?.id,
           requestId,
           correlationId,
+          extra: {
+            email: form.email,
+            ip: clientInfo.ip,
+            location: `${clientInfo.city}, ${clientInfo.country}`,
+          },
         });
+
+        // ✅ Mostrar Toast
         Toast.show({
           type: "success",
           text1: "✅ Inicio de sesión exitoso",
@@ -101,63 +136,90 @@ const LoginScreen: React.FC = () => {
           bottomOffset: 70,
         });
       } else {
-          await logEvent({
-            level: "warn",
-            event: "LoginFailed",
-            message: data.error || "Credenciales incorrectas",
-            extra: { email: form.email },
-            requestId,
-            correlationId,
-          });
+        // Detectar estructura real del backend
+        const backendMessage = data?.error?.error || data?.error || "Credenciales incorrectas";
 
-          // Incrementar contador de intentos
-          setAttempts((prev) => {
-            const newAttempts = prev + 1;
-            if (newAttempts >= MAX_ATTEMPTS) {
-             setLocked(true);
-             setLockTimer(LOCK_TIME);
+        let errorMessage = "Credenciales incorrectas.";
 
-             // Log del bloqueo
-             logEvent({
-               level: "warn",
-               event: "AccountTemporarilyLocked",
-               message: `Cuenta bloqueada temporalmente tras ${MAX_ATTEMPTS} intentos fallidos`,
-               extra: { email: form.email },
+        // 🎯 Manejar casos específicos
+        if (backendMessage.toLowerCase().includes("inactivo")) {
+          errorMessage = "Tu cuenta está inactiva. Contacta con soporte.";
+        } else if (backendMessage.toLowerCase().includes("no confirmado")) {
+          errorMessage = "Debes confirmar tu correo electrónico antes de iniciar sesión.";
+        } else if (backendMessage.toLowerCase().includes("bloqueado")) {
+          errorMessage = "Tu cuenta está temporalmente bloqueada. Intenta más tarde.";
+        }
+
+        // 🌍 Obtener IP/ubicación antes de registrar fallo
+        const clientInfo = await getClientInfo();
+
+        await logEvent({
+          level: "warn",
+          event: "LoginFailed",
+          message: backendMessage,
+          extra: {
+            email: form.email,
+            ip: clientInfo.ip,
+            location: `${clientInfo.city}, ${clientInfo.country}`,
+          },
+          requestId,
+          correlationId,
+        });
+
+        // Incrementar contador de intentos
+        setAttempts((prev) => {
+          const newAttempts = prev + 1;
+          if (newAttempts >= MAX_ATTEMPTS) {
+            setLocked(true);
+            setLockTimer(LOCK_TIME);
+
+            // Log del bloqueo
+            logEvent({
+              level: "warn",
+              event: "AccountTemporarilyLocked",
+              message: `Cuenta bloqueada temporalmente tras ${MAX_ATTEMPTS} intentos fallidos`,
+              extra: { email: form.email },
+            });
+
+            // Iniciar temporizador
+            const interval = setInterval(() => {
+              setLockTimer((t) => {
+                if (t <= 1) {
+                  clearInterval(interval);
+                  setLocked(false);
+                  setAttempts(0);
+                  return 0;
+                }
+                return t - 1;
               });
+            }, 1000);
+          }
+          return newAttempts;
+        });
 
-             // Iniciar temporizador
-             const interval = setInterval(() => {
-               setLockTimer((t) => {
-                 if (t <= 1) {
-                   clearInterval(interval);
-                   setLocked(false);
-                   setAttempts(0);
-                   return 0;
-                  }
-                 return t - 1;
-                });
-              }, 1000);
-            }
-             return newAttempts;
-          });
-
-          Toast.show({
-           type: "error",
-            text1: "⚠️ Error",
-           text2: data.error || "Credenciales incorrectas.",
-           position: "bottom",
-           visibilityTime: 3000,
-           bottomOffset: 70,
-          });
+        Toast.show({
+          type: "error",
+          text1: "⚠️ Error",
+          text2: errorMessage,
+          position: "bottom",
+          visibilityTime: 3000,
+          bottomOffset: 70,
+        });
       }
-
     } catch (error: any) {
+      const clientInfo = await getClientInfo();
+
       await logEvent({
         level: "warn",
         event: "LoginFailed",
         message: error?.message || "Error al conectar con el servidor.",
-        extra: { email: form.email },
+        extra: {
+          email: form.email,
+          ip: clientInfo.ip,
+          location: `${clientInfo.city}, ${clientInfo.country}`,
+        },
       });
+
       Toast.show({
         type: "error",
         text1: "⚠️ Error de conexión",
@@ -176,8 +238,16 @@ const LoginScreen: React.FC = () => {
   };
 
   return (
-    <LinearGradient colors={colors.gradient as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.gradient}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.keyboardView}>
+    <LinearGradient
+      colors={colors.gradient as any}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.gradient}
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.keyboardView}
+      >
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scrollContent}>
           <View style={[styles.content, { maxWidth }]}>
             <View style={styles.titleSection}>
@@ -202,6 +272,7 @@ const LoginScreen: React.FC = () => {
                 onChangeText={(val: string) => setField("password", val)}
                 error={errors.password}
               />
+
               <View style={styles.rememberContainer}>
                 <TouchableOpacity
                   style={styles.rememberRow}
@@ -213,27 +284,26 @@ const LoginScreen: React.FC = () => {
                 </TouchableOpacity>
               </View>
 
-
               <View style={styles.buttonContainer}>
                 <PrimaryButton
                   title={
                     locked
-                    ? `Bloqueado (${lockTimer}s)`
-                    : loading
-                    ? "Iniciando..."
-                    : "Iniciar sesión"
+                      ? `Bloqueado (${lockTimer}s)`
+                      : loading
+                      ? "Iniciando..."
+                      : "Iniciar sesión"
                   }
                   onPress={handleLogin}
                   loading={loading}
                   disabled={locked}
                 />
-                
-            </View>
-            {locked && (
-              <Text style={{ color: "#E53935", textAlign: "center", marginTop: 12 }}>
-               Demasiados intentos fallidos. Intenta nuevamente en {lockTimer}s.
-              </Text>
-            )}
+              </View>
+
+              {locked && (
+                <Text style={{ color: "#E53935", textAlign: "center", marginTop: 12 }}>
+                  Demasiados intentos fallidos. Intenta nuevamente en {lockTimer}s.
+                </Text>
+              )}
 
               <View style={styles.registerContainer}>
                 <Text style={styles.registerText}>¿No tienes cuenta?</Text>
@@ -261,7 +331,13 @@ const styles = StyleSheet.create({
   },
   content: { width: "100%", alignSelf: "center" },
   titleSection: { marginBottom: 40, alignItems: "center" },
-  title: { fontSize: 32, fontWeight: "bold", color: "#1E1E1E", marginBottom: 8, textAlign: "center" },
+  title: {
+    fontSize: 32,
+    fontWeight: "bold",
+    color: "#1E1E1E",
+    marginBottom: 8,
+    textAlign: "center",
+  },
   subtitle: { fontSize: 16, color: "#666666", textAlign: "center" },
   formContainer: {
     backgroundColor: "#FFFFFF",
@@ -282,7 +358,7 @@ const styles = StyleSheet.create({
   },
   registerText: { color: "#666666" },
   registerLink: { color: "#4B0082", fontWeight: "bold" },
-    rememberContainer: {
+  rememberContainer: {
     flexDirection: "row",
     alignItems: "center",
     marginTop: 8,
@@ -306,7 +382,6 @@ const styles = StyleSheet.create({
     color: "#444",
     fontSize: 14,
   },
-
 });
 
 export default LoginScreen;

@@ -9,17 +9,20 @@ import { Platform } from "react-native";
 function decodeJWT(token: string): { exp?: number } | null {
   try {
     const [, payloadBase64] = token.split(".");
-    // Soporte multiplataforma: usar Buffer en lugar de atob()
     const base64 = payloadBase64.replace(/-/g, "+").replace(/_/g, "/");
-    const jsonPayload = Buffer.from(base64, "base64").toString("utf-8");
-    return JSON.parse(jsonPayload);
+
+    // ✅ Compatibilidad multiplataforma
+    const decodedString =
+      typeof atob !== "undefined"
+        ? atob(base64)
+        : Buffer.from(base64, "base64").toString("utf-8");
+
+    return JSON.parse(decodedString);
   } catch (err) {
     console.error("Error decodificando JWT:", err);
     return null;
   }
 }
-
-
 
 interface AuthState {
   token: string | null;
@@ -38,37 +41,41 @@ export function useAuth() {
 
   // 🔍 Verifica si existe un token en storage
   const loadSession = useCallback(async () => {
-   let token = await storage.getItem("authToken");
-   let userName = await storage.getItem("userName");
-   let userId = await storage.getItem("userId");
+    let token = await storage.getItem("authToken");
+    let userName = await storage.getItem("userName");
+    let userId = await storage.getItem("userId");
 
-  // 🕒 Verificar si el token ya expiró
-  if (token) {
-    const decoded = decodeJWT(token);
-    if (decoded?.exp && decoded.exp * 1000 < Date.now()) {
-      console.warn("Token expirado, cerrando sesión automáticamente");
-      await storage.removeItem("authToken");
-      await storage.removeItem("userName");
-      await storage.removeItem("userId");
-      token = null;
-      userName = null;
-      userId = null;
+    // Si estamos en web, intentar recuperar también de session/localStorage
+    if (Platform.OS === "web" && !token) {
+      token = sessionStorage.getItem("authToken") || localStorage.getItem("authToken");
+      userName = sessionStorage.getItem("userName") || localStorage.getItem("userName");
+      userId = sessionStorage.getItem("userId") || localStorage.getItem("userId");
     }
-  }
 
+    // 🕒 Verificar si el token ya expiró
+    if (token) {
+      const decoded = decodeJWT(token);
+      if (decoded?.exp && decoded.exp * 1000 < Date.now()) {
+        console.warn("Token expirado, cerrando sesión automáticamente");
+        await storage.removeItem("authToken");
+        await storage.removeItem("userName");
+        await storage.removeItem("userId");
+        token = null;
+        userName = null;
+        userId = null;
+      }
+    }
 
-// 🔍 Si no hay token en AsyncStorage/localStorage, intenta sessionStorage
-// 🔍 Si estamos en web y no hay token, intenta sessionStorage
-if (Platform.OS === "web" && !token) {
-  try {
-    token = sessionStorage.getItem("authToken");
-    userName = sessionStorage.getItem("userName");
-    userId = sessionStorage.getItem("userId");
-  } catch (err) {
-    console.warn("No se pudo acceder a sessionStorage:", err);
-  }
-}
-
+    // 🔍 Si estamos en web y no hay token, intenta sessionStorage nuevamente
+    if (Platform.OS === "web" && !token) {
+      try {
+        token = sessionStorage.getItem("authToken");
+        userName = sessionStorage.getItem("userName");
+        userId = sessionStorage.getItem("userId");
+      } catch (err) {
+        console.warn("No se pudo acceder a sessionStorage:", err);
+      }
+    }
 
     setAuth({ token, userName, userId });
     setLoading(false);
@@ -79,54 +86,53 @@ if (Platform.OS === "web" && !token) {
     loadSession();
   }, [loadSession]);
 
- // ✅ Inicia sesión guardando los datos en storage
-const login = async (
-  token: string,
-  userName?: string,
-  userId?: string,
-  rememberMe: boolean = false
-) => {
-  try {
-    if (Platform.OS === "web") {
-      // Guardar según preferencia en la web
-      const storageMethod = rememberMe ? localStorage : sessionStorage;
-      storageMethod.setItem("authToken", token);
-      if (userName) storageMethod.setItem("userName", userName);
-      if (userId) storageMethod.setItem("userId", userId);
-    } else {
-      // En móvil usa AsyncStorage
-      await storage.setItem("authToken", token);
-      if (userName) await storage.setItem("userName", userName);
-      if (userId) await storage.setItem("userId", userId);
-    }
-
-    setAuth({ token, userName: userName || null, userId: userId || null });
-    // ⏳ Programar cierre automático según exp del JWT
-    const decoded = decodeJWT(token);
-    if (decoded?.exp) {
-      const expiresInMs = decoded.exp * 1000 - Date.now();
-
-      if (expiresInMs > 0) {
-        setTimeout(async () => {
-          await logEvent({
-            level: "info",
-            event: "TokenExpired",
-            message: "El token JWT expiró automáticamente",
-            userId,
-          });
-          await logout();
-        }, expiresInMs);
+  // ✅ Inicia sesión guardando los datos en storage
+  const login = async (
+    token: string,
+    userName?: string,
+    userId?: string,
+    rememberMe: boolean = false
+  ) => {
+    try {
+      if (Platform.OS === "web") {
+        // Guardar según preferencia en la web
+        const storageMethod = rememberMe ? localStorage : sessionStorage;
+        storageMethod.setItem("authToken", token);
+        if (userName) storageMethod.setItem("userName", userName);
+        if (userId) storageMethod.setItem("userId", userId);
+      } else {
+        // En móvil usa AsyncStorage
+        await storage.setItem("authToken", token);
+        if (userName) await storage.setItem("userName", userName);
+        if (userId) await storage.setItem("userId", userId);
       }
+
+      setAuth({ token, userName: userName || null, userId: userId || null });
+
+      // ⏳ Programar cierre automático según exp del JWT
+      const decoded = decodeJWT(token);
+      if (decoded?.exp) {
+        const expiresInMs = decoded.exp * 1000 - Date.now();
+        if (expiresInMs > 0) {
+          setTimeout(async () => {
+            await logEvent({
+              level: "info",
+              event: "TokenExpired",
+              message: "El token JWT expiró automáticamente",
+              userId,
+            });
+            await logout();
+          }, expiresInMs);
+        }
+      }
+
+      router.replace("/(protected)/home");
+    } catch (err) {
+      console.error("Error al guardar sesión:", err);
     }
+  };
 
-    router.replace("/home");
-  } catch (err) {
-    console.error("Error al guardar sesión:", err);
-  }
-};
-
-
-  // 🚪 Cierra sesión completamente
+  // 🚪 Cierra sesión completamente (corregido)
   const logout = async () => {
     if (auth.userId) {
       await logEvent({
@@ -136,12 +142,32 @@ const login = async (
       });
     }
 
-    await storage.removeItem("authToken");
-    await storage.removeItem("userName");
-    await storage.removeItem("userId");
+    // 🔒 Limpiar storage en web y móvil
+    try {
+      if (Platform.OS === "web") {
+        // Eliminar de ambos: localStorage y sessionStorage
+        localStorage.removeItem("authToken");
+        localStorage.removeItem("userName");
+        localStorage.removeItem("userId");
+        sessionStorage.removeItem("authToken");
+        sessionStorage.removeItem("userName");
+        sessionStorage.removeItem("userId");
+      }
+
+      // Limpieza también en AsyncStorage
+      await storage.removeItem("authToken");
+      await storage.removeItem("userName");
+      await storage.removeItem("userId");
+    } catch (err) {
+      console.warn("Error limpiando almacenamiento durante logout:", err);
+    }
+
+    // Resetear estado en memoria
     setAuth({ token: null, userName: null, userId: null });
-    router.replace("/login");
-};
+
+    // Redirigir siempre al login (grupo auth)
+    router.replace("/(auth)/login");
+  };
 
   // 🧾 Devuelve si el usuario está autenticado
   const isAuthenticated = !!auth.token;

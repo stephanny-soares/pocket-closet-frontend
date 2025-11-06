@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -7,6 +7,7 @@ import Toast from 'react-native-toast-message';
 import Header from '../components/Header';
 import colors from '../constants/colors';
 import { storage } from '../utils/storage';
+import { useAuth } from '../hooks/useAuth';
 
 interface Weather {
   temperature: number;
@@ -17,13 +18,28 @@ interface Weather {
 export default function Home() {
   const [weather, setWeather] = useState<Weather | null>(null);
   const [userName, setUserName] = useState('Usuario');
+  const { logout } = useAuth(); // ✅ Importar logout del hook
 
   useEffect(() => {
     fetchWeather();
     const loadUser = async () => {
-      const storedName = await storage.getItem('userName');
+      let storedName = await storage.getItem('userName');
+
+      // 🧠 Si no lo encuentra (web), intentar leer desde localStorage o sessionStorage
+      if (!storedName && Platform.OS === 'web') {
+        try {
+          storedName =
+            localStorage.getItem('userName') ||
+            sessionStorage.getItem('userName') ||
+            'Usuario';
+        } catch (err) {
+          console.warn('No se pudo acceder al almacenamiento web:', err);
+        }
+      }
+
       setUserName(storedName || 'Usuario');
     };
+
     loadUser();
   }, []);
 
@@ -55,27 +71,23 @@ export default function Home() {
     }
   };
 
-  const handleNavigate = (route: string) => router.push(route as any);
-
-  // 👇 Nueva función de cerrar sesión
+  // ✅ Logout centralizado usando useAuth()
   const handleLogout = async () => {
-    await storage.removeItem('authToken');
-    await storage.removeItem('userName');
-    await storage.removeItem('userId');
-
     Toast.show({
       type: 'success',
       text1: '👋 Sesión cerrada',
       text2: 'Has cerrado sesión correctamente.',
       position: 'bottom',
-      visibilityTime: 2000,
+      visibilityTime: 1500,
       bottomOffset: 60,
     });
 
     setTimeout(() => {
-      router.replace('/');
-    }, 1000);
+      logout(); // llama al logout global del hook
+    }, 800);
   };
+
+  const handleNavigate = (route: string) => router.push(route as any);
 
   return (
     <LinearGradient
@@ -180,7 +192,7 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: 'bold',
     color: '#1E1E1E',
-    marginTop: 70, // deja espacio para el botón
+    marginTop: 70,
     marginBottom: 20,
     textAlign: 'center',
   },
@@ -195,7 +207,11 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 5,
   },
-  weatherContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  weatherContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
   weatherCity: { fontSize: 18, fontWeight: '600', color: '#1E1E1E', marginBottom: 4 },
   weatherCondition: { fontSize: 14, color: '#666666' },
   weatherTemp: { alignItems: 'flex-end' },
