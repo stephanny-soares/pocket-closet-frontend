@@ -20,6 +20,8 @@ import PrimaryButton from "components/PrimaryButton";
 import colors from "../constants/colors";
 import { validateEmail, validatePassword, validatePasswordMatch } from "../utils/validation";
 import { useAuth } from "../hooks/useAuth";
+import { logEvent } from "../logger/logEvent";
+
 
 const API_BASE = (process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000").replace(/\/+$/, "");
 
@@ -98,6 +100,12 @@ const RegisterScreen: React.FC = () => {
 
       if (response.ok && data.token) {
         await login(data.token, data.usuario?.nombre || data.usuario?.name, data.usuario?.id);
+        await logEvent({
+          event: "UserRegistered",
+          message: "Nuevo usuario registrado correctamente",
+          level: "info",
+          extra: { email: form.email },
+        });
 
         Toast.show({
           type: "success",
@@ -108,6 +116,13 @@ const RegisterScreen: React.FC = () => {
           bottomOffset: 70,
         });
       } else {
+        await logEvent({
+          level: "warn",
+          event: "RegisterFailed",
+          message: data.error || "Fallo en registro de usuario",
+          extra: { email: form.email },
+        });
+
         Toast.show({
           type: "error",
           text1: "⚠️ Error",
@@ -117,11 +132,16 @@ const RegisterScreen: React.FC = () => {
           bottomOffset: 70,
         });
       }
-    } catch (error) {
-      console.error("Error al registrar:", error);
+    } catch (error: any) {
+      await logEvent({
+        event: "RegisterFailed",
+        message: error?.message || "Error al conectar con el servidor",
+        level: "warn",
+        extra: { email: form.email },
+      });
       Toast.show({
         type: "error",
-        text1: "⚠️ Error de conexión",
+        text1: "⚠️ Error de conexión",  
         text2: "No se pudo conectar con el servidor. Inténtalo más tarde.",
         position: "bottom",
         visibilityTime: 3000,

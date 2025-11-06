@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-nati
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import Toast from 'react-native-toast-message';
 import Header from '../components/Header';
 import colors from '../constants/colors';
 import { storage } from '../utils/storage';
@@ -56,8 +57,38 @@ export default function Home() {
 
   const handleNavigate = (route: string) => router.push(route as any);
 
+  // 👇 Nueva función de cerrar sesión
+  const handleLogout = async () => {
+    await storage.removeItem('authToken');
+    await storage.removeItem('userName');
+    await storage.removeItem('userId');
+
+    Toast.show({
+      type: 'success',
+      text1: '👋 Sesión cerrada',
+      text2: 'Has cerrado sesión correctamente.',
+      position: 'bottom',
+      visibilityTime: 2000,
+      bottomOffset: 60,
+    });
+
+    setTimeout(() => {
+      router.replace('/');
+    }, 1000);
+  };
+
   return (
-    <LinearGradient colors={colors.gradient as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.gradient}>
+    <LinearGradient
+      colors={colors.gradient as any}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.gradient}
+    >
+      {/* 🔹 Botón de logout arriba a la izquierda */}
+      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+        <Ionicons name="log-out-outline" size={26} color="#4B0082" />
+      </TouchableOpacity>
+
       <ScrollView style={styles.scroll}>
         <Header title="PocketCloset" transparent />
         <View style={styles.container}>
@@ -67,7 +98,9 @@ export default function Home() {
             <View style={styles.weatherContent}>
               <View>
                 <Text style={styles.weatherCity}>Alicante</Text>
-                <Text style={styles.weatherCondition}>{weather?.condition || 'Cargando...'}</Text>
+                <Text style={styles.weatherCondition}>
+                  {weather?.condition || 'Cargando...'}
+                </Text>
               </View>
               <View style={styles.weatherTemp}>
                 <Text style={styles.temperature}>{weather?.temperature}°</Text>
@@ -77,7 +110,11 @@ export default function Home() {
 
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Tus outfits para hoy 👕</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.outfitScroll}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.outfitScroll}
+            >
               {[1, 2, 3].map((i) => (
                 <View key={i} style={styles.outfitCard}>
                   <View style={styles.outfitImage} />
@@ -90,15 +127,26 @@ export default function Home() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Acceso rápido</Text>
             <View style={styles.optionsContainer}>
-              <TouchableOpacity style={styles.optionButton} onPress={() => handleNavigate('/mi-armario')}>
+              <TouchableOpacity
+                style={styles.optionButton}
+                onPress={() => handleNavigate('/mi-armario')}
+              >
                 <Ionicons name="shirt" size={32} color="#4B0082" />
                 <Text style={styles.optionText}>Mi Armario</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.optionButton} onPress={() => handleNavigate('/mis-outfits')}>
+
+              <TouchableOpacity
+                style={styles.optionButton}
+                onPress={() => handleNavigate('/mis-outfits')}
+              >
                 <Ionicons name="images" size={32} color="#4B0082" />
                 <Text style={styles.optionText}>Mis Outfits</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.optionButton} onPress={() => handleNavigate('/agregar')}>
+
+              <TouchableOpacity
+                style={styles.optionButton}
+                onPress={() => handleNavigate('/agregar')}
+              >
                 <Ionicons name="add-circle" size={32} color="#4B0082" />
                 <Text style={styles.optionText}>Agregar</Text>
               </TouchableOpacity>
@@ -114,11 +162,25 @@ const styles = StyleSheet.create({
   gradient: { flex: 1 },
   scroll: { flex: 1 },
   container: { paddingHorizontal: 16, paddingBottom: 40 },
+  logoutButton: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    zIndex: 10,
+    backgroundColor: '#FFFFFFCC',
+    borderRadius: 50,
+    padding: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 3,
+  },
   greeting: {
     fontSize: 28,
     fontWeight: 'bold',
     color: '#1E1E1E',
-    marginTop: 24,
+    marginTop: 70, // deja espacio para el botón
     marginBottom: 20,
     textAlign: 'center',
   },

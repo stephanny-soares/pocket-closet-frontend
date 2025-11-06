@@ -2,6 +2,8 @@
 import { useState, useEffect, useCallback } from "react";
 import { router } from "expo-router";
 import { storage } from "../utils/storage";
+import { logEvent } from "../logger/logEvent";
+
 
 interface AuthState {
   token: string | null;
@@ -45,12 +47,20 @@ export function useAuth() {
 
   // 🚪 Cierra sesión completamente
   const logout = async () => {
+    if (auth.userId) {
+      await logEvent({
+        event: "UserLogout",
+        message: "Usuario cerró sesión desde el cliente",
+        userId: auth.userId,
+      });
+    }
+
     await storage.removeItem("authToken");
     await storage.removeItem("userName");
     await storage.removeItem("userId");
     setAuth({ token: null, userName: null, userId: null });
     router.replace("/login");
-  };
+};
 
   // 🧾 Devuelve si el usuario está autenticado
   const isAuthenticated = !!auth.token;

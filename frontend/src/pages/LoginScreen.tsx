@@ -19,6 +19,7 @@ import PrimaryButton from "components/PrimaryButton";
 import colors from "../constants/colors";
 import { validateEmail } from "../utils/validation";
 import { useAuth } from "../hooks/useAuth";
+import { logEvent } from "../logger/logEvent";
 
 const API_BASE = (process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000").replace(/\/+$/, "");
 
@@ -65,10 +66,18 @@ const LoginScreen: React.FC = () => {
       });
 
       const data: any = await response.json();
+      const requestId = response.headers.get("x-request-id") || undefined;
+      const correlationId = response.headers.get("x-correlation-id") || undefined;
 
       if (response.ok && data.token) {
         await login(data.token, data.usuario?.nombre || data.usuario?.name, data.usuario?.id);
-
+        await logEvent({
+          event: "UserLogin",
+          message: "Inicio de sesión exitoso",
+          userId: data.usuario?.id,
+          requestId,
+          correlationId,
+        });
         Toast.show({
           type: "success",
           text1: "✅ Inicio de sesión exitoso",
@@ -78,6 +87,14 @@ const LoginScreen: React.FC = () => {
           bottomOffset: 70,
         });
       } else {
+        await logEvent({
+          level: "warn",
+          event: "LoginFailed",
+          message: data.error || "Credenciales incorrectas",
+          extra: { email: form.email },
+          requestId,
+          correlationId,
+        });
         Toast.show({
           type: "error",
           text1: "⚠️ Error",
@@ -87,8 +104,13 @@ const LoginScreen: React.FC = () => {
           bottomOffset: 70,
         });
       }
-    } catch (error) {
-      console.error("Error al iniciar sesión:", error);
+    } catch (error: any) {
+      await logEvent({
+        level: "warn",
+        event: "LoginFailed",
+        message: error?.message || "Error al conectar con el servidor.",
+        extra: { email: form.email },
+      });
       Toast.show({
         type: "error",
         text1: "⚠️ Error de conexión",
@@ -112,7 +134,7 @@ const LoginScreen: React.FC = () => {
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scrollContent}>
           <View style={[styles.content, { maxWidth }]}>
             <View style={styles.titleSection}>
-              <Text style={styles.title}>Iniciar sesión</Text>
+              <Text style={styles.title}>Inicio de sesión</Text>
               <Text style={styles.subtitle}>Accede a tu cuenta para continuar</Text>
             </View>
 

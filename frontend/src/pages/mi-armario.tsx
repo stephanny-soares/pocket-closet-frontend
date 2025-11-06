@@ -15,6 +15,8 @@ import { router } from 'expo-router';
 import Header from 'components/Header';
 import colors from '../constants/colors';
 import { storage } from '../utils/storage';
+import { logEvent } from "../logger/logEvent";
+
 
 const API_BASE = (
   process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000'
@@ -91,13 +93,34 @@ export default function MiArmario() {
             });
 
             if (response.ok) {
-              setPrendas(prendas.filter((p) => p.id !== id));
-              Alert.alert('Éxito', 'Prenda eliminada correctamente');
-              cargarPrendas();
-            } else {
+             setPrendas(prendas.filter((p) => p.id !== id));
+             Alert.alert('Éxito', 'Prenda eliminada correctamente');
+
+              await logEvent({
+                event: "ItemDeleted",
+                message: `Prenda eliminada: ${nombre}`,
+                 level: "info",
+                 extra: { prendaId: id, nombre },
+              });
+
+             cargarPrendas();
+            }
+            else {
+            await logEvent({
+              event: "ItemDeleteFailed",
+              message: "No se pudo eliminar la prenda",
+              level: "warn",
+              extra: { prendaId: id },
+            });
               Alert.alert('Error', 'No se pudo eliminar la prenda');
             }
-          } catch (error) {
+          } catch (error: any) {
+            await logEvent({
+              event: "ItemDeleteFailed",
+              message: error?.message || "Error al eliminar prenda",
+              level: "warn",
+              extra: { prendaId: id },
+            });
             Alert.alert('Error', 'Error al eliminar la prenda');
           }
         },
@@ -135,6 +158,7 @@ export default function MiArmario() {
           <Text style={styles.btnText}>✏️</Text>
         </TouchableOpacity>
         <TouchableOpacity
+          testID="delete-button"
           style={[styles.btnAccion, { backgroundColor: '#FFE5E5' }]}
           onPress={() => handleEliminarPrenda(item.id, item.nombre)}
           activeOpacity={0.6}

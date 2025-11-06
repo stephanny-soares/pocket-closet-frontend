@@ -1,6 +1,9 @@
-// utils/analytics.ts
-// Archivo temporal hasta que se implemente analytics real
+import { logEvent } from "../logger/logEvent";
 
-export const logEvent = (eventName: string, params?: Record<string, any>) => {
-  console.log(`[Analytics] ${eventName}`, params || {});
+export const logEventAnalytics = async (eventName: string, params?: Record<string, any>) => {
+  await logEvent({
+    event: eventName,
+    message: "Evento de uso registrado",
+    extra: params,
+  });
 };
