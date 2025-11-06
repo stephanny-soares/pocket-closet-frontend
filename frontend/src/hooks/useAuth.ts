@@ -3,6 +3,8 @@ import { useState, useEffect, useCallback } from "react";
 import { router } from "expo-router";
 import { storage } from "../utils/storage";
 import { logEvent } from "../logger/logEvent";
+import { Platform } from "react-native";
+
 
 
 interface AuthState {
@@ -22,9 +24,22 @@ export function useAuth() {
 
   // 🔍 Verifica si existe un token en storage
   const loadSession = useCallback(async () => {
-    const token = await storage.getItem("authToken");
-    const userName = await storage.getItem("userName");
-    const userId = await storage.getItem("userId");
+   let token = await storage.getItem("authToken");
+   let userName = await storage.getItem("userName");
+   let userId = await storage.getItem("userId");
+
+// 🔍 Si no hay token en AsyncStorage/localStorage, intenta sessionStorage
+// 🔍 Si estamos en web y no hay token, intenta sessionStorage
+if (Platform.OS === "web" && !token) {
+  try {
+    token = sessionStorage.getItem("authToken");
+    userName = sessionStorage.getItem("userName");
+    userId = sessionStorage.getItem("userId");
+  } catch (err) {
+    console.warn("No se pudo acceder a sessionStorage:", err);
+  }
+}
+
 
     setAuth({ token, userName, userId });
     setLoading(false);
@@ -35,15 +50,34 @@ export function useAuth() {
     loadSession();
   }, [loadSession]);
 
-  // ✅ Inicia sesión guardando los datos en storage
-  const login = async (token: string, userName?: string, userId?: string) => {
-    await storage.setItem("authToken", token);
-    if (userName) await storage.setItem("userName", userName);
-    if (userId) await storage.setItem("userId", userId);
+ // ✅ Inicia sesión guardando los datos en storage
+const login = async (
+  token: string,
+  userName?: string,
+  userId?: string,
+  rememberMe: boolean = false
+) => {
+  try {
+    if (Platform.OS === "web") {
+      // Guardar según preferencia en la web
+      const storageMethod = rememberMe ? localStorage : sessionStorage;
+      storageMethod.setItem("authToken", token);
+      if (userName) storageMethod.setItem("userName", userName);
+      if (userId) storageMethod.setItem("userId", userId);
+    } else {
+      // En móvil usa AsyncStorage
+      await storage.setItem("authToken", token);
+      if (userName) await storage.setItem("userName", userName);
+      if (userId) await storage.setItem("userId", userId);
+    }
 
     setAuth({ token, userName: userName || null, userId: userId || null });
     router.replace("/home");
-  };
+  } catch (err) {
+    console.error("Error al guardar sesión:", err);
+  }
+};
+
 
   // 🚪 Cierra sesión completamente
   const logout = async () => {

@@ -31,6 +31,7 @@ const LoginScreen: React.FC = () => {
   const [form, setForm] = useState({ email: "", password: "" });
   const [errors, setErrors] = useState<any>({});
   const [loading, setLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
 
   const { login, isAuthenticated } = useAuth();
 
@@ -70,7 +71,13 @@ const LoginScreen: React.FC = () => {
       const correlationId = response.headers.get("x-correlation-id") || undefined;
 
       if (response.ok && data.token) {
-        await login(data.token, data.usuario?.nombre || data.usuario?.name, data.usuario?.id);
+        await login(
+          data.token,
+          data.usuario?.nombre || data.usuario?.name,
+          data.usuario?.id,
+          rememberMe
+        );
+
         await logEvent({
           event: "UserLogin",
           message: "Inicio de sesión exitoso",
@@ -155,6 +162,17 @@ const LoginScreen: React.FC = () => {
                 onChangeText={(val: string) => setField("password", val)}
                 error={errors.password}
               />
+              <View style={styles.rememberContainer}>
+                <TouchableOpacity
+                  style={styles.rememberRow}
+                  onPress={() => setRememberMe(!rememberMe)}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]} />
+                  <Text style={styles.rememberText}>Recordarme</Text>
+                </TouchableOpacity>
+              </View>
+
 
               <View style={styles.buttonContainer}>
                 <PrimaryButton
@@ -211,6 +229,31 @@ const styles = StyleSheet.create({
   },
   registerText: { color: "#666666" },
   registerLink: { color: "#4B0082", fontWeight: "bold" },
+    rememberContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 8,
+  },
+  rememberRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: "#4B0082",
+    marginRight: 8,
+  },
+  checkboxChecked: {
+    backgroundColor: "#4B0082",
+  },
+  rememberText: {
+    color: "#444",
+    fontSize: 14,
+  },
+
 });
 
 export default LoginScreen;
