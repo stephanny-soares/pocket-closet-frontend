@@ -1,4 +1,3 @@
-// src/pages/LoginScreen.tsx
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -21,9 +20,9 @@ import { validateEmail } from "../utils/validation";
 import { useAuth } from "../hooks/useAuth";
 import { logEvent } from "../logger/logEvent";
 import { getClientInfo } from "../utils/getClientInfo";
+import { useLoader } from "../context/LoaderContext"; // 👈 loader global
 
 declare const window: any;
-
 
 const API_BASE = (process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000").replace(/\/+$/, "");
 
@@ -34,25 +33,23 @@ const LoginScreen: React.FC = () => {
 
   const [form, setForm] = useState({ email: "", password: "" });
   const [errors, setErrors] = useState<any>({});
-  const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
 
   const MAX_ATTEMPTS = 3;
-  const LOCK_TIME = 30; // segundos
+  const LOCK_TIME = 30;
   const [attempts, setAttempts] = useState(0);
   const [locked, setLocked] = useState(false);
   const [lockTimer, setLockTimer] = useState(0);
 
   const { login, isAuthenticated } = useAuth();
-  
+  const { showLoader, hideLoader } = useLoader(); // 👈 loader global
 
-
-  // ✅ Redirección si ya está autenticado
+  // Redirección si ya está autenticado
   useEffect(() => {
     if (isAuthenticated) router.replace("/(protected)/home");
   }, [isAuthenticated]);
 
-  // ✅ Mostrar mensaje si la sesión expiró (redirigido desde apiClient)
+  // Mostrar mensaje si la sesión expiró
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
@@ -84,7 +81,8 @@ const LoginScreen: React.FC = () => {
 
   const handleLogin = async () => {
     if (!validateForm()) return;
-    setLoading(true);
+
+    showLoader("Verificando credenciales..."); // 👈 muestra loader
 
     try {
       const response = await fetch(`${API_BASE}/api/auth/login`, {
@@ -101,7 +99,6 @@ const LoginScreen: React.FC = () => {
       const correlationId = response.headers.get("x-correlation-id") || undefined;
 
       if (response.ok && data.token) {
-        // ✅ Guardar sesión
         await login(
           data.token,
           data.usuario?.nombre || data.usuario?.name,
@@ -109,10 +106,8 @@ const LoginScreen: React.FC = () => {
           rememberMe
         );
 
-        // 🌍 Obtener IP y ubicación del cliente
         const clientInfo = await getClientInfo();
 
-        // 🧾 Registrar evento de login exitoso con info extra
         await logEvent({
           event: "UserLogin",
           message: "Inicio de sesión exitoso",
@@ -126,7 +121,6 @@ const LoginScreen: React.FC = () => {
           },
         });
 
-        // ✅ Mostrar Toast
         Toast.show({
           type: "success",
           text1: "✅ Inicio de sesión exitoso",
@@ -136,12 +130,9 @@ const LoginScreen: React.FC = () => {
           bottomOffset: 70,
         });
       } else {
-        // Detectar estructura real del backend
         const backendMessage = data?.error?.error || data?.error || "Credenciales incorrectas";
-
         let errorMessage = "Credenciales incorrectas.";
 
-        // 🎯 Manejar casos específicos
         if (backendMessage.toLowerCase().includes("inactivo")) {
           errorMessage = "Tu cuenta está inactiva. Contacta con soporte.";
         } else if (backendMessage.toLowerCase().includes("no confirmado")) {
@@ -150,7 +141,6 @@ const LoginScreen: React.FC = () => {
           errorMessage = "Tu cuenta está temporalmente bloqueada. Intenta más tarde.";
         }
 
-        // 🌍 Obtener IP/ubicación antes de registrar fallo
         const clientInfo = await getClientInfo();
 
         await logEvent({
@@ -166,14 +156,12 @@ const LoginScreen: React.FC = () => {
           correlationId,
         });
 
-        // Incrementar contador de intentos
         setAttempts((prev) => {
           const newAttempts = prev + 1;
           if (newAttempts >= MAX_ATTEMPTS) {
             setLocked(true);
             setLockTimer(LOCK_TIME);
 
-            // Log del bloqueo
             logEvent({
               level: "warn",
               event: "AccountTemporarilyLocked",
@@ -181,7 +169,6 @@ const LoginScreen: React.FC = () => {
               extra: { email: form.email },
             });
 
-            // Iniciar temporizador
             const interval = setInterval(() => {
               setLockTimer((t) => {
                 if (t <= 1) {
@@ -208,7 +195,6 @@ const LoginScreen: React.FC = () => {
       }
     } catch (error: any) {
       const clientInfo = await getClientInfo();
-
       await logEvent({
         level: "warn",
         event: "LoginFailed",
@@ -229,7 +215,7 @@ const LoginScreen: React.FC = () => {
         bottomOffset: 70,
       });
     } finally {
-      setLoading(false);
+      hideLoader(); // 👈 oculta loader global
     }
   };
 
@@ -286,15 +272,8 @@ const LoginScreen: React.FC = () => {
 
               <View style={styles.buttonContainer}>
                 <PrimaryButton
-                  title={
-                    locked
-                      ? `Bloqueado (${lockTimer}s)`
-                      : loading
-                      ? "Iniciando..."
-                      : "Iniciar sesión"
-                  }
+                  title={locked ? `Bloqueado (${lockTimer}s)` : "Iniciar sesión"}
                   onPress={handleLogin}
-                  loading={loading}
                   disabled={locked}
                 />
               </View>

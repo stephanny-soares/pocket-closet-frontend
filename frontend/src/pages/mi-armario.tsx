@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   ScrollView,
   Image,
-  ActivityIndicator,
   Alert,
   FlatList,
 } from "react-native";
@@ -16,6 +15,7 @@ import Header from "components/Header";
 import colors from "../constants/colors";
 import { logEvent } from "../logger/logEvent";
 import { apiRequest, apiFetch } from "../utils/apiClient";
+import { useLoader } from "../context/LoaderContext"; // 👈 Loader global
 
 interface Prenda {
   id: string;
@@ -31,28 +31,28 @@ interface Prenda {
 
 export default function MiArmario() {
   const [prendas, setPrendas] = useState<Prenda[]>([]);
-  const [loading, setLoading] = useState(true);
   const [filtro, setFiltro] = useState<string>("todas");
+  const { showLoader, hideLoader } = useLoader(); // 👈 Hook loader global
 
   useEffect(() => {
     cargarPrendas();
   }, []);
 
-  // ✅ Cargar prendas con apiRequest
+  // ✅ Cargar prendas con loader global
   const cargarPrendas = async () => {
+    showLoader("Cargando prendas...");
     try {
-      setLoading(true);
       const data = await apiRequest<{ prendas: Prenda[] }>("/api/prendas", { method: "GET" });
       setPrendas(data.prendas || []);
     } catch (error: any) {
       console.error("Error al cargar prendas:", error);
       Alert.alert("Error", error.message || "No se pudieron cargar las prendas");
     } finally {
-      setLoading(false);
+      hideLoader();
     }
   };
 
-  // ✅ Eliminar prenda con apiFetch (permite DELETE sin body)
+  // ✅ Eliminar prenda
   const handleEliminarPrenda = (id: string, nombre: string) => {
     Alert.alert("Eliminar prenda", `¿Estás seguro de que quieres eliminar "${nombre}"?`, [
       { text: "Cancelar", style: "cancel" },
@@ -60,6 +60,7 @@ export default function MiArmario() {
         text: "Eliminar",
         style: "destructive",
         onPress: async () => {
+          showLoader("Eliminando prenda...");
           try {
             const response = await apiFetch(`/api/prendas/${id}`, { method: "DELETE" });
             if (response.ok) {
@@ -83,6 +84,8 @@ export default function MiArmario() {
               extra: { prendaId: id },
             });
             Alert.alert("Error", error.message || "Error al eliminar la prenda");
+          } finally {
+            hideLoader();
           }
         },
       },
@@ -143,7 +146,7 @@ export default function MiArmario() {
         <View style={styles.headerAccion}>
           <TouchableOpacity
             style={styles.btnAgregar}
-            onPress={() => router.push("/agregar-prenda")}
+            onPress={() => router.push("/add-prenda")}
           >
             <Text style={styles.btnAgregarEmoji}>➕</Text>
             <Text style={styles.btnAgregarText}>Agregar Prenda</Text>
@@ -152,37 +155,34 @@ export default function MiArmario() {
 
         {/* Filtros */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtrosScroll}>
-          {["todas", "camiseta", "pantalón", "falda", "vestido", "chaqueta", "zapatos"].map((tipo) => (
-            <TouchableOpacity
-              key={tipo}
-              style={[styles.filtroBtn, filtro === tipo && styles.filtroBtnActive]}
-              onPress={() => setFiltro(tipo)}
-            >
-              <Text
-                style={[
-                  styles.filtroBtnText,
-                  filtro === tipo && styles.filtroBtnTextActive,
-                ]}
+          {["todas", "camiseta", "pantalón", "falda", "vestido", "chaqueta", "zapatos"].map(
+            (tipo) => (
+              <TouchableOpacity
+                key={tipo}
+                style={[styles.filtroBtn, filtro === tipo && styles.filtroBtnActive]}
+                onPress={() => setFiltro(tipo)}
               >
-                {tipo.charAt(0).toUpperCase() + tipo.slice(1)}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <Text
+                  style={[
+                    styles.filtroBtnText,
+                    filtro === tipo && styles.filtroBtnTextActive,
+                  ]}
+                >
+                  {tipo.charAt(0).toUpperCase() + tipo.slice(1)}
+                </Text>
+              </TouchableOpacity>
+            )
+          )}
         </ScrollView>
 
         {/* Lista de Prendas */}
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#4B0082" />
-            <Text style={styles.loadingText}>Cargando prendas...</Text>
-          </View>
-        ) : prendasFiltradas.length === 0 ? (
+        {prendasFiltradas.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyTextLarge}>👕</Text>
             <Text style={styles.emptyText}>No tienes prendas aún</Text>
             <TouchableOpacity
               style={styles.btnAgregarEmpty}
-              onPress={() => router.push("/agregar-prenda")}
+              onPress={() => router.push("/add-prenda")}
             >
               <Text style={styles.btnAgregarEmptyText}>Agregar primera prenda</Text>
             </TouchableOpacity>
@@ -229,9 +229,12 @@ const styles = StyleSheet.create({
   filtroBtnActive: { backgroundColor: "#4B0082", borderColor: "#4B0082" },
   filtroBtnText: { color: "#666666", fontSize: 13, fontWeight: "500" },
   filtroBtnTextActive: { color: "#FFFFFF" },
-  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center", minHeight: 300 },
-  loadingText: { marginTop: 12, color: "#666666", fontSize: 14 },
-  emptyContainer: { flex: 1, justifyContent: "center", alignItems: "center", minHeight: 300 },
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    minHeight: 300,
+  },
   emptyTextLarge: { fontSize: 64, marginBottom: 16 },
   emptyText: { fontSize: 16, color: "#999999", marginBottom: 20 },
   btnAgregarEmpty: {

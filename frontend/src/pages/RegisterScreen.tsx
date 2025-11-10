@@ -1,4 +1,3 @@
-// src/pages/RegisterScreen.tsx
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -21,7 +20,7 @@ import colors from "../constants/colors";
 import { validateEmail, validatePassword, validatePasswordMatch } from "../utils/validation";
 import { useAuth } from "../hooks/useAuth";
 import { logEvent } from "../logger/logEvent";
-
+import { useLoader } from "../context/LoaderContext"; // 👈 Loader global
 
 const API_BASE = (process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000").replace(/\/+$/, "");
 
@@ -39,10 +38,10 @@ const RegisterScreen: React.FC = () => {
   });
 
   const [errors, setErrors] = useState<any>({});
-  const [sending, setSending] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState({ label: "", color: "" });
 
   const { login, isAuthenticated } = useAuth();
+  const { showLoader, hideLoader } = useLoader(); // 👈 Loader global
 
   useEffect(() => {
     if (isAuthenticated) router.replace("/home");
@@ -83,7 +82,8 @@ const RegisterScreen: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!validateForm()) return;
-    setSending(true);
+
+    showLoader("Creando tu cuenta..."); // 👈 Muestra loader
 
     try {
       const response = await fetch(`${API_BASE}/api/auth/register`, {
@@ -100,6 +100,7 @@ const RegisterScreen: React.FC = () => {
 
       if (response.ok && data.token) {
         await login(data.token, data.usuario?.nombre || data.usuario?.name, data.usuario?.id);
+
         await logEvent({
           event: "UserRegistered",
           message: "Nuevo usuario registrado correctamente",
@@ -139,22 +140,31 @@ const RegisterScreen: React.FC = () => {
         level: "warn",
         extra: { email: form.email },
       });
+
       Toast.show({
         type: "error",
-        text1: "⚠️ Error de conexión",  
+        text1: "⚠️ Error de conexión",
         text2: "No se pudo conectar con el servidor. Inténtalo más tarde.",
         position: "bottom",
         visibilityTime: 3000,
         bottomOffset: 70,
       });
     } finally {
-      setSending(false);
+      hideLoader(); // 👈 Cierra loader
     }
   };
 
   return (
-    <LinearGradient colors={colors.gradient as any} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.gradient}>
-      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={styles.keyboardView}>
+    <LinearGradient
+      colors={colors.gradient as any}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.gradient}
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.keyboardView}
+      >
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scrollContent}>
           <View style={[styles.content, { maxWidth }]}>
             <View style={styles.titleSection}>
@@ -215,10 +225,11 @@ const RegisterScreen: React.FC = () => {
                   </TouchableOpacity>
                 </Text>
               </View>
+
               {errors.terms && <Text style={styles.error}>{errors.terms}</Text>}
 
               <View style={styles.buttonContainer}>
-                <PrimaryButton title={sending ? "Registrando..." : "Registrar"} onPress={handleSubmit} loading={sending} />
+                <PrimaryButton title="Registrar" onPress={handleSubmit} />
               </View>
             </View>
           </View>
@@ -240,7 +251,13 @@ const styles = StyleSheet.create({
   },
   content: { width: "100%", alignSelf: "center" },
   titleSection: { marginBottom: 40, alignItems: "center" },
-  title: { fontSize: 32, fontWeight: "bold", color: "#1E1E1E", marginBottom: 8, textAlign: "center" },
+  title: {
+    fontSize: 32,
+    fontWeight: "bold",
+    color: "#1E1E1E",
+    marginBottom: 8,
+    textAlign: "center",
+  },
   subtitle: { fontSize: 16, color: "#666666", textAlign: "center" },
   formContainer: {
     backgroundColor: "#FFFFFF",
