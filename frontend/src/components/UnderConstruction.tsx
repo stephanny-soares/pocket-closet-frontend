@@ -16,6 +16,7 @@ export default function UnderConstruction() {
     if (pathname.includes("mis-viajes")) return "Mis viajes";
     if (pathname.includes("add-prenda")) return "Agregar prenda";
     if (pathname.includes("notificaciones")) return "Notificaciones";
+    if (pathname.includes("perfil")) return "Perfil";
     return "Sección";
   }, [pathname]);
 
