@@ -1,34 +1,44 @@
-// app/(protected)/_layout.tsx
 import React, { useEffect } from "react";
 import { Stack, router } from "expo-router";
 import { View, ActivityIndicator } from "react-native";
 import { useAuth } from "../../src/hooks/useAuth";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
 
 export default function ProtectedLayout() {
   const { isAuthenticated, loading } = useAuth();
 
   useEffect(() => {
-    // 🚪 Solo redirige si terminó de cargar y NO está autenticado
     if (!loading && !isAuthenticated) {
       router.replace("/(auth)/login");
     }
   }, [loading, isAuthenticated]);
 
-  // ⏳ Mientras se verifica la sesión, muestra loader
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" color="#4B0082" />
-      </View>
+      <SafeAreaProvider>
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <ActivityIndicator size="large" color="#4B0082" />
+        </View>
+      </SafeAreaProvider>
     );
   }
 
-  // ✅ Si está autenticado, renderiza las pantallas protegidas
   return (
-    <Stack>
-      <Stack.Screen name="home" options={{ headerShown: false }} />
-      <Stack.Screen name="mi-armario" options={{ headerShown: false }} />
-      <Stack.Screen name="agregar-prenda" options={{ headerShown: false }} />
-    </Stack>
+    <SafeAreaProvider>
+      <View style={{ flex: 1 }}>
+        <Stack>
+          <Stack.Screen name="home" options={{ headerShown: false }} />
+          <Stack.Screen name="mi-armario" options={{ headerShown: false }} />
+          <Stack.Screen name="add-prenda" options={{ headerShown: false }} />
+          <Stack.Screen name="mis-eventos" options={{ headerShown: false }} />
+          <Stack.Screen name="mis-outfits" options={{ headerShown: false }} />
+          <Stack.Screen name="mis-viajes" options={{ headerShown: false }} />
+          <Stack.Screen name="perfil" options={{ headerShown: false }} />
+          <Stack.Screen name="notificaciones" options={{ headerShown: false }} />
+        </Stack>
+        <StatusBar style="dark" translucent />
+      </View>
+    </SafeAreaProvider>
   );
 }

@@ -1,44 +1,62 @@
-import React from 'react';
-import { View, TouchableOpacity, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { usePathname, router } from 'expo-router';
+import React, { useRef } from "react";
+import { View, Text, Pressable, Animated, StyleSheet, Platform } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { usePathname, router } from "expo-router";
+import colors from "../constants/colors";
 
-interface NavItem {
-  name: string;
-  route: string;
-  icon: string;
-}
-
-const navItems: NavItem[] = [
-  { name: 'home', route: '/home', icon: 'home' },
-  { name: 'armario', route: '/mi-armario', icon: 'shirt' },
-  { name: 'outfits', route: '/mis-outfits', icon: 'images' },
-  { name: 'perfil', route: '/perfil', icon: 'person' },
+const navItems = [
+  { name: "home", label: "Home", route: "/home", icon: "home-outline" },
+  { name: "armario", label: "Armario", route: "/mi-armario", icon: "shirt-outline" },
+  { name: "outfits", label: "Outfits", route: "/mis-outfits", icon: "images-outline" },
+  { name: "eventos", label: "Eventos", route: "/mis-eventos", icon: "calendar-outline" },
+  { name: "viajes", label: "Viajes", route: "/mis-viajes", icon: "airplane-outline" },
 ];
 
 export default function BottomNavigation() {
   const pathname = usePathname();
 
-  const isActive = (route: string) => {
-    return pathname.includes(route.replace('/', ''));
-  };
+  const isActive = (route: string) => pathname.startsWith(route);
 
   return (
-    <View style={styles.navbar as any}>
+    <View style={styles.container}>
       {navItems.map((item) => {
         const active = isActive(item.route);
+        const scaleAnim = useRef(new Animated.Value(1)).current;
+
+        const handlePressIn = () => {
+          Animated.spring(scaleAnim, {
+            toValue: 0.9,
+            useNativeDriver: true,
+          }).start();
+        };
+
+        const handlePressOut = () => {
+          Animated.spring(scaleAnim, {
+            toValue: 1,
+            friction: 3,
+            useNativeDriver: true,
+          }).start();
+          router.push(item.route as any);
+        };
+
         return (
-          <TouchableOpacity
+          <Pressable
             key={item.name}
-            style={styles.navItem as any}
-            onPress={() => router.push(item.route as any)}
+            onPressIn={handlePressIn}
+            onPressOut={handlePressOut}
+            style={styles.navItem}
           >
-            <Ionicons
-              name={item.icon as any}
-              size={28}
-              color={active ? '#4B0082' : '#CCCCCC'}
-            />
-          </TouchableOpacity>
+            <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+              <Ionicons
+                name={item.icon as any}
+                size={24}
+                color={active ? colors.primary : "#999"}
+              />
+            </Animated.View>
+            <Text style={[styles.label, active && styles.activeLabel]}>
+              {item.label}
+            </Text>
+          </Pressable>
         );
       })}
     </View>
@@ -46,21 +64,34 @@ export default function BottomNavigation() {
 }
 
 const styles = StyleSheet.create({
-  navbar: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    minHeight: 80,
+  container: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
     borderTopWidth: 1,
-    borderTopColor: '#E5E5E5',
-    paddingVertical: 12,
-    paddingBottom: 16,
-  } as any,
+    borderTopColor: "#E5E5E5",
+    paddingTop: 8,
+    paddingBottom: Platform.OS === "ios" ? 24 : 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: -2 },
+    shadowRadius: 4,
+    elevation: 6,
+  },
   navItem: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-  } as any,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+  },
+  label: {
+    fontSize: 11,
+    color: "#999",
+    fontWeight: "500",
+  },
+  activeLabel: {
+    color: colors.primary,
+    fontWeight: "600",
+  },
 });
