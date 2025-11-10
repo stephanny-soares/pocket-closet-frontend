@@ -176,6 +176,16 @@ const LoginScreen: React.FC = () => {
                 error={errors.password}
               />
 
+              {/* ✅ Recordarme */}
+              <TouchableOpacity
+                style={styles.rememberContainer}
+                activeOpacity={0.7}
+                onPress={() => setRememberMe(!rememberMe)}
+              >
+                <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]} />
+                <Text style={styles.rememberText}>Recordarme</Text>
+              </TouchableOpacity>
+
               <View style={styles.buttonContainer}>
                 <PrimaryButton title="Iniciar sesión" onPress={handleLogin} />
               </View>
@@ -234,6 +244,28 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 8,
     elevation: 5,
+  },
+  rememberContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 10,
+    marginBottom: 10,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    marginRight: 8,
+  },
+  checkboxChecked: {
+    backgroundColor: colors.primary,
+  },
+  rememberText: {
+    fontSize: 14,
+    color: "#333",
+    fontWeight: "500",
   },
   buttonContainer: { marginTop: 24 },
   registerContainer: {

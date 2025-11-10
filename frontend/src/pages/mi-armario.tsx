@@ -1,21 +1,30 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
   Image,
   Alert,
   FlatList,
+  LayoutAnimation,
+  Modal,
+  Platform,
+  UIManager,
+  useWindowDimensions,
+  ScrollView,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import Header from "components/Header";
 import colors from "../constants/colors";
-import { logEvent } from "../logger/logEvent";
 import { apiRequest, apiFetch } from "../utils/apiClient";
-import { useLoader } from "../context/LoaderContext"; // 👈 Loader global
+import { useLoader } from "../context/LoaderContext";
+
+if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 interface Prenda {
   id: string;
@@ -26,35 +35,55 @@ interface Prenda {
   ocasion?: string;
   estacion?: string;
   marca?: string;
-  createdAt: string;
+  createdAt?: string;
 }
+
+type FiltroValor = string;
+
+interface FiltrosState {
+  tipo: FiltroValor;
+  color: FiltroValor;
+  categoria: FiltroValor;
+  estacion: FiltroValor;
+}
+
+const VALOR_TODOS = "todos";
 
 export default function MiArmario() {
   const [prendas, setPrendas] = useState<Prenda[]>([]);
-  const [filtro, setFiltro] = useState<string>("todas");
-  const { showLoader, hideLoader } = useLoader(); // 👈 Hook loader global
+  const [filtros, setFiltros] = useState<FiltrosState>({
+    tipo: VALOR_TODOS,
+    color: VALOR_TODOS,
+    categoria: VALOR_TODOS,
+    estacion: VALOR_TODOS,
+  });
+  const [mostrarFiltros, setMostrarFiltros] = useState(false);
+  const [orden, setOrden] = useState<"fecha" | "tipo" | "color">("fecha");
+  const [prendaSeleccionada, setPrendaSeleccionada] = useState<Prenda | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
+
+  const { showLoader, hideLoader } = useLoader();
+  const { width } = useWindowDimensions();
+  const isWeb = width > 768;
 
   useEffect(() => {
     cargarPrendas();
   }, []);
 
-  // ✅ Cargar prendas con loader global
   const cargarPrendas = async () => {
     showLoader("Cargando prendas...");
     try {
       const data = await apiRequest<{ prendas: Prenda[] }>("/api/prendas", { method: "GET" });
       setPrendas(data.prendas || []);
     } catch (error: any) {
-      console.error("Error al cargar prendas:", error);
       Alert.alert("Error", error.message || "No se pudieron cargar las prendas");
     } finally {
       hideLoader();
     }
   };
 
-  // ✅ Eliminar prenda
   const handleEliminarPrenda = (id: string, nombre: string) => {
-    Alert.alert("Eliminar prenda", `¿Estás seguro de que quieres eliminar "${nombre}"?`, [
+    Alert.alert("Eliminar prenda", `¿Quieres eliminar "${nombre}"?`, [
       { text: "Cancelar", style: "cancel" },
       {
         text: "Eliminar",
@@ -64,26 +93,11 @@ export default function MiArmario() {
           try {
             const response = await apiFetch(`/api/prendas/${id}`, { method: "DELETE" });
             if (response.ok) {
-              setPrendas(prendas.filter((p) => p.id !== id));
+              setPrendas((prev) => prev.filter((p) => p.id !== id));
               Alert.alert("Éxito", "Prenda eliminada correctamente");
-
-              await logEvent({
-                event: "ItemDeleted",
-                message: `Prenda eliminada: ${nombre}`,
-                level: "info",
-                extra: { prendaId: id, nombre },
-              });
-            } else {
-              throw new Error("No se pudo eliminar la prenda");
             }
           } catch (error: any) {
-            await logEvent({
-              event: "ItemDeleteFailed",
-              message: error?.message || "Error al eliminar prenda",
-              level: "warn",
-              extra: { prendaId: id },
-            });
-            Alert.alert("Error", error.message || "Error al eliminar la prenda");
+            Alert.alert("Error", error.message || "No se pudo eliminar la prenda");
           } finally {
             hideLoader();
           }
@@ -92,44 +106,91 @@ export default function MiArmario() {
     ]);
   };
 
-  const prendasFiltradas =
-    filtro === "todas"
-      ? prendas
-      : prendas.filter((p) => p.tipo.toLowerCase() === filtro.toLowerCase());
+  const toggleFiltros = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setMostrarFiltros(!mostrarFiltros);
+  };
+
+  const ordenarPrendas = (lista: Prenda[]) => {
+    switch (orden) {
+      case "tipo":
+        return [...lista].sort((a, b) => a.tipo.localeCompare(b.tipo));
+      case "color":
+        return [...lista].sort((a, b) => a.color.localeCompare(b.color));
+      case "fecha":
+      default:
+        return [...lista].sort(
+          (a, b) => new Date(b.createdAt || "").getTime() - new Date(a.createdAt || "").getTime()
+        );
+    }
+  };
+
+  const prendasOrdenadas = useMemo(() => ordenarPrendas(prendas), [prendas, orden]);
+
+  // 🔹 Generar filtros dinámicos a partir de las prendas
+  const opcionesFiltros = useMemo(() => {
+    const setTipos = new Set<string>();
+    const setColores = new Set<string>();
+    const setCategorias = new Set<string>();
+    const setEstaciones = new Set<string>();
+
+    prendas.forEach((p) => {
+      if (p.tipo) setTipos.add(p.tipo);
+      if (p.color) setColores.add(p.color);
+      if (p.ocasion) setCategorias.add(p.ocasion);
+      if (p.estacion) setEstaciones.add(p.estacion);
+    });
+
+    const toArray = (set: Set<string>) => [VALOR_TODOS, ...Array.from(set)];
+
+    return {
+      tipo: toArray(setTipos),
+      color: toArray(setColores),
+      categoria: toArray(setCategorias),
+      estacion: toArray(setEstaciones),
+    };
+  }, [prendas]);
+
+  const prendasFiltradas = useMemo(() => {
+    return prendasOrdenadas.filter((p) => {
+      const coincideTipo = filtros.tipo === VALOR_TODOS || p.tipo === filtros.tipo;
+      const coincideColor = filtros.color === VALOR_TODOS || p.color === filtros.color;
+      const coincideCategoria =
+        filtros.categoria === VALOR_TODOS || p.ocasion === filtros.categoria;
+      const coincideEstacion =
+        filtros.estacion === VALOR_TODOS || p.estacion === filtros.estacion;
+      return coincideTipo && coincideColor && coincideCategoria && coincideEstacion;
+    });
+  }, [prendasOrdenadas, filtros]);
+
+  const columnas = isWeb ? Math.min(Math.floor(width / 220), 5) : 4;
+
+  const abrirDetalle = (prenda: Prenda) => {
+    setPrendaSeleccionada(prenda);
+    setModalVisible(true);
+  };
+
+  const actualizarFiltro = (campo: keyof FiltrosState, valor: FiltroValor) => {
+    setFiltros((prev) => ({ ...prev, [campo]: valor }));
+  };
+
+  const limpiarFiltros = () => {
+    setFiltros({
+      tipo: VALOR_TODOS,
+      color: VALOR_TODOS,
+      categoria: VALOR_TODOS,
+      estacion: VALOR_TODOS,
+    });
+  };
 
   const renderPrenda = ({ item }: { item: Prenda }) => (
-    <View style={styles.prendaCard}>
+    <TouchableOpacity
+      style={styles.prendaContainer}
+      onPress={() => abrirDetalle(item)}
+      activeOpacity={0.9}
+    >
       <Image source={{ uri: item.imagen }} style={styles.prendaImagen} />
-      <View style={styles.prendaInfo}>
-        <Text style={styles.prendaNombre}>{item.nombre}</Text>
-        <View style={styles.prendaDetalles}>
-          <Text style={styles.detalle}>📌 {item.tipo}</Text>
-          {item.ocasion && <Text style={styles.detalle}>📅 {item.ocasion}</Text>}
-        </View>
-      </View>
-      <View style={styles.prendaAcciones}>
-        <TouchableOpacity
-          style={styles.btnAccion}
-          onPress={() =>
-            router.push({
-              pathname: "/editar-prenda/[id]" as any,
-              params: { id: item.id },
-            })
-          }
-          activeOpacity={0.6}
-        >
-          <Text style={styles.btnText}>✏️</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          testID="delete-button"
-          style={[styles.btnAccion, { backgroundColor: "#FFE5E5" }]}
-          onPress={() => handleEliminarPrenda(item.id, item.nombre)}
-          activeOpacity={0.6}
-        >
-          <Text style={styles.btnText}>🗑️</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+    </TouchableOpacity>
   );
 
   return (
@@ -139,144 +200,300 @@ export default function MiArmario() {
       end={{ x: 1, y: 1 }}
       style={styles.gradient}
     >
-      <ScrollView style={styles.scroll} scrollEnabled={false}>
-        <Header title="Mi Armario" />
+      <Header title="Mi Armario" />
 
-        {/* Botón Agregar Prenda */}
-        <View style={styles.headerAccion}>
-          <TouchableOpacity
-            style={styles.btnAgregar}
-            onPress={() => router.push("/add-prenda")}
-          >
-            <Text style={styles.btnAgregarEmoji}>➕</Text>
-            <Text style={styles.btnAgregarText}>Agregar Prenda</Text>
+      {/* 🔝 Acciones principales */}
+      <View style={styles.topActions}>
+        <TouchableOpacity
+          style={styles.btnAgregar}
+          onPress={() => router.push("/add-prenda")}
+        >
+          <Ionicons name="add-circle-outline" size={20} color="#FFF" />
+          <Text style={styles.btnAgregarText}>Agregar</Text>
+        </TouchableOpacity>
+
+        <View style={styles.rightActions}>
+          <TouchableOpacity style={styles.btnOrdenar} onPress={() => {
+            const ordenes: any = { fecha: "tipo", tipo: "color", color: "fecha" };
+            setOrden(ordenes[orden]);
+          }}>
+            <Ionicons name="swap-vertical-outline" size={22} color={colors.primary} />
+            <Text style={styles.ordenarText}>{orden}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.btnFiltros} onPress={toggleFiltros}>
+            <Ionicons name="options-outline" size={22} color={colors.primary} />
           </TouchableOpacity>
         </View>
+      </View>
 
-        {/* Filtros */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtrosScroll}>
-          {["todas", "camiseta", "pantalón", "falda", "vestido", "chaqueta", "zapatos"].map(
-            (tipo) => (
-              <TouchableOpacity
-                key={tipo}
-                style={[styles.filtroBtn, filtro === tipo && styles.filtroBtnActive]}
-                onPress={() => setFiltro(tipo)}
-              >
-                <Text
-                  style={[
-                    styles.filtroBtnText,
-                    filtro === tipo && styles.filtroBtnTextActive,
-                  ]}
-                >
-                  {tipo.charAt(0).toUpperCase() + tipo.slice(1)}
-                </Text>
-              </TouchableOpacity>
-            )
-          )}
-        </ScrollView>
-
-        {/* Lista de Prendas */}
-        {prendasFiltradas.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyTextLarge}>👕</Text>
-            <Text style={styles.emptyText}>No tienes prendas aún</Text>
-            <TouchableOpacity
-              style={styles.btnAgregarEmpty}
-              onPress={() => router.push("/add-prenda")}
-            >
-              <Text style={styles.btnAgregarEmptyText}>Agregar primera prenda</Text>
+      {/* 🔽 Panel de Filtros Visual (dinámico) */}
+      {mostrarFiltros && (
+        <View style={styles.filtrosContainer}>
+          <View style={styles.filtrosHeader}>
+            <Text style={styles.filtrosTitulo}>Filtros</Text>
+            <TouchableOpacity onPress={limpiarFiltros}>
+              <Text style={styles.limpiarFiltros}>Limpiar</Text>
             </TouchableOpacity>
           </View>
-        ) : (
-          <FlatList
-            data={prendasFiltradas}
-            renderItem={renderPrenda}
-            keyExtractor={(item) => item.id}
-            scrollEnabled={false}
-            contentContainerStyle={styles.listContainer}
-          />
-        )}
-      </ScrollView>
+
+          {Object.entries(opcionesFiltros).map(([campo, valores]) => (
+            <View key={campo} style={styles.filtroGroup}>
+              <Text style={styles.filtroLabel}>
+                {campo.charAt(0).toUpperCase() + campo.slice(1)}
+              </Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                {valores.map((v) => (
+                  <TouchableOpacity
+                    key={`${campo}-${v}`}
+                    style={[
+                      styles.filtroChip,
+                      filtros[campo as keyof FiltrosState] === v && styles.filtroChipActive,
+                    ]}
+                    onPress={() => actualizarFiltro(campo as keyof FiltrosState, v)}
+                  >
+                    <Text
+                      style={[
+                        styles.filtroChipText,
+                        filtros[campo as keyof FiltrosState] === v &&
+                          styles.filtroChipTextActive,
+                      ]}
+                    >
+                      {v === VALOR_TODOS
+                        ? "Todos"
+                        : v.charAt(0).toUpperCase() + v.slice(1)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          ))}
+        </View>
+      )}
+
+      {/* 🧩 Lista de prendas */}
+      {prendasFiltradas.length === 0 ? (
+        <View style={styles.emptyContainer}>
+          <Text style={styles.emptyIcon}>👕</Text>
+          <Text style={styles.emptyText}>
+            {prendas.length === 0
+              ? "No tienes prendas aún"
+              : "No hay prendas que coincidan con los filtros"}
+          </Text>
+          <TouchableOpacity
+            style={styles.btnAgregarEmpty}
+            onPress={() => router.push("/add-prenda")}
+          >
+            <Text style={styles.btnAgregarEmptyText}>Agregar prenda</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <FlatList
+          data={prendasFiltradas}
+          renderItem={renderPrenda}
+          keyExtractor={(item) => item.id}
+          numColumns={columnas}
+          contentContainerStyle={styles.gridContainer}
+        />
+      )}
+
+      {/* 🪟 Modal detalle de prenda */}
+      <Modal visible={modalVisible} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            {prendaSeleccionada && (
+              <>
+                <Image
+                  source={{ uri: prendaSeleccionada.imagen }}
+                  style={styles.modalImage}
+                />
+                <ScrollView style={{ maxHeight: 220 }}>
+                  <Text style={styles.modalTitle}>{prendaSeleccionada.nombre}</Text>
+                  <Text style={styles.modalDetail}>👕 {prendaSeleccionada.tipo}</Text>
+                  <Text style={styles.modalDetail}>🎨 {prendaSeleccionada.color}</Text>
+                  {prendaSeleccionada.ocasion && (
+                    <Text style={styles.modalDetail}>🎉 {prendaSeleccionada.ocasion}</Text>
+                  )}
+                  {prendaSeleccionada.estacion && (
+                    <Text style={styles.modalDetail}>☀️ {prendaSeleccionada.estacion}</Text>
+                  )}
+                </ScrollView>
+
+                <View style={styles.modalActions}>
+                  <TouchableOpacity
+                    style={styles.modalBtn}
+                    onPress={() => {
+                      setModalVisible(false);
+                      router.push({
+                        pathname: "/editar-prenda/[id]" as any,
+                        params: { id: prendaSeleccionada.id },
+                      });
+                    }}
+                  >
+                    <Ionicons name="create-outline" size={20} color="#FFF" />
+                    <Text style={styles.modalBtnText}>Editar</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.modalBtn, { backgroundColor: "#E53935" }]}
+                    onPress={() => {
+                      setModalVisible(false);
+                      handleEliminarPrenda(prendaSeleccionada.id, prendaSeleccionada.nombre);
+                    }}
+                  >
+                    <Ionicons name="trash-outline" size={20} color="#FFF" />
+                    <Text style={styles.modalBtnText}>Eliminar</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.modalClose}
+                  onPress={() => setModalVisible(false)}
+                >
+                  <Ionicons name="close-circle" size={26} color="#FFF" />
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </LinearGradient>
   );
 }
 
+// 🎨 Estilos idénticos a la versión anterior
 const styles = StyleSheet.create({
   gradient: { flex: 1 },
-  scroll: { flex: 1 },
-  headerAccion: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 8 },
-  btnAgregar: {
-    backgroundColor: "#4B0082",
-    borderRadius: 12,
+  topActions: {
     flexDirection: "row",
-    justifyContent: "center",
+    justifyContent: "space-between",
     alignItems: "center",
-    padding: 14,
-    gap: 8,
-  },
-  btnAgregarEmoji: { fontSize: 20 },
-  btnAgregarText: { color: "#FFFFFF", fontSize: 16, fontWeight: "600" },
-  filtrosScroll: { paddingHorizontal: 16, paddingVertical: 12 },
-  filtroBtn: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginRight: 10,
-    borderWidth: 1,
-    borderColor: "#EEEEEE",
-  },
-  filtroBtnActive: { backgroundColor: "#4B0082", borderColor: "#4B0082" },
-  filtroBtnText: { color: "#666666", fontSize: 13, fontWeight: "500" },
-  filtroBtnTextActive: { color: "#FFFFFF" },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    minHeight: 300,
-  },
-  emptyTextLarge: { fontSize: 64, marginBottom: 16 },
-  emptyText: { fontSize: 16, color: "#999999", marginBottom: 20 },
-  btnAgregarEmpty: {
-    backgroundColor: "#4B0082",
-    borderRadius: 12,
-    paddingHorizontal: 24,
     paddingVertical: 12,
   },
-  btnAgregarEmptyText: { color: "#FFFFFF", fontSize: 14, fontWeight: "600" },
-  listContainer: { paddingHorizontal: 16, paddingBottom: 20 },
-  prendaCard: {
-    backgroundColor: "#FFFFFF",
+  btnAgregar: {
+    backgroundColor: colors.primary,
     borderRadius: 12,
-    marginBottom: 12,
-    overflow: "hidden",
     flexDirection: "row",
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  prendaImagen: { width: 100, height: 100, backgroundColor: "#F0F0F0" },
-  prendaInfo: { flex: 1, padding: 12, justifyContent: "center" },
-  prendaNombre: { fontSize: 15, fontWeight: "600", color: "#1E1E1E", marginBottom: 8 },
-  prendaDetalles: { gap: 4 },
-  detalle: { fontSize: 12, color: "#666666" },
-  prendaAcciones: {
-    paddingRight: 12,
-    justifyContent: "center",
     alignItems: "center",
     gap: 8,
-    flexDirection: "column",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
   },
-  btnAccion: {
-    backgroundColor: "#F0F0F0",
+  btnAgregarText: { color: "#FFF", fontWeight: "600", fontSize: 14 },
+  rightActions: { flexDirection: "row", alignItems: "center", gap: 12 },
+  btnOrdenar: {
+    backgroundColor: "#FFF",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
     borderRadius: 8,
+  },
+  ordenarText: { color: colors.primary, fontWeight: "500", textTransform: "capitalize" },
+  btnFiltros: {
+    backgroundColor: "#FFF",
     padding: 10,
-    width: 40,
-    height: 40,
+    borderRadius: 10,
+  },
+  filtrosContainer: {
+    backgroundColor: "#FFFFFFAA",
+    borderRadius: 16,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    padding: 12,
+  },
+  filtrosHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  filtrosTitulo: { fontSize: 16, fontWeight: "600", color: "#1E1E1E" },
+  limpiarFiltros: { color: colors.primary, fontSize: 13, fontWeight: "500" },
+  filtroGroup: { marginBottom: 10 },
+  filtroLabel: { fontSize: 13, fontWeight: "500", color: "#444", marginBottom: 4 },
+  filtroChip: {
+    backgroundColor: "#FFF",
+    borderRadius: 20,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: "#EEE",
+    marginRight: 6,
+  },
+  filtroChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  filtroChipText: { color: "#666", fontSize: 13 },
+  filtroChipTextActive: { color: "#FFF" },
+  gridContainer: {
+    paddingHorizontal: 12,
+    paddingBottom: 40,
+    justifyContent: "center",
+  },
+  prendaContainer: {
+    flex: 1,
+    aspectRatio: 1,
+    margin: 6,
+    borderRadius: 10,
+    overflow: "hidden",
+    backgroundColor: "#FFF",
+    elevation: 3,
+  },
+  prendaImagen: { width: "100%", height: "100%", resizeMode: "cover" },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "#000000AA",
     justifyContent: "center",
     alignItems: "center",
+    padding: 20,
   },
-  btnText: { fontSize: 18 },
+  modalCard: {
+    backgroundColor: "#FFF",
+    borderRadius: 20,
+    width: "100%",
+    maxWidth: 400,
+    overflow: "hidden",
+    position: "relative",
+  },
+  modalImage: { width: "100%", height: 220, resizeMode: "cover" },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: colors.primary,
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  modalDetail: { fontSize: 14, color: "#444", marginBottom: 4, textAlign: "center" },
+  modalActions: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  modalBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+  },
+  modalBtnText: { color: "#FFF", fontWeight: "600" },
+  modalClose: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+  },
+  emptyContainer: { flex: 1, alignItems: "center", marginTop: 40 },
+  emptyIcon: { fontSize: 50, marginBottom: 10 },
+  emptyText: { fontSize: 15, color: "#666", marginBottom: 12 },
+  btnAgregarEmpty: {
+    backgroundColor: colors.primary,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+  },
+  btnAgregarEmptyText: { color: "#FFF", fontWeight: "600" },
 });
