@@ -20,10 +20,9 @@ import { validateEmail } from "../utils/validation";
 import { useAuth } from "../hooks/useAuth";
 import { logEvent } from "../logger/logEvent";
 import { getClientInfo } from "../utils/getClientInfo";
-import { useLoader } from "../context/LoaderContext"; // 👈 loader global
+import { useLoader } from "../context/LoaderContext";
 
 declare const window: any;
-
 const API_BASE = (process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000").replace(/\/+$/, "");
 
 const LoginScreen: React.FC = () => {
@@ -34,34 +33,35 @@ const LoginScreen: React.FC = () => {
   const [form, setForm] = useState({ email: "", password: "" });
   const [errors, setErrors] = useState<any>({});
   const [rememberMe, setRememberMe] = useState(false);
-
-  const MAX_ATTEMPTS = 3;
-  const LOCK_TIME = 30;
-  const [attempts, setAttempts] = useState(0);
-  const [locked, setLocked] = useState(false);
-  const [lockTimer, setLockTimer] = useState(0);
-
   const { login, isAuthenticated } = useAuth();
-  const { showLoader, hideLoader } = useLoader(); // 👈 loader global
+  const { showLoader, hideLoader } = useLoader();
 
-  // Redirección si ya está autenticado
+  const [bannerMessage, setBannerMessage] = useState<string | null>(null);
+
   useEffect(() => {
     if (isAuthenticated) router.replace("/(protected)/home");
   }, [isAuthenticated]);
 
-  // Mostrar mensaje si la sesión expiró
+  // Mostrar mensajes si vienen parámetros en la URL
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
+
       if (params.get("expired")) {
-        Toast.show({
-          type: "info",
-          text1: "Tu sesión ha expirado",
-          text2: "Por favor inicia sesión nuevamente.",
-          position: "bottom",
-          visibilityTime: 3000,
-          bottomOffset: 70,
-        });
+        setBannerMessage("Tu sesión ha expirado. Por favor inicia sesión nuevamente.");
+      }
+
+      if (params.get("loggedOut")) {
+        setBannerMessage("👋 Tu sesión se cerró correctamente.");
+
+        // Limpia el parámetro de la URL
+        const url = new URL(window.location.href);
+        url.searchParams.delete("loggedOut");
+        window.history.replaceState({}, (document as any).title, url.toString());
+
+        // Ocultar banner automáticamente tras 3 segundos
+        const timeout = setTimeout(() => setBannerMessage(null), 3000);
+        return () => clearTimeout(timeout);
       }
     }
   }, []);
@@ -81,8 +81,7 @@ const LoginScreen: React.FC = () => {
 
   const handleLogin = async () => {
     if (!validateForm()) return;
-
-    showLoader("Verificando credenciales..."); // 👈 muestra loader
+    showLoader("Verificando credenciales...");
 
     try {
       const response = await fetch(`${API_BASE}/api/auth/login`, {
@@ -95,127 +94,38 @@ const LoginScreen: React.FC = () => {
       });
 
       const data: any = await response.json();
-      const requestId = response.headers.get("x-request-id") || undefined;
-      const correlationId = response.headers.get("x-correlation-id") || undefined;
 
       if (response.ok && data.token) {
-        await login(
-          data.token,
-          data.usuario?.nombre || data.usuario?.name,
-          data.usuario?.id,
-          rememberMe
-        );
-
-        const clientInfo = await getClientInfo();
-
-        await logEvent({
-          event: "UserLogin",
-          message: "Inicio de sesión exitoso",
-          userId: data.usuario?.id,
-          requestId,
-          correlationId,
-          extra: {
-            email: form.email,
-            ip: clientInfo.ip,
-            location: `${clientInfo.city}, ${clientInfo.country}`,
-          },
-        });
+        await login(data.token, data.usuario?.nombre || data.usuario?.name, data.usuario?.id, rememberMe);
 
         Toast.show({
           type: "success",
           text1: "✅ Inicio de sesión exitoso",
-          text2: "¡Bienvenido/a!",
           position: "bottom",
-          visibilityTime: 3000,
+          visibilityTime: 2000,
           bottomOffset: 70,
         });
       } else {
-        const backendMessage = data?.error?.error || data?.error || "Credenciales incorrectas";
-        let errorMessage = "Credenciales incorrectas.";
-
-        if (backendMessage.toLowerCase().includes("inactivo")) {
-          errorMessage = "Tu cuenta está inactiva. Contacta con soporte.";
-        } else if (backendMessage.toLowerCase().includes("no confirmado")) {
-          errorMessage = "Debes confirmar tu correo electrónico antes de iniciar sesión.";
-        } else if (backendMessage.toLowerCase().includes("bloqueado")) {
-          errorMessage = "Tu cuenta está temporalmente bloqueada. Intenta más tarde.";
-        }
-
-        const clientInfo = await getClientInfo();
-
-        await logEvent({
-          level: "warn",
-          event: "LoginFailed",
-          message: backendMessage,
-          extra: {
-            email: form.email,
-            ip: clientInfo.ip,
-            location: `${clientInfo.city}, ${clientInfo.country}`,
-          },
-          requestId,
-          correlationId,
-        });
-
-        setAttempts((prev) => {
-          const newAttempts = prev + 1;
-          if (newAttempts >= MAX_ATTEMPTS) {
-            setLocked(true);
-            setLockTimer(LOCK_TIME);
-
-            logEvent({
-              level: "warn",
-              event: "AccountTemporarilyLocked",
-              message: `Cuenta bloqueada temporalmente tras ${MAX_ATTEMPTS} intentos fallidos`,
-              extra: { email: form.email },
-            });
-
-            const interval = setInterval(() => {
-              setLockTimer((t) => {
-                if (t <= 1) {
-                  clearInterval(interval);
-                  setLocked(false);
-                  setAttempts(0);
-                  return 0;
-                }
-                return t - 1;
-              });
-            }, 1000);
-          }
-          return newAttempts;
-        });
-
         Toast.show({
           type: "error",
           text1: "⚠️ Error",
-          text2: errorMessage,
+          text2: data?.error || "Credenciales incorrectas.",
           position: "bottom",
-          visibilityTime: 3000,
+          visibilityTime: 2500,
           bottomOffset: 70,
         });
       }
-    } catch (error: any) {
-      const clientInfo = await getClientInfo();
-      await logEvent({
-        level: "warn",
-        event: "LoginFailed",
-        message: error?.message || "Error al conectar con el servidor.",
-        extra: {
-          email: form.email,
-          ip: clientInfo.ip,
-          location: `${clientInfo.city}, ${clientInfo.country}`,
-        },
-      });
-
+    } catch (error) {
       Toast.show({
         type: "error",
-        text1: "⚠️ Error de conexión",
+        text1: "Error de conexión",
         text2: "No se pudo conectar con el servidor.",
         position: "bottom",
-        visibilityTime: 3000,
+        visibilityTime: 2500,
         bottomOffset: 70,
       });
     } finally {
-      hideLoader(); // 👈 oculta loader global
+      hideLoader();
     }
   };
 
@@ -234,6 +144,13 @@ const LoginScreen: React.FC = () => {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardView}
       >
+        {/* Banner superior de logout */}
+        {bannerMessage && (
+          <View style={styles.banner}>
+            <Text style={styles.bannerText}>{bannerMessage}</Text>
+          </View>
+        )}
+
         <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scrollContent}>
           <View style={[styles.content, { maxWidth }]}>
             <View style={styles.titleSection}>
@@ -259,30 +176,9 @@ const LoginScreen: React.FC = () => {
                 error={errors.password}
               />
 
-              <View style={styles.rememberContainer}>
-                <TouchableOpacity
-                  style={styles.rememberRow}
-                  onPress={() => setRememberMe(!rememberMe)}
-                  activeOpacity={0.8}
-                >
-                  <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]} />
-                  <Text style={styles.rememberText}>Recordarme</Text>
-                </TouchableOpacity>
-              </View>
-
               <View style={styles.buttonContainer}>
-                <PrimaryButton
-                  title={locked ? `Bloqueado (${lockTimer}s)` : "Iniciar sesión"}
-                  onPress={handleLogin}
-                  disabled={locked}
-                />
+                <PrimaryButton title="Iniciar sesión" onPress={handleLogin} />
               </View>
-
-              {locked && (
-                <Text style={{ color: "#E53935", textAlign: "center", marginTop: 12 }}>
-                  Demasiados intentos fallidos. Intenta nuevamente en {lockTimer}s.
-                </Text>
-              )}
 
               <View style={styles.registerContainer}>
                 <Text style={styles.registerText}>¿No tienes cuenta?</Text>
@@ -299,8 +195,18 @@ const LoginScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  gradient: { flex: 1, minHeight: "100vh" as any },
+  gradient: { flex: 1 },
   keyboardView: { flex: 1 },
+  banner: {
+    backgroundColor: colors.primary,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  bannerText: {
+    color: "#FFFFFF",
+    textAlign: "center",
+    fontWeight: "600",
+  },
   scrollContent: {
     flexGrow: 1,
     alignItems: "center",
@@ -337,30 +243,6 @@ const styles = StyleSheet.create({
   },
   registerText: { color: "#666666" },
   registerLink: { color: "#4B0082", fontWeight: "bold" },
-  rememberContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 8,
-  },
-  rememberRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: "#4B0082",
-    marginRight: 8,
-  },
-  checkboxChecked: {
-    backgroundColor: "#4B0082",
-  },
-  rememberText: {
-    color: "#444",
-    fontSize: 14,
-  },
 });
 
 export default LoginScreen;

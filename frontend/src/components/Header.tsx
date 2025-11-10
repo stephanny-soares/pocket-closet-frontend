@@ -1,9 +1,16 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Platform,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { usePathname, router } from 'expo-router';
 import colors from '../constants/colors';
 import { useAuth } from '../hooks/useAuth';
+import { SafeAreaView } from 'react-native-safe-area-context'; // 👈 añadido
 
 interface HeaderProps {
   title?: string;
@@ -23,8 +30,11 @@ const Header: React.FC<HeaderProps> = ({ title }) => {
     : title || '';
 
   return (
-    <View style={styles.container}>
-      <View style={styles.row}>
+    <SafeAreaView
+      edges={['top']} // 👈 asegura que respeta la barra superior
+      style={styles.safeArea}
+    >
+      <View style={styles.container}>
         {/* IZQUIERDA: botón atrás o hueco */}
         <View style={styles.side}>
           {!isHome && (
@@ -38,7 +48,7 @@ const Header: React.FC<HeaderProps> = ({ title }) => {
           )}
         </View>
 
-        {/* CENTRO: título SIEMPRE centrado */}
+        {/* CENTRO: título */}
         <View style={styles.center}>
           <Text numberOfLines={1} style={styles.title}>
             {displayTitle}
@@ -75,26 +85,22 @@ const Header: React.FC<HeaderProps> = ({ title }) => {
           </TouchableOpacity>
         </View>
       </View>
-    </View>
+    </SafeAreaView>
   );
 };
 
-const TOP_PADDING = Platform.OS === 'web' ? 12 : 32;
-
 const styles = StyleSheet.create({
-  container: {
-    paddingTop: TOP_PADDING,
-    paddingBottom: 12,
-    paddingHorizontal: 16,
-    width: '100%',
-    backgroundColor: 'transparent', // se mezcla con el gradiente de Home
+  safeArea: {
+    backgroundColor: 'transparent',
   },
-  row: {
-    flexDirection: 'row',        // 🔥 todo en una sola línea
+  container: {
+    flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: Platform.OS === 'android' ? 8 : 10,
   },
   side: {
-    width: 64,                   // mismo ancho izquierda/derecha
+    width: 64,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-start',
