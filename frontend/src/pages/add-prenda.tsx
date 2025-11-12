@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -13,13 +13,16 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import Header from "components/Header";
 import colors from "../constants/colors";
 import { useLoader } from "../context/LoaderContext";
 import { apiFetch } from "../utils/apiClient";
 
 export default function AddPrenda() {
+  const { id } = useLocalSearchParams<{ id?: string }>();
+  const isEditing = !!id;
+
   const [form, setForm] = useState({
     nombre: "",
     tipo: "",
@@ -28,10 +31,42 @@ export default function AddPrenda() {
     estacion: "",
     imagen: "",
   });
+
   const { showLoader, hideLoader } = useLoader();
   const { width } = useWindowDimensions();
   const isWeb = width >= 768;
 
+  // 🧩 Cargar datos si estamos en modo edición
+  useEffect(() => {
+    if (!isEditing) return;
+    const fetchPrenda = async () => {
+      try {
+        showLoader("Cargando prenda...");
+        const response = await apiFetch(`/api/prendas/${id}`);
+        if (!response.ok) throw new Error("No se pudo cargar la prenda");
+        
+        const data: any = await response.json();
+        const prenda = data.prenda || data; // <-- 🔹 soporte para ambas estructuras
+
+        setForm({
+         nombre: prenda.nombre || "",
+         tipo: prenda.tipo || "",
+         color: prenda.color || "",
+         ocasion: prenda.ocasion || "",
+         estacion: prenda.estacion || "",
+         imagen: prenda.imagen || "",
+        });
+
+      } catch (error) {
+        Alert.alert("Error", "No se pudo cargar la prenda para editar.");
+      } finally {
+        hideLoader();
+      }
+    };
+    fetchPrenda();
+  }, [id]);
+
+  // 🧩 Elegir imagen o tomar foto
   const seleccionarImagen = async (origen: "camera" | "gallery") => {
     try {
       const permiso =
@@ -46,8 +81,8 @@ export default function AddPrenda() {
 
       const result =
         origen === "camera"
-          ? await ImagePicker.launchCameraAsync({ quality: 0.7 })
-          : await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
+          ? await ImagePicker.launchCameraAsync({ quality: 0.9 })
+          : await ImagePicker.launchImageLibraryAsync({ quality: 0.9 });
 
       if (!result.canceled) {
         const uri = result.assets?.[0]?.uri;
@@ -58,13 +93,14 @@ export default function AddPrenda() {
     }
   };
 
+  // 🧩 Guardar o actualizar prenda
   const handleSubmit = async () => {
     if (!form.nombre || !form.tipo || !form.color || !form.imagen) {
       Alert.alert("Campos incompletos", "Por favor, completa los campos requeridos.");
       return;
     }
 
-    showLoader("Guardando prenda...");
+    showLoader(isEditing ? "Actualizando prenda..." : "Guardando prenda...");
 
     try {
       const data = new FormData();
@@ -78,7 +114,6 @@ export default function AddPrenda() {
         const filename = form.imagen.split("/").pop() || "imagen.jpg";
         const ext = filename.split(".").pop() || "jpg";
         const type = `image/${ext}`;
-
         data.append("imagen", {
           uri: form.imagen,
           name: filename,
@@ -86,16 +121,13 @@ export default function AddPrenda() {
         } as any);
       }
 
-      const response = await apiFetch("/api/prendas", {
-        method: "POST",
-        body: data as any,
-      });
+      const method = isEditing ? "PUT" : "POST";
+      const url = isEditing ? `/api/prendas/${id}` : "/api/prendas";
 
-      if (!response.ok) {
-        throw new Error("No se pudo guardar la prenda");
-      }
+      const response = await apiFetch(url, { method, body: data as any });
+      if (!response.ok) throw new Error("Error al guardar la prenda");
 
-      Alert.alert("Éxito", "Prenda guardada correctamente");
+      Alert.alert("Éxito", isEditing ? "Prenda actualizada" : "Prenda guardada");
       router.push("/mi-armario");
     } catch (error: any) {
       Alert.alert("Error", error.message || "No se pudo guardar la prenda");
@@ -111,16 +143,23 @@ export default function AddPrenda() {
       end={{ x: 1, y: 1 }}
       style={styles.gradient}
     >
-      <Header title="Agregar Prenda" />
+      <Header title={isEditing ? "Editar Prenda" : "Agregar Prenda"} />
 
       <ScrollView contentContainerStyle={styles.scrollContainer}>
-        {/* 📱 Responsive wrapper */}
         <View
           style={[
             styles.formContainer,
             isWeb && { maxWidth: 500, alignSelf: "center", width: "90%" },
           ]}
         >
+          {/* Imagen seleccionada */}
+          {form.imagen ? (
+            <Image
+              source={{ uri: form.imagen }}
+              style={styles.imagePreview}
+            />
+          ) : null}
+
           {/* Botones de cámara y galería */}
           <View style={styles.imageButtonsContainer}>
             <TouchableOpacity
@@ -132,18 +171,16 @@ export default function AddPrenda() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.imageButton, { backgroundColor: "#FFF", borderColor: colors.primary, borderWidth: 1 }]}
+              style={[
+                styles.imageButton,
+                { backgroundColor: "#FFF", borderColor: colors.primary, borderWidth: 1 },
+              ]}
               onPress={() => seleccionarImagen("gallery")}
             >
               <Ionicons name="image-outline" size={20} color={colors.primary} />
               <Text style={[styles.imageButtonText, { color: colors.primary }]}>Galería</Text>
             </TouchableOpacity>
           </View>
-
-          {/* Imagen seleccionada */}
-          {form.imagen ? (
-            <Image source={{ uri: form.imagen }} style={styles.imagePreview} />
-          ) : null}
 
           {/* Inputs */}
           <TextInput
@@ -152,28 +189,24 @@ export default function AddPrenda() {
             value={form.nombre}
             onChangeText={(v) => setForm({ ...form, nombre: v })}
           />
-
           <TextInput
             placeholder="Tipo (camiseta, pantalón...)"
             style={styles.input}
             value={form.tipo}
             onChangeText={(v) => setForm({ ...form, tipo: v })}
           />
-
           <TextInput
             placeholder="Color"
             style={styles.input}
             value={form.color}
             onChangeText={(v) => setForm({ ...form, color: v })}
           />
-
           <TextInput
             placeholder="Categoría / ocasión (casual, trabajo, fiesta...)"
             style={styles.input}
             value={form.ocasion}
             onChangeText={(v) => setForm({ ...form, ocasion: v })}
           />
-
           <TextInput
             placeholder="Estación (verano, invierno, todas...)"
             style={styles.input}
@@ -188,7 +221,9 @@ export default function AddPrenda() {
             ]}
             onPress={handleSubmit}
           >
-            <Text style={styles.saveButtonText}>Guardar Prenda</Text>
+            <Text style={styles.saveButtonText}>
+              {isEditing ? "Actualizar Prenda" : "Guardar Prenda"}
+            </Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -221,10 +256,11 @@ const styles = StyleSheet.create({
   },
   imagePreview: {
     width: "100%",
-    height: 200,
+    height: 250,
     borderRadius: 12,
     marginBottom: 16,
-    resizeMode: "cover",
+    resizeMode: "contain", // ✅ evita recorte
+    backgroundColor: "#FFF",
   },
   input: {
     backgroundColor: "#FFF",
