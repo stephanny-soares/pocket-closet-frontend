@@ -3,7 +3,11 @@ import { router } from "expo-router";
 import { Alert } from "react-native";
 import Toast from "react-native-toast-message";
 
-export const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL || "/api";
+export const API_BASE =
+  (process.env.EXPO_PUBLIC_API_URL as string) ||
+  (process.env.EXPO_PUBLIC_API_BASE_URL as string) ||
+  "http://localhost:5000";
+
 
 export async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
   const token = await getToken();
@@ -35,7 +39,7 @@ export async function apiFetch(path: string, options: RequestInit = {}): Promise
         text1: "Sesión expirada",
         text2: "Por favor, inicia sesión nuevamente.",
       });
-      router.replace("/login");
+      router.replace("/(auth)/login");
       throw new Error("Sesión expirada");
     }
 

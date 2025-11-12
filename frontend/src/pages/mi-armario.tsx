@@ -74,7 +74,8 @@ export default function MiArmario() {
     showLoader("Cargando prendas...");
     try {
       const data = await apiRequest<{ prendas: Prenda[] }>("/api/prendas", { method: "GET" });
-      setPrendas(data.prendas || []);
+      setPrendas(Array.isArray(data) ? data : data.prendas || []);
+
     } catch (error: any) {
       Alert.alert("Error", error.message || "No se pudieron cargar las prendas");
     } finally {
@@ -439,8 +440,10 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     backgroundColor: "#FFF",
     elevation: 3,
+    maxWidth: 250, 
+    alignSelf: "center"
   },
-  prendaImagen: { width: "100%", height: "100%", resizeMode: "cover" },
+  prendaImagen: { width: "100%", height: "100%", resizeMode: "cover", objectFit: "cover" },
   modalOverlay: {
     flex: 1,
     backgroundColor: "#000000AA",

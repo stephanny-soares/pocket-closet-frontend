@@ -59,7 +59,18 @@ export const storage = {
 
 export async function getToken(): Promise<string | null> {
   try {
-    const token = await storage.getItem("token");
+    // En web, usa sessionStorage si existe (login sin "recordarme"),
+    // o localStorage si el usuario marcó "recordarme"
+    if (typeof window !== "undefined") {
+      const ss = typeof sessionStorage !== "undefined" ? sessionStorage.getItem("authToken") : null;
+      if (ss) return ss;
+      const ls = typeof localStorage !== "undefined" ? localStorage.getItem("authToken") : null;
+      if (ls) return ls;
+      return null;
+    }
+
+    // En móvil / nativo, usa AsyncStorage
+    const token = await storage.getItem("authToken");
     return token || null;
   } catch {
     return null;
@@ -68,7 +79,13 @@ export async function getToken(): Promise<string | null> {
 
 export async function removeToken(): Promise<void> {
   try {
-    await storage.removeItem("token");
+    if (typeof window !== "undefined") {
+      try { sessionStorage.removeItem("authToken"); } catch {}
+      try { localStorage.removeItem("authToken"); } catch {}
+      return;
+    }
+
+    await storage.removeItem("authToken");
   } catch (error) {
     console.error("Error al eliminar el token:", error);
   }
