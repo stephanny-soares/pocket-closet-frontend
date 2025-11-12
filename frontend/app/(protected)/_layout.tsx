@@ -36,6 +36,8 @@ export default function ProtectedLayout() {
           <Stack.Screen name="mis-viajes" options={{ headerShown: false }} />
           <Stack.Screen name="perfil" options={{ headerShown: false }} />
           <Stack.Screen name="notificaciones" options={{ headerShown: false }} />
+          <Stack.Screen name="questionnaire" options={{ headerShown: false }} />
+
         </Stack>
         <StatusBar style="dark" translucent />
       </View>

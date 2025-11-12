@@ -111,11 +111,15 @@ const RegisterScreen: React.FC = () => {
         Toast.show({
           type: "success",
           text1: "🎉 Registro exitoso",
-          text2: "Usuario creado correctamente.",
+          text2: "Usuario creado correctamente",
           position: "bottom",
-          visibilityTime: 3000,
+          visibilityTime: 2000,
           bottomOffset: 70,
         });
+        setTimeout(() => {
+         router.replace("/(protected)/questionnaire");
+        }, 2100);
+
       } else {
         await logEvent({
           level: "warn",
