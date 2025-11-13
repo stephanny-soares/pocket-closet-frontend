@@ -41,44 +41,63 @@ export function useAuth() {
 
   // 🔍 Verifica si existe un token en storage
   const loadSession = useCallback(async () => {
-    let token = await storage.getItem("authToken");
-    let userName = await storage.getItem("userName");
-    let userId = await storage.getItem("userId");
+    try {
+      let token: string | null = null;
+      let userName: string | null = null;
+      let userId: string | null = null;
 
-    // Si estamos en web, intentar recuperar también de session/localStorage
-    if (Platform.OS === "web" && !token) {
-      token = sessionStorage.getItem("authToken") || localStorage.getItem("authToken");
-      userName = sessionStorage.getItem("userName") || localStorage.getItem("userName");
-      userId = sessionStorage.getItem("userId") || localStorage.getItem("userId");
-    }
+      // 🔹 Primero intenta obtener del storage principal (AsyncStorage o localStorage)
+      token = await storage.getItem("authToken");
+      userName = await storage.getItem("userName");
+      userId = await storage.getItem("userId");
 
-    // 🕒 Verificar si el token ya expiró
-    if (token) {
-      const decoded = decodeJWT(token);
-      if (decoded?.exp && decoded.exp * 1000 < Date.now()) {
-        console.warn("Token expirado, cerrando sesión automáticamente");
-        await storage.removeItem("authToken");
-        await storage.removeItem("userName");
-        await storage.removeItem("userId");
-        token = null;
-        userName = null;
-        userId = null;
+      // 🔹 Si estamos en web y no hay token, intentar recuperar de sessionStorage
+      if (Platform.OS === "web" && !token) {
+        try {
+          token = sessionStorage.getItem("authToken") || localStorage.getItem("authToken");
+          userName = sessionStorage.getItem("userName") || localStorage.getItem("userName");
+          userId = sessionStorage.getItem("userId") || localStorage.getItem("userId");
+        } catch (err) {
+          console.warn("No se pudo acceder a sessionStorage:", err);
+        }
       }
-    }
 
-    // 🔍 Si estamos en web y no hay token, intenta sessionStorage nuevamente
-    if (Platform.OS === "web" && !token) {
-      try {
-        token = sessionStorage.getItem("authToken");
-        userName = sessionStorage.getItem("userName");
-        userId = sessionStorage.getItem("userId");
-      } catch (err) {
-        console.warn("No se pudo acceder a sessionStorage:", err);
+      // 🕒 Verificar si el token ya expiró
+      if (token) {
+        const decoded = decodeJWT(token);
+        if (decoded?.exp && decoded.exp * 1000 < Date.now()) {
+          console.warn("Token expirado, cerrando sesión automáticamente");
+          
+          // Limpiar completamente
+          await storage.removeItem("authToken");
+          await storage.removeItem("userName");
+          await storage.removeItem("userId");
+          
+          if (Platform.OS === "web") {
+            try {
+              sessionStorage.removeItem("authToken");
+              sessionStorage.removeItem("userName");
+              sessionStorage.removeItem("userId");
+              localStorage.removeItem("authToken");
+              localStorage.removeItem("userName");
+              localStorage.removeItem("userId");
+            } catch {}
+          }
+          
+          token = null;
+          userName = null;
+          userId = null;
+        }
       }
-    }
 
-    setAuth({ token, userName, userId });
-    setLoading(false);
+      console.log("📱 [loadSession] Token encontrado:", !!token);
+      setAuth({ token, userName, userId });
+    } catch (error) {
+      console.error("Error en loadSession:", error);
+      setAuth({ token: null, userName: null, userId: null });
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   // 🚀 Llama a loadSession al montar el hook
@@ -94,18 +113,20 @@ export function useAuth() {
     rememberMe: boolean = false
   ) => {
     try {
+      console.log("🔐 [login] Guardando token...", { platform: Platform.OS, rememberMe });
+
       if (Platform.OS === "web") {
         // Guardar según preferencia en la web
         const storageMethod = rememberMe ? localStorage : sessionStorage;
         storageMethod.setItem("authToken", token);
         if (userName) storageMethod.setItem("userName", userName);
         if (userId) storageMethod.setItem("userId", userId);
-      } else {
-        // En móvil usa AsyncStorage
-        await storage.setItem("authToken", token);
-        if (userName) await storage.setItem("userName", userName);
-        if (userId) await storage.setItem("userId", userId);
       }
+      
+      // 🔹 SIEMPRE guardar en AsyncStorage/localStorage (para compatibilidad)
+      await storage.setItem("authToken", token);
+      if (userName) await storage.setItem("userName", userName);
+      if (userId) await storage.setItem("userId", userId);
 
       setAuth({ token, userName: userName || null, userId: userId || null });
 
@@ -126,14 +147,17 @@ export function useAuth() {
         }
       }
 
+      console.log("✅ [login] Token guardado correctamente");
       router.replace("/(protected)/home");
     } catch (err) {
-      console.error("Error al guardar sesión:", err);
+      console.error("❌ Error al guardar sesión:", err);
     }
   };
 
-  // 🚪 Cierra sesión completamente (corregido)
+  // 🚪 Cierra sesión completamente
   const logout = async () => {
+    console.log("🚪 [logout] Cerrando sesión...");
+    
     if (auth.userId) {
       await logEvent({
         event: "UserLogout",
