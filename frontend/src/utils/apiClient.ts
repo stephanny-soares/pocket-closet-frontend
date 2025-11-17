@@ -8,7 +8,9 @@ import { Platform } from "react-native";
 const fromEnv = process.env.EXPO_PUBLIC_API_URL || Constants.expoConfig?.extra?.apiUrl;
 const LOCAL_URL = Platform.OS === "android" ? "http://10.0.2.2:5000" : "http://localhost:5000";
 
-export const API_BASE = fromEnv || LOCAL_URL;
+export const API_BASE = (fromEnv || LOCAL_URL).replace(/\/+$/, "");
+
+console.log("🔧 API_BASE configurado:", API_BASE);
 
 export async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
   const token = await getToken();
