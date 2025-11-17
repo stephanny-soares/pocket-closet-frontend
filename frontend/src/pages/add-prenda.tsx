@@ -8,6 +8,8 @@ import {
   TextInput,
   Alert,
   ScrollView,
+  useWindowDimensions,
+  ActivityIndicator,
   Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -17,7 +19,9 @@ import { router, useLocalSearchParams } from "expo-router";
 import Header from "components/Header";
 import colors from "../constants/colors";
 import { useLoader } from "../context/LoaderContext";
-import { apiFetch } from "../utils/apiClient";
+import { apiFetch, API_BASE } from "../utils/apiClient";
+import { storage } from "../utils/storage";
+
 
 export default function AddPrenda() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -33,91 +37,58 @@ export default function AddPrenda() {
   });
 
   const [clasificando, setClasificando] = useState(false);
-  const { showLoader, hideLoader } = useLoader();
-  const isWeb = Platform.OS === "web";
+  const [clasificacionPrevia, setClasificacionPrevia] = useState(false);
 
-  // ===============================================================
-  //         Cargar prenda existente (modo editar)
-  // ===============================================================
+  const { showLoader, hideLoader } = useLoader();
+  const { width } = useWindowDimensions();
+  const isWeb = width >= 768;
+
+  // 🧩 Cargar datos si estamos en modo edición
   useEffect(() => {
     if (!isEditing) return;
-
-    const loadPrenda = async () => {
+    const fetchPrenda = async () => {
       try {
         showLoader("Cargando prenda...");
         const response = await apiFetch(`/api/prendas/${id}`);
         if (!response.ok) throw new Error("No se pudo cargar la prenda");
-
-        const data = await response.json();
+        
+        const data: any = await response.json();
         const prenda = data.prenda || data;
 
         setForm({
-          nombre: prenda.nombre || "",
-          tipo: prenda.tipo || "",
-          color: prenda.color || "",
-          ocasion: prenda.ocasion || "",
-          estacion: prenda.estacion || "",
-          imagen: prenda.imagen || "",
+         nombre: prenda.nombre || "",
+         tipo: prenda.tipo || "",
+         color: prenda.color || "",
+         ocasion: prenda.ocasion || "",
+         estacion: prenda.estacion || "",
+         imagen: prenda.imagen || "",
         });
-      } catch {
-        Alert.alert("Error", "No se pudo cargar la prenda.");
+
+        // Marcar que ya tiene clasificación previa
+        setClasificacionPrevia(true);
+
+      } catch (error) {
+        Alert.alert("Error", "No se pudo cargar la prenda para editar.");
       } finally {
         hideLoader();
       }
     };
-
-    loadPrenda();
+    fetchPrenda();
   }, [id]);
 
-  // ===============================================================
-  //            CLASIFICACIÓN EN WEB (usa File real)
-  // ===============================================================
-  async function clasificarImagenWeb(file: File) {
+  // 🤖 Clasificar imagen con IA
+  const clasificarImagen = async (imageUri: string) => {
     setClasificando(true);
     try {
+      console.log("🤖 Enviando imagen a clasificar...");
+      
       const data = new FormData();
-      data.append("archivo", file);
-
-      const response = await apiFetch("/api/prendas/upload", {
-        method: "POST",
-        body: data as any,
-      });
-
-      if (!response.ok) throw new Error("Error al clasificar imagen");
-
-      const result = await response.json();
-      const prenda = result.prenda || result;
-
-      setForm((prev) => ({
-        ...prev,
-        nombre: prenda.nombre ?? prev.nombre,
-        tipo: prenda.tipo ?? prev.tipo,
-        color: prenda.color ?? prev.color,
-        ocasion: prenda.ocasion ?? prev.ocasion,
-        estacion: prenda.estacion ?? prev.estacion,
-        imagen: prenda.imagen,
-      }));
-    } catch (e) {
-      Alert.alert("Error", "No se pudo clasificar la imagen.");
-    } finally {
-      setClasificando(false);
-    }
-  }
-
-  // ===============================================================
-  //        CLASIFICACIÓN ANDROID/IOS (usa URI)
-  // ===============================================================
-  async function clasificarImagenMovil(uri: string) {
-    setClasificando(true);
-    try {
-      const data = new FormData();
-
-      const filename = uri.split("/").pop() || "imagen.jpg";
+      const filename = imageUri.split("/").pop() || "imagen.jpg";
       const ext = filename.split(".").pop() || "jpg";
       const type = `image/${ext}`;
-
+      
       data.append("archivo", {
-        uri,
+        uri: imageUri,
         name: filename,
         type,
       } as any);
@@ -127,345 +98,447 @@ export default function AddPrenda() {
         body: data as any,
       });
 
-      if (!response.ok) throw new Error("Error al clasificar imagen");
+      if (!response.ok) {
+        throw new Error("Error al clasificar la imagen");
+      }
 
-      const result = await response.json();
-      const prenda = result.prenda || result;
+      const resultado: any = await response.json();
+      console.log("✅ Clasificación recibida:", resultado);
 
+      // Actualizar el formulario con la clasificación
+      // 🔹 El backend devuelve la prenda completa
+      const prenda = resultado.prenda || resultado;
+      
       setForm((prev) => ({
         ...prev,
-        nombre: prenda.nombre ?? prev.nombre,
-        tipo: prenda.tipo ?? prev.tipo,
-        color: prenda.color ?? prev.color,
-        ocasion: prenda.ocasion ?? prev.ocasion,
-        estacion: prenda.estacion ?? prev.estacion,
-        imagen: prenda.imagen,
+        nombre: prenda.nombre || prev.nombre,
+        tipo: prenda.tipo || prev.tipo,
+        color: prenda.color || prev.color,
+        ocasion: prenda.ocasion || prev.ocasion,
+        estacion: prenda.estacion || prev.estacion,
+        imagen: prenda.imagen || prev.imagen, // URL de Cloud Storage
       }));
-    } catch {
-      Alert.alert("Error", "No se pudo clasificar la imagen.");
+
+      console.log("📝 Formulario actualizado:", {
+        nombre: prenda.nombre,
+        tipo: prenda.tipo,
+        color: prenda.color,
+      });
+
+      Alert.alert(
+        "✨ Clasificación completada",
+        `La IA identificó: ${prenda.tipo || "prenda"} ${prenda.color || ""}. Revisa y ajusta si es necesario.`,
+        [{ text: "OK" }]
+      );
+
+    } catch (error: any) {
+      console.error("❌ Error clasificando:", error);
+      console.error("❌ Stack trace:", error.stack);
+      
+      Alert.alert(
+        "Error en clasificación",
+        `No se pudo clasificar: ${error.message || "Error desconocido"}. Completa los campos manualmente.`
+      );
     } finally {
       setClasificando(false);
     }
-  }
-
-  // ===============================================================
-  //        Seleccionar imagen (web + móvil)
-  // ===============================================================
-  const seleccionarImagen = async (origen: "camera" | "gallery") => {
-    if (isWeb) {
-      (document as any).getElementById("fileInput")?.click();
-      return;
-    }
-
-    const permiso =
-      origen === "camera"
-        ? await ImagePicker.requestCameraPermissionsAsync()
-        : await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-    if (!permiso.granted) {
-      Alert.alert("Permiso denegado");
-      return;
-    }
-
-    const result =
-      origen === "camera"
-        ? await ImagePicker.launchCameraAsync({ quality: 0.9 })
-        : await ImagePicker.launchImageLibraryAsync({ quality: 0.9 });
-
-    if (!result.canceled && result.assets?.length) {
-      const pickedUri = result.assets[0].uri;
-      setForm((prev) => ({ ...prev, imagen: pickedUri }));
-      clasificarImagenMovil(pickedUri);
-    }
   };
+  // Clasificar imagen web
+  async function clasificarImagenWeb(file: File) {
+  setClasificando(true);
+  try {
+    const data = new FormData();
+    data.append("archivo", file); // File real como en Swagger
 
-  // ===============================================================
-  //             GUARDAR (crear / editar)
-  // ===============================================================
-  const handleSubmit = async () => {
-    if (!form.imagen) {
-      Alert.alert("Imagen requerida");
+    const response = await apiFetch("/api/prendas/upload", {
+      method: "POST",
+      body: data,
+    });
+
+    if (!response.ok) throw new Error("Error al clasificar la imagen");
+
+    const resultado = await response.json();
+
+    const prenda = resultado.prenda || resultado;
+
+    setForm((prev) => ({
+      ...prev,
+      nombre: prenda.nombre || prev.nombre,
+      tipo: prenda.tipo || prev.tipo,
+      color: prenda.color || prev.color,
+      ocasion: prenda.ocasion || prev.ocasion,
+      estacion: prenda.estacion || prev.estacion,
+      imagen: prenda.imagen,
+    }));
+  } catch (err) {
+    console.error(err);
+    Alert.alert("Error", "No se pudo clasificar la imagen en Web");
+  } finally {
+    setClasificando(false);
+  }
+}
+
+
+  // 🧩 Elegir imagen o tomar foto
+  const seleccionarImagen = async (origen: "camera" | "gallery") => {
+    if (Platform.OS === "web") {
+      document.getElementById("hiddenFileInput")?.click();
       return;
     }
-
-    showLoader(isEditing ? "Actualizando..." : "Guardando...");
 
     try {
-      // -------- EDITAR --------
-      if (isEditing) {
-        const body = JSON.stringify({
-          nombre: form.nombre,
-          tipo: form.tipo,
-          color: form.color,
-          ocasion: form.ocasion,
-          estacion: form.estacion,
-          imagen: form.imagen,
-        });
+      const permiso =
+        origen === "camera"
+          ? await ImagePicker.requestCameraPermissionsAsync()
+          : await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-        const response = await apiFetch(`/api/prendas/${id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body,
-        });
-
-        if (!response.ok) throw new Error("Error al actualizar");
-
-        Alert.alert("Éxito", "Prenda actualizada");
-        router.push("/mi-armario");
+      if (!permiso.granted) {
+        Alert.alert("Permiso denegado", "No se puede acceder a la cámara o galería.");
         return;
       }
 
-      // -------- CREAR --------
-      const data = new FormData();
+      const result =
+        origen === "camera"
+          ? await ImagePicker.launchCameraAsync({ quality: 0.9 })
+          : await ImagePicker.launchImageLibraryAsync({ quality: 0.9 });
 
-      if (isWeb) {
-        const res = await fetch(form.imagen);
-        const blob = await res.blob();
-        const file = new File([blob], "imagen.jpg", { type: blob.type });
-        data.append("archivo", file);
-      } else {
+      if (!result.canceled) {
+        const uri = result.assets?.[0]?.uri;
+        setForm((prev) => ({ ...prev, imagen: uri }));
+        
+        // 🤖 Clasificar automáticamente la nueva imagen
+        if (!isEditing && uri) {
+          await clasificarImagen(uri);
+        }
+      }
+    } catch (err) {
+      Alert.alert("Error", "No se pudo abrir la cámara o galería.");
+    }
+  };
+
+  // 🔄 Reclasificar imagen manualmente
+  const reclasificar = async () => {
+    if (!form.imagen) {
+      Alert.alert("Sin imagen", "Primero selecciona una imagen para clasificar.");
+      return;
+    }
+
+    Alert.alert(
+      "Reclasificar prenda",
+      "¿Quieres que la IA vuelva a analizar esta imagen? Esto sobrescribirá los campos actuales.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Reclasificar",
+          onPress: () => clasificarImagen(form.imagen),
+        },
+      ]
+    );
+  };
+
+  // 🧩 Guardar o actualizar prenda
+  const handleSubmit = async () => {
+    if (!form.nombre || !form.tipo || !form.color || !form.imagen) {
+      Alert.alert("Campos incompletos", "Por favor, completa los campos requeridos.");
+      return;
+    }
+
+    showLoader(isEditing ? "Actualizando prenda..." : "Guardando prenda...");
+
+    try {
+      const data = new FormData();
+      data.append("nombre", form.nombre);
+      data.append("tipo", form.tipo);
+      data.append("color", form.color);
+      data.append("ocasion", form.ocasion);
+      data.append("estacion", form.estacion);
+
+      if (form.imagen) {
         const filename = form.imagen.split("/").pop() || "imagen.jpg";
         const ext = filename.split(".").pop() || "jpg";
         const type = `image/${ext}`;
-
-        data.append("archivo", {
+        data.append("imagen", {
           uri: form.imagen,
           name: filename,
           type,
         } as any);
       }
 
-      const response = await apiFetch("/api/prendas/upload", {
-        method: "POST",
-        body: data as any,
-      });
+      const method = isEditing ? "PUT" : "POST";
+      const url = isEditing ? `/api/prendas/${id}` : "/api/prendas";
 
-      if (!response.ok) throw new Error("Error creando prenda");
+      const response = await apiFetch(url, { method, body: data as any });
+      if (!response.ok) throw new Error("Error al guardar la prenda");
 
-      Alert.alert("Éxito", "Prenda creada");
+      Alert.alert("Éxito", isEditing ? "Prenda actualizada" : "Prenda guardada");
       router.push("/mi-armario");
-    } catch (e) {
-      Alert.alert("Error", String(e));
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "No se pudo guardar la prenda");
     } finally {
       hideLoader();
     }
   };
 
-  // ===============================================================
-  //                          UI
-  // ===============================================================
   return (
-    <LinearGradient colors={colors.gradient as any} style={{ flex: 1 }}>
+    <LinearGradient
+      colors={colors.gradient as any}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.gradient}
+    >
       <Header title={isEditing ? "Editar Prenda" : "Agregar Prenda"} />
 
       <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <View style={styles.formContainer}>
-          {/* IMAGEN */}
-          {form.imagen ? (
-            <Image source={{ uri: form.imagen }} style={styles.image} />
-          ) : (
-            <View style={styles.placeholder} />
+        <View
+          style={[
+            styles.formContainer,
+            isWeb && { maxWidth: 500, alignSelf: "center", width: "90%" },
+          ]}
+        >
+          {/* Banner de clasificación IA */}
+          {!isEditing && !clasificacionPrevia && (
+            <View style={styles.aiNotice}>
+              <Ionicons name="sparkles" size={20} color={colors.primary} />
+              <Text style={styles.aiNoticeText}>
+                La IA clasificará tu prenda automáticamente
+              </Text>
+            </View>
           )}
 
-          {/* BOTONES */}
-          <View style={styles.row}>
+          {/* Imagen seleccionada */}
+          {form.imagen ? (
+            <View style={styles.imageContainer}>
+              <Image
+                source={{ 
+                  uri: form.imagen,
+                  // Añadir headers si es necesario
+                  ...(form.imagen.includes('storage.googleapis.com') && {
+                    headers: {
+                      Accept: 'image/*',
+                    }
+                  })
+                }}
+                style={styles.imagePreview}
+                resizeMode="contain"
+                onError={(error) => {
+                  console.error("❌ Error cargando imagen:", error.nativeEvent);
+                }}
+                onLoad={() => {
+                  console.log("✅ Imagen cargada correctamente");
+                }}
+              />
+              {clasificando && (
+                <View style={styles.clasificandoOverlay}>
+                  <ActivityIndicator size="large" color={colors.primary} />
+                  <Text style={styles.clasificandoText}>Analizando con IA...</Text>
+                </View>
+              )}
+            </View>
+          ) : null}
+
+          {/* Botones de cámara y galería */}
+          <View style={styles.imageButtonsContainer}>
             <TouchableOpacity
-              style={styles.btnCamara}
+              style={[styles.imageButton, { backgroundColor: colors.primary }]}
               onPress={() => seleccionarImagen("camera")}
+              disabled={clasificando}
             >
               <Ionicons name="camera-outline" size={20} color="#FFF" />
-              <Text style={styles.btnTextWhite}>Cámara</Text>
+              <Text style={styles.imageButtonText}>Cámara</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.btnGaleria}
+              style={[
+                styles.imageButton,
+                { backgroundColor: "#FFF", borderColor: colors.primary, borderWidth: 1 },
+              ]}
               onPress={() => seleccionarImagen("gallery")}
+              disabled={clasificando}
             >
               <Ionicons name="image-outline" size={20} color={colors.primary} />
-              <Text style={styles.btnTextPrimary}>Galería</Text>
+              <Text style={[styles.imageButtonText, { color: colors.primary }]}>Galería</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.btnReclasificar}
-              onPress={() => {
-                if (!form.imagen) return;
-
-                if (isWeb) {
-                  fetch(form.imagen)
-                    .then((r) => r.blob())
-                    .then((blob) => {
-                      const file = new File([blob], "imagen.jpg", {
-                        type: blob.type,
-                      });
-                      clasificarImagenWeb(file);
-                    });
-                } else {
-                  clasificarImagenMovil(form.imagen);
-                }
-              }}
-            >
-              <Ionicons name="refresh-outline" size={20} color="#f39100" />
-              <Text style={styles.btnTextReclasificar}>Reclasificar</Text>
-            </TouchableOpacity>
+            {form.imagen && (
+              <TouchableOpacity
+                style={[
+                  styles.imageButton,
+                  { backgroundColor: "#FFF", borderColor: "#FF9800", borderWidth: 1 },
+                ]}
+                onPress={reclasificar}
+                disabled={clasificando}
+              >
+                <Ionicons name="refresh-outline" size={20} color="#FF9800" />
+                <Text style={[styles.imageButtonText, { color: "#FF9800" }]}>
+                  Reclasificar
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
 
-          {/* FORMULARIO */}
+          {/* Inputs */}
           <TextInput
+            placeholder="Nombre de la prenda"
             style={styles.input}
-            placeholder="Nombre"
             value={form.nombre}
-            onChangeText={(t) => setForm({ ...form, nombre: t })}
+            onChangeText={(v) => setForm({ ...form, nombre: v })}
+            editable={!clasificando}
           />
-
           <TextInput
+            placeholder="Tipo (camiseta, pantalón...)"
             style={styles.input}
-            placeholder="Tipo"
             value={form.tipo}
-            onChangeText={(t) => setForm({ ...form, tipo: t })}
+            onChangeText={(v) => setForm({ ...form, tipo: v })}
+            editable={!clasificando}
           />
-
           <TextInput
-            style={styles.input}
             placeholder="Color"
+            style={styles.input}
             value={form.color}
-            onChangeText={(t) => setForm({ ...form, color: t })}
+            onChangeText={(v) => setForm({ ...form, color: v })}
+            editable={!clasificando}
           />
-
           <TextInput
+            placeholder="Categoría / ocasión (casual, trabajo, fiesta...)"
             style={styles.input}
-            placeholder="Ocasión"
             value={form.ocasion}
-            onChangeText={(t) => setForm({ ...form, ocasion: t })}
+            onChangeText={(v) => setForm({ ...form, ocasion: v })}
+            editable={!clasificando}
           />
-
           <TextInput
+            placeholder="Estación (verano, invierno, todas...)"
             style={styles.input}
-            placeholder="Estación"
             value={form.estacion}
-            onChangeText={(t) => setForm({ ...form, estacion: t })}
+            onChangeText={(v) => setForm({ ...form, estacion: v })}
+            editable={!clasificando}
           />
 
-          <TouchableOpacity style={styles.btnGuardar} onPress={handleSubmit}>
-            <Text style={styles.btnGuardarText}>
-              {isEditing ? "Actualizar" : "Guardar"}
+          <TouchableOpacity
+            style={[
+              styles.saveButton,
+              isWeb && { alignSelf: "center", width: "60%", maxWidth: 400 },
+              clasificando && { opacity: 0.6 },
+            ]}
+            onPress={handleSubmit}
+            disabled={clasificando}
+          >
+            <Text style={styles.saveButtonText}>
+              {isEditing ? "Actualizar Prenda" : "Guardar Prenda"}
             </Text>
           </TouchableOpacity>
         </View>
+        {Platform.OS === "web" && (
+          <input
+            type="file"
+            accept="image/*"
+            id="hiddenFileInput"
+            style={{ display: "none" }}
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+
+              // crea URL local
+              const uri = URL.createObjectURL(file);
+
+              setForm((prev) => ({ ...prev, imagen: uri }));
+
+              // clasificar con File real
+              await clasificarImagenWeb(file);
+            }}
+          />
+        )}
+
       </ScrollView>
-
-      {/* INPUT FILE (WEB) */}
-      {isWeb && (
-        <input
-          id="fileInput"
-          type="file"
-          accept="image/*"
-          style={{ display: "none" }}
-          onChange={(e) => {
-            const file = (e.target as HTMLInputElement & { files: FileList | null }).files?.[0];
-            if (!file) return;
-
-            const localUri = URL.createObjectURL(file);
-
-            setForm((prev) => ({ ...prev, imagen: localUri }));
-            clasificarImagenWeb(file);
-          }}
-        />
-      )}
     </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  scrollContainer: {
-    flexGrow: 1,
-    justifyContent: "center",   // ← RESTAURADO (Android se veía perfecto)
-    paddingBottom: 40,          // ← RESTAURADO
+  gradient: { flex: 1 },
+  scrollContainer: { flexGrow: 1, justifyContent: "center", paddingBottom: 40 },
+  formContainer: { paddingHorizontal: 16, paddingVertical: 20 },
+  aiNotice: {
+    backgroundColor: "#E8F5E9",
+    borderRadius: 12,
+    padding: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 16,
   },
-  formContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 20,
+  aiNoticeText: {
+    flex: 1,
+    fontSize: 13,
+    color: "#2E7D32",
+    fontWeight: "500",
   },
-  image: {
+  imageContainer: {
+    position: "relative",
+    marginBottom: 16,
+  },
+  imageButtonsContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 16,
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  imageButton: {
+    flex: 1,
+    minWidth: 100,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+  },
+  imageButtonText: {
+    fontWeight: "600",
+    color: "#FFF",
+    fontSize: 13,
+  },
+  imagePreview: {
     width: "100%",
     height: 250,
     borderRadius: 12,
     resizeMode: "contain",
     backgroundColor: "#FFF",
-    marginBottom: 20,
   },
-  placeholder: {
-    width: "100%",
-    height: 250,
+  clasificandoOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(255,255,255,0.9)",
     borderRadius: 12,
-    backgroundColor: "#EEE",
-    marginBottom: 20,
-  },
-  row: {
-    flexDirection: "row",
-    marginBottom: 20,
-  },
-  btnCamara: {
-    flex: 1,
-    backgroundColor: colors.primary,
-    paddingVertical: 12,
-    borderRadius: 10,
-    marginHorizontal: 4,
-    flexDirection: "row",
-    gap: 6,
     justifyContent: "center",
     alignItems: "center",
+    gap: 12,
   },
-  btnGaleria: {
-    flex: 1,
-    backgroundColor: "#FFF",
-    paddingVertical: 12,
-    borderRadius: 10,
-    marginHorizontal: 4,
-    flexDirection: "row",
-    gap: 6,
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: colors.primary,
-  },
-  btnReclasificar: {
-    flex: 1,
-    backgroundColor: "#FFF8E7",
-    paddingVertical: 12,
-    borderRadius: 10,
-    marginHorizontal: 4,
-    flexDirection: "row",
-    gap: 6,
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#f39100",
-  },
-  btnTextWhite: {
-    color: "#FFF",
+  clasificandoText: {
+    fontSize: 14,
     fontWeight: "600",
-  },
-  btnTextPrimary: {
     color: colors.primary,
-    fontWeight: "600",
-  },
-  btnTextReclasificar: {
-    color: "#f39100",
-    fontWeight: "600",
   },
   input: {
     backgroundColor: "#FFF",
     borderRadius: 12,
-    paddingVertical: 10,
     paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
     marginBottom: 12,
   },
-  btnGuardar: {
+  saveButton: {
     backgroundColor: colors.primary,
-    paddingVertical: 14,
     borderRadius: 12,
+    paddingVertical: 14,
     alignItems: "center",
     marginTop: 10,
   },
-  btnGuardarText: {
+  saveButtonText: {
     color: "#FFF",
     fontWeight: "600",
     fontSize: 16,
