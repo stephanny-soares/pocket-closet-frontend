@@ -245,34 +245,73 @@ export default function AddPrenda() {
 
     showLoader(isEditing ? "Actualizando prenda..." : "Guardando prenda...");
 
-    try {
-      const data = new FormData();
-      data.append("nombre", form.nombre);
-      data.append("tipo", form.tipo);
-      data.append("color", form.color);
-      data.append("ocasion", form.ocasion);
-      data.append("estacion", form.estacion);
+       try {
+      // ======================================================
+      //                MODO EDITAR → PUT JSON
+      // ======================================================
+      if (isEditing) {
+        if (!form.nombre || !form.tipo || !form.color) {
+          Alert.alert("Campos incompletos", "Completa nombre, tipo y color.");
+          hideLoader();
+          return;
+        }
 
-      if (form.imagen) {
-        const filename = form.imagen.split("/").pop() || "imagen.jpg";
-        const ext = filename.split(".").pop() || "jpg";
-        const type = `image/${ext}`;
-        data.append("imagen", {
-          uri: form.imagen,
-          name: filename,
-          type,
-        } as any);
+        console.log("📝 Actualizando prenda:", { id, form });
+
+        // ✅ Enviar como JSON (no FormData)
+        const body = {
+          nombre: form.nombre,
+          tipo: form.tipo,
+          color: form.color,
+          ocasion: form.ocasion || "",
+          estacion: form.estacion || "",
+          // NO incluir imagen si es una URL de Cloud Storage
+        };
+
+        console.log("📤 Body a enviar:", body);
+
+        const response = await apiFetch(`/api/prendas/${id}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+        });
+
+        console.log("📡 Respuesta PUT:", {
+          status: response.status,
+          ok: response.ok,
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Error al actualizar: ${errorText}`);
+        }
+
+        Alert.alert("Éxito", "Prenda actualizada correctamente");
+        router.push("/mi-armario");
+        return;
       }
 
-      const method = isEditing ? "PUT" : "POST";
-      const url = isEditing ? `/api/prendas/${id}` : "/api/prendas";
+      // ======================================================
+      //       MODO CREAR → Ya está creada, solo redirigir
+      // ======================================================
+      // Si ya tenemos los datos clasificados y la imagen en Cloud Storage,
+      // la prenda YA FUE CREADA durante la clasificación
+      if (form.nombre && form.tipo && form.color && form.imagen.includes('storage.googleapis.com')) {
+        console.log("ℹ️ Prenda ya fue creada durante la clasificación");
+        Alert.alert("Éxito", "Prenda guardada correctamente");
+        router.push("/mi-armario");
+        return;
+      }
 
-      const response = await apiFetch(url, { method, body: data as any });
-      if (!response.ok) throw new Error("Error al guardar la prenda");
-
-      Alert.alert("Éxito", isEditing ? "Prenda actualizada" : "Prenda guardada");
-      router.push("/mi-armario");
-    } catch (error: any) {
+      // Si por alguna razón llegamos aquí sin clasificar, mostrar error
+      Alert.alert(
+        "Error",
+        "La prenda debe ser clasificada antes de guardar. Intenta de nuevo."
+      );
+    } 
+    catch (error: any) {
       Alert.alert("Error", error.message || "No se pudo guardar la prenda");
     } finally {
       hideLoader();

@@ -19,10 +19,13 @@ import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import Header from "components/Header";
 import colors from "../constants/colors";
-import { apiRequest, apiFetch } from "../utils/apiClient";
+import { apiRequest } from "../utils/apiClient";
 import { useLoader } from "../context/LoaderContext";
 
-if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental) {
+if (
+  Platform.OS === "android" &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
@@ -59,8 +62,13 @@ export default function MiArmario() {
   });
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
   const [orden, setOrden] = useState<"fecha" | "tipo" | "color">("fecha");
-  const [prendaSeleccionada, setPrendaSeleccionada] = useState<Prenda | null>(null);
+  const [prendaSeleccionada, setPrendaSeleccionada] =
+    useState<Prenda | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+
+  // 👇 NUEVO: modal de confirmación
+  const [confirmVisible, setConfirmVisible] = useState(false);
+  const [prendaAEliminar, setPrendaAEliminar] = useState<Prenda | null>(null);
 
   const { showLoader, hideLoader } = useLoader();
   const { width } = useWindowDimensions();
@@ -73,9 +81,10 @@ export default function MiArmario() {
   const cargarPrendas = async () => {
     showLoader("Cargando prendas...");
     try {
-      const data = await apiRequest<{ prendas: Prenda[] }>("/api/prendas", { method: "GET" });
+      const data = await apiRequest<{ prendas: Prenda[] }>("/api/prendas", {
+        method: "GET",
+      });
       setPrendas(Array.isArray(data) ? data : data.prendas || []);
-
     } catch (error: any) {
       Alert.alert("Error", error.message || "No se pudieron cargar las prendas");
     } finally {
@@ -83,28 +92,27 @@ export default function MiArmario() {
     }
   };
 
-  const handleEliminarPrenda = (id: string, nombre: string) => {
-    Alert.alert("Eliminar prenda", `¿Quieres eliminar "${nombre}"?`, [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Eliminar",
-        style: "destructive",
-        onPress: async () => {
-          showLoader("Eliminando prenda...");
-          try {
-            const response = await apiFetch(`/api/prendas/${id}`, { method: "DELETE" });
-            if (response.ok) {
-              setPrendas((prev) => prev.filter((p) => p.id !== id));
-              Alert.alert("Éxito", "Prenda eliminada correctamente");
-            }
-          } catch (error: any) {
-            Alert.alert("Error", error.message || "No se pudo eliminar la prenda");
-          } finally {
-            hideLoader();
-          }
-        },
-      },
-    ]);
+  // 👇 Actualizado: elimina la prenda directamente SIN Alert.alert()
+  const eliminarAhora = async () => {
+    if (!prendaAEliminar) return;
+
+    showLoader("Eliminando prenda...");
+
+    try {
+      await apiRequest(`/api/prendas/${prendaAEliminar.id}`, {
+        method: "DELETE",
+      });
+
+      setPrendas((prev) =>
+        prev.filter((p) => p.id !== prendaAEliminar.id)
+      );
+    } catch (error: any) {
+      console.error("❌ Error eliminando:", error);
+      Alert.alert("Error", error.message || "No se pudo eliminar la prenda");
+    } finally {
+      hideLoader();
+      setConfirmVisible(false);
+    }
   };
 
   const toggleFiltros = () => {
@@ -121,14 +129,18 @@ export default function MiArmario() {
       case "fecha":
       default:
         return [...lista].sort(
-          (a, b) => new Date(b.createdAt || "").getTime() - new Date(a.createdAt || "").getTime()
+          (a, b) =>
+            new Date(b.createdAt || "").getTime() -
+            new Date(a.createdAt || "").getTime()
         );
     }
   };
 
-  const prendasOrdenadas = useMemo(() => ordenarPrendas(prendas), [prendas, orden]);
+  const prendasOrdenadas = useMemo(
+    () => ordenarPrendas(prendas),
+    [prendas, orden]
+  );
 
-  // 🔹 Generar filtros dinámicos a partir de las prendas
   const opcionesFiltros = useMemo(() => {
     const setTipos = new Set<string>();
     const setColores = new Set<string>();
@@ -203,7 +215,7 @@ export default function MiArmario() {
     >
       <Header title="Mi Armario" />
 
-      {/* 🔝 Acciones principales */}
+      {/* 🔝 Acciones */}
       <View style={styles.topActions}>
         <TouchableOpacity
           style={styles.btnAgregar}
@@ -214,10 +226,13 @@ export default function MiArmario() {
         </TouchableOpacity>
 
         <View style={styles.rightActions}>
-          <TouchableOpacity style={styles.btnOrdenar} onPress={() => {
-            const ordenes: any = { fecha: "tipo", tipo: "color", color: "fecha" };
-            setOrden(ordenes[orden]);
-          }}>
+          <TouchableOpacity
+            style={styles.btnOrdenar}
+            onPress={() => {
+              const ordenes: any = { fecha: "tipo", tipo: "color", color: "fecha" };
+              setOrden(ordenes[orden]);
+            }}
+          >
             <Ionicons name="swap-vertical-outline" size={22} color={colors.primary} />
             <Text style={styles.ordenarText}>{orden}</Text>
           </TouchableOpacity>
@@ -228,7 +243,7 @@ export default function MiArmario() {
         </View>
       </View>
 
-      {/* 🔽 Panel de Filtros Visual (dinámico) */}
+      {/* 🔽 Panel filtros */}
       {mostrarFiltros && (
         <View style={styles.filtrosContainer}>
           <View style={styles.filtrosHeader}>
@@ -249,7 +264,8 @@ export default function MiArmario() {
                     key={`${campo}-${v}`}
                     style={[
                       styles.filtroChip,
-                      filtros[campo as keyof FiltrosState] === v && styles.filtroChipActive,
+                      filtros[campo as keyof FiltrosState] === v &&
+                        styles.filtroChipActive,
                     ]}
                     onPress={() => actualizarFiltro(campo as keyof FiltrosState, v)}
                   >
@@ -260,9 +276,7 @@ export default function MiArmario() {
                           styles.filtroChipTextActive,
                       ]}
                     >
-                      {v === VALOR_TODOS
-                        ? "Todos"
-                        : v.charAt(0).toUpperCase() + v.slice(1)}
+                      {v === VALOR_TODOS ? "Todos" : v.charAt(0).toUpperCase() + v.slice(1)}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -272,7 +286,7 @@ export default function MiArmario() {
         </View>
       )}
 
-      {/* 🧩 Lista de prendas */}
+      {/* 🧩 Lista */}
       {prendasFiltradas.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyIcon}>👕</Text>
@@ -298,7 +312,7 @@ export default function MiArmario() {
         />
       )}
 
-      {/* 🪟 Modal detalle de prenda */}
+      {/* 🪟 Modal detalle prenda */}
       <Modal visible={modalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -309,14 +323,20 @@ export default function MiArmario() {
                   style={styles.modalImage}
                 />
                 <ScrollView style={{ maxHeight: 220 }}>
-                  <Text style={styles.modalTitle}>{prendaSeleccionada.nombre}</Text>
-                  <Text style={styles.modalDetail}>👕 {prendaSeleccionada.tipo}</Text>
-                  <Text style={styles.modalDetail}>🎨 {prendaSeleccionada.color}</Text>
+                  <Text style={styles.modalTitle}>
+                    {prendaSeleccionada.nombre}
+                  </Text>
+                  <Text style={styles.modalDetail}>{prendaSeleccionada.tipo}</Text>
+                  <Text style={styles.modalDetail}>{prendaSeleccionada.color}</Text>
                   {prendaSeleccionada.ocasion && (
-                    <Text style={styles.modalDetail}>🎉 {prendaSeleccionada.ocasion}</Text>
+                    <Text style={styles.modalDetail}>
+                      {prendaSeleccionada.ocasion}
+                    </Text>
                   )}
                   {prendaSeleccionada.estacion && (
-                    <Text style={styles.modalDetail}>☀️ {prendaSeleccionada.estacion}</Text>
+                    <Text style={styles.modalDetail}>
+                      {prendaSeleccionada.estacion}
+                    </Text>
                   )}
                 </ScrollView>
 
@@ -338,8 +358,9 @@ export default function MiArmario() {
                   <TouchableOpacity
                     style={[styles.modalBtn, { backgroundColor: "#E53935" }]}
                     onPress={() => {
+                      setPrendaAEliminar(prendaSeleccionada);
                       setModalVisible(false);
-                      handleEliminarPrenda(prendaSeleccionada.id, prendaSeleccionada.nombre);
+                      setTimeout(() => setConfirmVisible(true), 60);
                     }}
                   >
                     <Ionicons name="trash-outline" size={20} color="#FFF" />
@@ -358,11 +379,40 @@ export default function MiArmario() {
           </View>
         </View>
       </Modal>
+
+      {/* 🟥 Modal de confirmación */}
+      <Modal visible={confirmVisible} transparent animationType="fade">
+        <View style={styles.confirmOverlay}>
+          <View style={styles.confirmBox}>
+            <Text style={styles.confirmText}>
+              ¿Seguro que quieres eliminar esta prenda?
+            </Text>
+
+            <View style={styles.confirmActions}>
+              <TouchableOpacity
+                style={[styles.confirmBtn, { backgroundColor: "#CCC" }]}
+                onPress={() => setConfirmVisible(false)}
+              >
+                <Text>Cancelar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.confirmBtn,
+                  { backgroundColor: "#E53935" },
+                ]}
+                onPress={eliminarAhora}
+              >
+                <Text style={{ color: "#FFF" }}>Eliminar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </LinearGradient>
   );
 }
 
-// 🎨 Estilos idénticos a la versión anterior
 const styles = StyleSheet.create({
   gradient: { flex: 1 },
   topActions: {
@@ -392,7 +442,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderRadius: 8,
   },
-  ordenarText: { color: colors.primary, fontWeight: "500", textTransform: "capitalize" },
+  ordenarText: {
+    color: colors.primary,
+    fontWeight: "500",
+    textTransform: "capitalize",
+  },
   btnFiltros: {
     backgroundColor: "#FFF",
     padding: 10,
@@ -424,7 +478,10 @@ const styles = StyleSheet.create({
     borderColor: "#EEE",
     marginRight: 6,
   },
-  filtroChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  filtroChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
   filtroChipText: { color: "#666", fontSize: 13 },
   filtroChipTextActive: { color: "#FFF" },
   gridContainer: {
@@ -440,10 +497,15 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     backgroundColor: "#FFF",
     elevation: 3,
-    maxWidth: 250, 
-    alignSelf: "center"
+    maxWidth: 250,
+    alignSelf: "center",
   },
-  prendaImagen: { width: "100%", height: "100%", resizeMode: "cover", objectFit: "cover" },
+  prendaImagen: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
+    objectFit: "cover",
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: "#000000AA",
@@ -467,7 +529,12 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     textAlign: "center",
   },
-  modalDetail: { fontSize: 14, color: "#444", marginBottom: 4, textAlign: "center" },
+  modalDetail: {
+    fontSize: 14,
+    color: "#444",
+    marginBottom: 4,
+    textAlign: "center",
+  },
   modalActions: {
     flexDirection: "row",
     justifyContent: "space-around",
@@ -489,7 +556,47 @@ const styles = StyleSheet.create({
     top: 10,
     right: 10,
   },
-  emptyContainer: { flex: 1, alignItems: "center", marginTop: 40 },
+
+  /* 🟥 estilos del modal de confirmación */
+
+  confirmOverlay: {
+    flex: 1,
+    backgroundColor: "#00000088",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 30,
+  },
+  confirmBox: {
+    backgroundColor: "#FFF",
+    padding: 20,
+    borderRadius: 16,
+    width: "90%",
+    maxWidth: 320,
+  },
+  confirmText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  confirmActions: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  confirmBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+
+  emptyContainer: {
+    flex: 1,
+    alignItems: "center",
+    marginTop: 40,
+  },
   emptyIcon: { fontSize: 50, marginBottom: 10 },
   emptyText: { fontSize: 15, color: "#666", marginBottom: 12 },
   btnAgregarEmpty: {
