@@ -24,30 +24,43 @@ interface Outfit {
   nombre: string;
   imagen: string;
   prendas: { id: string; imagen: string }[];
-  categoria?: string;
-  estacion?: string;
+  categoria?: string;   // casual, formal, etc.
+  estacion?: string;    // verano, invierno, etc.
+  evento?: string;      // boda, oficina, cena, ...
+  clima?: string;       // lluvia, frío, calor, ...
   createdAt?: string;
 }
 
-interface Prenda {
-  id: string;
-  nombre: string;
-  imagen: string;
-  tipo?: string;
-  color?: string;
+interface FiltrosOutfit {
+  categoria: string;
+  estacion: string;
+  evento: string;
+  clima: string;
+  prenda: string;
 }
 
 export default function MisOutfits() {
   const [outfits, setOutfits] = useState<Outfit[]>([]);
-  const [outfitSeleccionado, setOutfitSeleccionado] = useState<Outfit | null>(null);
+  const [outfitSeleccionado, setOutfitSeleccionado] = useState<Outfit | null>(
+    null
+  );
   const [modalVisible, setModalVisible] = useState(false);
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
-  const [filtros, setFiltros] = useState({ categoria: "todos", estacion: "todos" });
+  const [filtros, setFiltros] = useState<FiltrosOutfit>({
+    categoria: "todos",
+    estacion: "todos",
+    evento: "todos",
+    clima: "todos",
+    prenda: "todos",
+  });
+
   const { showLoader, hideLoader } = useLoader();
   const { width } = useWindowDimensions();
   const isWeb = width > 768;
 
-  const { sugerida } = useLocalSearchParams<{ sugerida?: string }>();
+  // soporte tanto para "sugerida" antiguo como para "prendaBase"
+  const params = useLocalSearchParams<{ sugerida?: string; prendaBase?: string }>();
+  const prendaBase = params.prendaBase || params.sugerida;
 
   useEffect(() => {
     cargarOutfits();
@@ -56,34 +69,69 @@ export default function MisOutfits() {
   const cargarOutfits = async () => {
     showLoader("Cargando outfits...");
     try {
-      const data = await apiRequest<{ outfits: Outfit[] }>("/api/outfits", { method: "GET" });
+      const data = await apiRequest<{ outfits: Outfit[] }>("/api/outfits", {
+        method: "GET",
+      });
       setOutfits(data.outfits || []);
     } catch (err: any) {
-      Alert.alert("Error", err.message || "No se pudieron cargar los outfits");
+      Alert.alert(
+        "Error",
+        err.message || "No se pudieron cargar los outfits"
+      );
     } finally {
       hideLoader();
     }
   };
 
-  // 🔹 Filtros dinámicos
+  // 🔹 Filtros dinámicos: categoría, estación, evento, clima, prenda
   const opcionesFiltros = useMemo(() => {
     const setCategorias = new Set<string>();
     const setEstaciones = new Set<string>();
+    const setEventos = new Set<string>();
+    const setClimas = new Set<string>();
+    const setPrendas = new Set<string>();
 
     outfits.forEach((o) => {
       if (o.categoria) setCategorias.add(o.categoria);
       if (o.estacion) setEstaciones.add(o.estacion);
+      if (o.evento) setEventos.add(o.evento);
+      if (o.clima) setClimas.add(o.clima);
+      o.prendas?.forEach((p) => {
+        if (p.id) setPrendas.add(p.id);
+      });
     });
 
     const toArray = (set: Set<string>) => ["todos", ...Array.from(set)];
-    return { categoria: toArray(setCategorias), estacion: toArray(setEstaciones) };
+
+    return {
+      categoria: toArray(setCategorias),
+      estacion: toArray(setEstaciones),
+      evento: toArray(setEventos),
+      clima: toArray(setClimas),
+      prenda: toArray(setPrendas),
+    };
   }, [outfits]);
 
   const outfitsFiltrados = useMemo(() => {
     return outfits.filter((o) => {
-      const cat = filtros.categoria === "todos" || o.categoria === filtros.categoria;
-      const est = filtros.estacion === "todos" || o.estacion === filtros.estacion;
-      return cat && est;
+      const matchCategoria =
+        filtros.categoria === "todos" || o.categoria === filtros.categoria;
+      const matchEstacion =
+        filtros.estacion === "todos" || o.estacion === filtros.estacion;
+      const matchEvento =
+        filtros.evento === "todos" || o.evento === filtros.evento;
+      const matchClima = filtros.clima === "todos" || o.clima === filtros.clima;
+      const matchPrenda =
+        filtros.prenda === "todos" ||
+        !!o.prendas?.some((p) => p.id === filtros.prenda);
+
+      return (
+        matchCategoria &&
+        matchEstacion &&
+        matchEvento &&
+        matchClima &&
+        matchPrenda
+      );
     });
   }, [outfits, filtros]);
 
@@ -103,7 +151,9 @@ export default function MisOutfits() {
         onPress: async () => {
           showLoader("Eliminando outfit...");
           try {
-            const res = await apiFetch(`/api/outfits/${id}`, { method: "DELETE" });
+            const res = await apiFetch(`/api/outfits/${id}`, {
+              method: "DELETE",
+            });
             if (res.ok) {
               setOutfits((prev) => prev.filter((o) => o.id !== id));
             }
@@ -117,21 +167,6 @@ export default function MisOutfits() {
     ]);
   };
 
-  // 🧠 Crear outfit sugerido (simulado)
-  const crearOutfitDesdePrenda = async (prendaId: string) => {
-    showLoader("Generando outfit sugerido...");
-    try {
-      // Simulación: aquí se llamará a la IA de backend
-      await new Promise((res) => setTimeout(res, 1500));
-      Alert.alert("✨ Sugerencia IA", "Se ha generado un outfit con esa prenda (demo).");
-      router.push("/mis-outfits");
-    } catch {
-      Alert.alert("Error", "No se pudo generar el outfit.");
-    } finally {
-      hideLoader();
-    }
-  };
-
   const renderOutfit = ({ item }: { item: Outfit }) => (
     <TouchableOpacity
       style={styles.card}
@@ -143,6 +178,16 @@ export default function MisOutfits() {
     </TouchableOpacity>
   );
 
+  const limpiarFiltros = () => {
+    setFiltros({
+      categoria: "todos",
+      estacion: "todos",
+      evento: "todos",
+      clima: "todos",
+      prenda: "todos",
+    });
+  };
+
   return (
     <LinearGradient
       colors={colors.gradient as any}
@@ -152,25 +197,100 @@ export default function MisOutfits() {
     >
       <Header title="Mis Outfits" />
 
-      {/* 🪄 Sugerencia desde prenda */}
-      {sugerida && (
+      {/* 🔝 Acciones: crear outfit + filtros */}
+      <View style={styles.topActions}>
+        <TouchableOpacity
+          style={styles.btnCrear}
+          onPress={() => router.push("/crear-outfit" as any)}
+        >
+          <Ionicons name="add-circle-outline" size={20} color="#FFF" />
+          <Text style={styles.btnCrearText}>Crear outfit</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.btnFiltros}
+          onPress={() => setMostrarFiltros((prev) => !prev)}
+        >
+          <Ionicons name="options-outline" size={22} color={colors.primary} />
+        </TouchableOpacity>
+      </View>
+
+      {/* 🪄 Prenda base para sugerencia (cuando llegamos desde mi-armario) */}
+      {prendaBase && (
         <View style={styles.sugeridaBox}>
           <Text style={styles.sugeridaText}>
-            Prenda seleccionada para generar un outfit ✨
+            Tienes una prenda seleccionada para crear un outfit ✨
           </Text>
           <TouchableOpacity
             style={styles.btnSugerir}
-            onPress={() => crearOutfitDesdePrenda(sugerida)}
+            onPress={() =>
+              router.push({
+                pathname: "/crear-outfit",
+                params: { prendaBase: prendaBase as string },
+              } as any)
+            }
           >
             <Ionicons name="sparkles-outline" size={20} color="#FFF" />
-            <Text style={styles.btnSugerirText}>Sugerir outfit</Text>
+            <Text style={styles.btnSugerirText}>Crear outfit con IA</Text>
           </TouchableOpacity>
         </View>
       )}
 
+      {/* 🧠 Atajos para sugerencias por evento / clima / prenda */}
+      <View style={styles.aiBox}>
+        <Text style={styles.aiTitle}>¿No sabes qué ponerte?</Text>
+        <View style={styles.aiButtonsRow}>
+          <TouchableOpacity
+            style={styles.aiBtn}
+            onPress={() =>
+              router.push({
+                pathname: "/crear-outfit",
+                params: { modo: "evento" },
+              } as any)
+            }
+          >
+            <Ionicons name="calendar-outline" size={18} color="#FFF" />
+            <Text style={styles.aiBtnText}>Por evento</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.aiBtn}
+            onPress={() =>
+              router.push({
+                pathname: "/crear-outfit",
+                params: { modo: "clima" },
+              } as any)
+            }
+          >
+            <Ionicons name="cloud-outline" size={18} color="#FFF" />
+            <Text style={styles.aiBtnText}>Por clima</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.aiBtn}
+            onPress={() =>
+              router.push({
+                pathname: "/crear-outfit",
+                params: { modo: "prenda" },
+              } as any)
+            }
+          >
+            <Ionicons name="shirt-outline" size={18} color="#FFF" />
+            <Text style={styles.aiBtnText}>Por prenda</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       {/* 🔽 Filtros dinámicos */}
       {mostrarFiltros && (
         <View style={styles.filtrosContainer}>
+          <View style={styles.filtrosHeader}>
+            <Text style={styles.filtrosTitulo}>Filtros</Text>
+            <TouchableOpacity onPress={limpiarFiltros}>
+              <Text style={styles.limpiarFiltros}>Limpiar</Text>
+            </TouchableOpacity>
+          </View>
+
           {Object.entries(opcionesFiltros).map(([campo, valores]) => (
             <View key={campo} style={styles.filtroGroup}>
               <Text style={styles.filtroLabel}>
@@ -182,18 +302,26 @@ export default function MisOutfits() {
                     key={`${campo}-${v}`}
                     style={[
                       styles.filtroChip,
-                      filtros[campo as keyof typeof filtros] === v && styles.filtroChipActive,
+                      filtros[campo as keyof FiltrosOutfit] === v &&
+                        styles.filtroChipActive,
                     ]}
-                    onPress={() => setFiltros((prev) => ({ ...prev, [campo]: v }))}
+                    onPress={() =>
+                      setFiltros((prev) => ({
+                        ...prev,
+                        [campo]: v,
+                      }))
+                    }
                   >
                     <Text
                       style={[
                         styles.filtroChipText,
-                        filtros[campo as keyof typeof filtros] === v &&
+                        filtros[campo as keyof FiltrosOutfit] === v &&
                           styles.filtroChipTextActive,
                       ]}
                     >
-                      {v === "todos" ? "Todos" : v.charAt(0).toUpperCase() + v.slice(1)}
+                      {v === "todos"
+                        ? "Todos"
+                        : v.charAt(0).toUpperCase() + v.slice(1)}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -225,11 +353,49 @@ export default function MisOutfits() {
           <View style={styles.modalCard}>
             {outfitSeleccionado && (
               <>
-                <Image source={{ uri: outfitSeleccionado.imagen }} style={styles.modalImage} />
-                <Text style={styles.modalTitle}>{outfitSeleccionado.nombre}</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <Image
+                  source={{ uri: outfitSeleccionado.imagen }}
+                  style={styles.modalImage}
+                />
+                <Text style={styles.modalTitle}>
+                  {outfitSeleccionado.nombre}
+                </Text>
+
+                {/* info rápida de filtros */}
+                <View style={styles.modalTagsRow}>
+                  {outfitSeleccionado.categoria && (
+                    <Text style={styles.modalTag}>
+                      {outfitSeleccionado.categoria}
+                    </Text>
+                  )}
+                  {outfitSeleccionado.estacion && (
+                    <Text style={styles.modalTag}>
+                      {outfitSeleccionado.estacion}
+                    </Text>
+                  )}
+                  {outfitSeleccionado.evento && (
+                    <Text style={styles.modalTag}>
+                      {outfitSeleccionado.evento}
+                    </Text>
+                  )}
+                  {outfitSeleccionado.clima && (
+                    <Text style={styles.modalTag}>
+                      {outfitSeleccionado.clima}
+                    </Text>
+                  )}
+                </View>
+
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={{ paddingHorizontal: 8 }}
+                >
                   {outfitSeleccionado.prendas.map((p) => (
-                    <Image key={p.id} source={{ uri: p.imagen }} style={styles.miniPrenda} />
+                    <Image
+                      key={p.id}
+                      source={{ uri: p.imagen }}
+                      style={styles.miniPrenda}
+                    />
                   ))}
                 </ScrollView>
 
@@ -249,10 +415,16 @@ export default function MisOutfits() {
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    style={[styles.modalBtn, { backgroundColor: "#E53935" }]}
+                    style={[
+                      styles.modalBtn,
+                      { backgroundColor: "#E53935" },
+                    ]}
                     onPress={() => {
                       setModalVisible(false);
-                      handleEliminarOutfit(outfitSeleccionado.id, outfitSeleccionado.nombre);
+                      handleEliminarOutfit(
+                        outfitSeleccionado.id,
+                        outfitSeleccionado.nombre
+                      );
                     }}
                   >
                     <Ionicons name="trash-outline" size={20} color="#FFF" />
@@ -277,14 +449,48 @@ export default function MisOutfits() {
 
 const styles = StyleSheet.create({
   gradient: { flex: 1 },
+
+  /* Top actions */
+  topActions: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  btnCrear: {
+    backgroundColor: colors.primary,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+  },
+  btnCrearText: {
+    color: "#FFF",
+    fontWeight: "600",
+    fontSize: 14,
+  },
+  btnFiltros: {
+    backgroundColor: "#FFF",
+    padding: 10,
+    borderRadius: 10,
+  },
+
+  /* Caja prenda sugerida */
   sugeridaBox: {
     backgroundColor: "#FFFFFFAA",
     borderRadius: 16,
     marginHorizontal: 16,
-    marginVertical: 12,
+    marginBottom: 8,
     padding: 14,
   },
-  sugeridaText: { color: "#222", fontWeight: "600", marginBottom: 8 },
+  sugeridaText: {
+    color: "#222",
+    fontWeight: "600",
+    marginBottom: 8,
+  },
   btnSugerir: {
     backgroundColor: colors.primary,
     flexDirection: "row",
@@ -295,6 +501,44 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   btnSugerirText: { color: "#FFF", fontWeight: "600" },
+
+  /* Caja IA: por evento / clima / prenda */
+  aiBox: {
+    backgroundColor: "#FFFFFFAA",
+    borderRadius: 16,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  aiTitle: {
+    color: "#222",
+    fontWeight: "600",
+    marginBottom: 6,
+  },
+  aiButtonsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  aiBtn: {
+    flex: 1,
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  aiBtnText: {
+    color: "#FFF",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+
+  /* Filtros */
   filtrosContainer: {
     backgroundColor: "#FFFFFFAA",
     borderRadius: 16,
@@ -302,8 +546,29 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     padding: 12,
   },
+  filtrosHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  filtrosTitulo: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#1E1E1E",
+  },
+  limpiarFiltros: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: "500",
+  },
   filtroGroup: { marginBottom: 10 },
-  filtroLabel: { fontSize: 13, fontWeight: "500", color: "#444", marginBottom: 4 },
+  filtroLabel: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#444",
+    marginBottom: 4,
+  },
   filtroChip: {
     backgroundColor: "#FFF",
     borderRadius: 20,
@@ -313,9 +578,14 @@ const styles = StyleSheet.create({
     borderColor: "#EEE",
     marginRight: 6,
   },
-  filtroChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  filtroChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
   filtroChipText: { color: "#666", fontSize: 13 },
   filtroChipTextActive: { color: "#FFF" },
+
+  /* Tarjetas de outfit */
   card: {
     backgroundColor: "#FFF",
     borderRadius: 14,
@@ -334,9 +604,13 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   listContent: { paddingHorizontal: 12, paddingBottom: 60 },
+
+  /* Empty */
   emptyContainer: { flex: 1, alignItems: "center", marginTop: 60 },
   emptyIcon: { fontSize: 50 },
   emptyText: { color: "#555", marginTop: 6 },
+
+  /* Modal detalle */
   modalOverlay: {
     flex: 1,
     backgroundColor: "#000000AA",
@@ -360,6 +634,22 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: colors.primary,
     marginVertical: 10,
+  },
+  modalTagsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    marginBottom: 6,
+    paddingHorizontal: 12,
+    gap: 4,
+  },
+  modalTag: {
+    fontSize: 11,
+    color: "#555",
+    backgroundColor: "#F3F3F3",
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
   },
   miniPrenda: {
     width: 60,

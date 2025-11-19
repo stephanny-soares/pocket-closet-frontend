@@ -66,7 +66,6 @@ export default function MiArmario() {
     useState<Prenda | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
 
-  // 👇 NUEVO: modal de confirmación
   const [confirmVisible, setConfirmVisible] = useState(false);
   const [prendaAEliminar, setPrendaAEliminar] = useState<Prenda | null>(null);
 
@@ -92,7 +91,6 @@ export default function MiArmario() {
     }
   };
 
-  // 👇 Actualizado: elimina la prenda directamente SIN Alert.alert()
   const eliminarAhora = async () => {
     if (!prendaAEliminar) return;
 
@@ -215,7 +213,7 @@ export default function MiArmario() {
     >
       <Header title="Mi Armario" />
 
-      {/* 🔝 Acciones */}
+      {/* Acciones superiores */}
       <View style={styles.topActions}>
         <TouchableOpacity
           style={styles.btnAgregar}
@@ -243,7 +241,7 @@ export default function MiArmario() {
         </View>
       </View>
 
-      {/* 🔽 Panel filtros */}
+      {/* Panel de filtros */}
       {mostrarFiltros && (
         <View style={styles.filtrosContainer}>
           <View style={styles.filtrosHeader}>
@@ -286,7 +284,7 @@ export default function MiArmario() {
         </View>
       )}
 
-      {/* 🧩 Lista */}
+      {/* Grid */}
       {prendasFiltradas.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyIcon}>👕</Text>
@@ -312,7 +310,7 @@ export default function MiArmario() {
         />
       )}
 
-      {/* 🪟 Modal detalle prenda */}
+      {/* Modal detalle */}
       <Modal visible={modalVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
@@ -322,21 +320,16 @@ export default function MiArmario() {
                   source={{ uri: prendaSeleccionada.imagen }}
                   style={styles.modalImage}
                 />
+
                 <ScrollView style={{ maxHeight: 220 }}>
-                  <Text style={styles.modalTitle}>
-                    {prendaSeleccionada.nombre}
-                  </Text>
+                  <Text style={styles.modalTitle}>{prendaSeleccionada.nombre}</Text>
                   <Text style={styles.modalDetail}>{prendaSeleccionada.tipo}</Text>
                   <Text style={styles.modalDetail}>{prendaSeleccionada.color}</Text>
                   {prendaSeleccionada.ocasion && (
-                    <Text style={styles.modalDetail}>
-                      {prendaSeleccionada.ocasion}
-                    </Text>
+                    <Text style={styles.modalDetail}>{prendaSeleccionada.ocasion}</Text>
                   )}
                   {prendaSeleccionada.estacion && (
-                    <Text style={styles.modalDetail}>
-                      {prendaSeleccionada.estacion}
-                    </Text>
+                    <Text style={styles.modalDetail}>{prendaSeleccionada.estacion}</Text>
                   )}
                 </ScrollView>
 
@@ -356,6 +349,20 @@ export default function MiArmario() {
                   </TouchableOpacity>
 
                   <TouchableOpacity
+                    style={styles.modalBtn}
+                    onPress={() => {
+                      setModalVisible(false);
+                      router.push({
+                        pathname: "../crear-outfit",
+                        params: { prendaBase: prendaSeleccionada.id },
+                      });
+                    }}
+                  >
+                    <Ionicons name="sparkles-outline" size={20} color="#FFF" />
+                    <Text style={styles.modalBtnText}>Crear outfit</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
                     style={[styles.modalBtn, { backgroundColor: "#E53935" }]}
                     onPress={() => {
                       setPrendaAEliminar(prendaSeleccionada);
@@ -368,11 +375,12 @@ export default function MiArmario() {
                   </TouchableOpacity>
                 </View>
 
+                {/* ❗ CAMBIO: botón cerrar visible siempre */}
                 <TouchableOpacity
                   style={styles.modalClose}
                   onPress={() => setModalVisible(false)}
                 >
-                  <Ionicons name="close-circle" size={26} color="#FFF" />
+                  <Ionicons name="close" size={20} color="#000" />
                 </TouchableOpacity>
               </>
             )}
@@ -380,7 +388,7 @@ export default function MiArmario() {
         </View>
       </Modal>
 
-      {/* 🟥 Modal de confirmación */}
+      {/* Modal confirmación */}
       <Modal visible={confirmVisible} transparent animationType="fade">
         <View style={styles.confirmOverlay}>
           <View style={styles.confirmBox}>
@@ -397,10 +405,7 @@ export default function MiArmario() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[
-                  styles.confirmBtn,
-                  { backgroundColor: "#E53935" },
-                ]}
+                style={[styles.confirmBtn, { backgroundColor: "#E53935" }]}
                 onPress={eliminarAhora}
               >
                 <Text style={{ color: "#FFF" }}>Eliminar</Text>
@@ -409,12 +414,14 @@ export default function MiArmario() {
           </View>
         </View>
       </Modal>
+
     </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   gradient: { flex: 1 },
+
   topActions: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -422,6 +429,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
+
   btnAgregar: {
     backgroundColor: colors.primary,
     borderRadius: 12,
@@ -431,8 +439,11 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 16,
   },
+
   btnAgregarText: { color: "#FFF", fontWeight: "600", fontSize: 14 },
+
   rightActions: { flexDirection: "row", alignItems: "center", gap: 12 },
+
   btnOrdenar: {
     backgroundColor: "#FFF",
     flexDirection: "row",
@@ -442,16 +453,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderRadius: 8,
   },
+
   ordenarText: {
     color: colors.primary,
     fontWeight: "500",
     textTransform: "capitalize",
   },
+
   btnFiltros: {
     backgroundColor: "#FFF",
     padding: 10,
     borderRadius: 10,
   },
+
   filtrosContainer: {
     backgroundColor: "#FFFFFFAA",
     borderRadius: 16,
@@ -459,16 +473,22 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     padding: 12,
   },
+
   filtrosHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 8,
   },
+
   filtrosTitulo: { fontSize: 16, fontWeight: "600", color: "#1E1E1E" },
+
   limpiarFiltros: { color: colors.primary, fontSize: 13, fontWeight: "500" },
+
   filtroGroup: { marginBottom: 10 },
+
   filtroLabel: { fontSize: 13, fontWeight: "500", color: "#444", marginBottom: 4 },
+
   filtroChip: {
     backgroundColor: "#FFF",
     borderRadius: 20,
@@ -478,17 +498,22 @@ const styles = StyleSheet.create({
     borderColor: "#EEE",
     marginRight: 6,
   },
+
   filtroChipActive: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
+
   filtroChipText: { color: "#666", fontSize: 13 },
+
   filtroChipTextActive: { color: "#FFF" },
+
   gridContainer: {
     paddingHorizontal: 12,
     paddingBottom: 40,
     justifyContent: "center",
   },
+
   prendaContainer: {
     flex: 1,
     aspectRatio: 1,
@@ -500,12 +525,14 @@ const styles = StyleSheet.create({
     maxWidth: 250,
     alignSelf: "center",
   },
+
   prendaImagen: {
     width: "100%",
     height: "100%",
     resizeMode: "cover",
     objectFit: "cover",
   },
+
   modalOverlay: {
     flex: 1,
     backgroundColor: "#000000AA",
@@ -513,6 +540,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
   },
+
   modalCard: {
     backgroundColor: "#FFF",
     borderRadius: 20,
@@ -521,7 +549,15 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     position: "relative",
   },
-  modalImage: { width: "100%", height: 220, resizeMode: "cover" },
+
+  /* ❗ CAMBIO: ver imagen completa */
+  modalImage: {
+    width: "100%",
+    height: 260,
+    resizeMode: "contain",
+    backgroundColor: "#FFF",
+  },
+
   modalTitle: {
     fontSize: 20,
     fontWeight: "700",
@@ -529,18 +565,21 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     textAlign: "center",
   },
+
   modalDetail: {
     fontSize: 14,
     color: "#444",
     marginBottom: 4,
     textAlign: "center",
   },
+
   modalActions: {
     flexDirection: "row",
     justifyContent: "space-around",
     marginTop: 12,
     marginBottom: 8,
   },
+
   modalBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -550,14 +589,18 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 14,
   },
+
   modalBtnText: { color: "#FFF", fontWeight: "600" },
+
+  /* ❗ CAMBIO: botón cerrar dentro de un círculo blanco */
   modalClose: {
     position: "absolute",
     top: 10,
     right: 10,
+    backgroundColor: "#FFF",
+    borderRadius: 20,
+    padding: 4,
   },
-
-  /* 🟥 estilos del modal de confirmación */
 
   confirmOverlay: {
     flex: 1,
@@ -566,6 +609,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 30,
   },
+
   confirmBox: {
     backgroundColor: "#FFF",
     padding: 20,
@@ -573,6 +617,7 @@ const styles = StyleSheet.create({
     width: "90%",
     maxWidth: 320,
   },
+
   confirmText: {
     fontSize: 16,
     fontWeight: "600",
@@ -580,11 +625,13 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginBottom: 20,
   },
+
   confirmActions: {
     flexDirection: "row",
     justifyContent: "space-between",
     gap: 10,
   },
+
   confirmBtn: {
     flex: 1,
     paddingVertical: 10,
@@ -597,13 +644,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 40,
   },
+
   emptyIcon: { fontSize: 50, marginBottom: 10 },
+
   emptyText: { fontSize: 15, color: "#666", marginBottom: 12 },
+
   btnAgregarEmpty: {
     backgroundColor: colors.primary,
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 10,
   },
+
   btnAgregarEmptyText: { color: "#FFF", fontWeight: "600" },
 });

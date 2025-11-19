@@ -22,7 +22,6 @@ import { useLoader } from "../context/LoaderContext";
 import { apiFetch, API_BASE } from "../utils/apiClient";
 import { storage } from "../utils/storage";
 
-
 export default function AddPrenda() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const isEditing = !!id;
@@ -217,24 +216,82 @@ export default function AddPrenda() {
   };
 
   // 🔄 Reclasificar imagen manualmente
-  const reclasificar = async () => {
-    if (!form.imagen) {
-      Alert.alert("Sin imagen", "Primero selecciona una imagen para clasificar.");
-      return;
-    }
+  // 🔄 Reclasificar imagen manualmente (CORREGIDO)
+const reclasificar = async () => {
+  if (!form.imagen) {
+    Alert.alert("Sin imagen", "Primero selecciona una imagen.");
+    return;
+  }
 
-    Alert.alert(
-      "Reclasificar prenda",
-      "¿Quieres que la IA vuelva a analizar esta imagen? Esto sobrescribirá los campos actuales.",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Reclasificar",
-          onPress: () => clasificarImagen(form.imagen),
+  const esURL = form.imagen.startsWith("http");
+
+  Alert.alert(
+    "Reclasificar prenda",
+    "La IA volverá a analizar esta imagen.",
+    [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Reclasificar",
+        onPress: async () => {
+          setClasificando(true);
+
+          try {
+            let response;
+
+            if (esURL) {
+              // ⭐ Reclasificar desde URL (ruta EXISTENTE en backend)
+              response = await apiFetch("/api/prendas", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ imagen: form.imagen }),
+              });
+            } else {
+              // ⭐ Reclasificar desde archivo (ruta EXISTENTE)
+              const data = new FormData();
+              data.append(
+                "archivo",
+                {
+                  uri: form.imagen,
+                  type: "image/jpeg",
+                  name: "reclass.jpg",
+                } as any, // <-- para RN es válido
+                "reclass.jpg" // <-- filename para Web
+              );
+
+
+              response = await apiFetch("/api/prendas/upload", {
+                method: "POST",
+                body: data,
+              });
+            }
+
+            if (!response.ok) throw new Error("No se pudo clasificar");
+
+            const resultado = await response.json();
+            const prenda = resultado.prenda || resultado;
+
+            setForm(prev => ({
+              ...prev,
+              nombre: prenda.nombre,
+              tipo: prenda.tipo,
+              color: prenda.color,
+              ocasion: prenda.ocasion,
+              estacion: prenda.estacion,
+              imagen: prenda.imagen,
+            }));
+
+            Alert.alert("Éxito", "Prenda reclasificada correctamente.");
+          } catch (err: any) {
+            Alert.alert("Error", err.message);
+          } finally {
+            setClasificando(false);
+          }
         },
-      ]
-    );
-  };
+      },
+    ]
+  );
+};
+
 
   // 🧩 Guardar o actualizar prenda
   const handleSubmit = async () => {
