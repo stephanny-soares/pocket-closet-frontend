@@ -7,6 +7,7 @@ import Header from "../components/Header";
 import colors from "../constants/colors";
 import { useLoader } from "../context/LoaderContext";
 import { useAuth } from "../hooks/useAuth";
+import { apiFetch, apiRequest } from "../utils/apiClient";
 
 interface Prenda {
   id: string;
@@ -86,34 +87,30 @@ const Home: React.FC = () => {
   const fetchOutfitsSugeridos = async () => {
     setLoadingOutfits(true);
     try {
-      const response = await fetch("http://localhost:5000/api/outfits/sugerir", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${auth?.token}`,
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setOutfits(data.outfits || []);
-      } else {
-        console.error("Error al obtener outfits sugeridos");
-      }
+      const data = await apiRequest<{ outfits: OutfitSugerido[] }>(
+        "/api/outfits/sugerir",
+        { method: "POST" }
+      );
+      setOutfits(data.outfits || []);
     } catch (error) {
-      console.error("Error en fetchOutfitsSugeridos:", error);
+      console.error("❌ Error en fetchOutfitsSugeridos:", error);
     } finally {
       setLoadingOutfits(false);
     }
   };
+
 
   const handleNavigate = (route: string) => {
     router.push(route as any);
   };
 
   const handleOutfitPress = (outfitId: string) => {
-    router.push(`/outfit-detalle/${outfitId}` as any);
+    router.push({
+      pathname: "/mis-outfits",
+      params: { id: outfitId }
+    });
   };
+
 
   return (
     <LinearGradient

@@ -34,7 +34,6 @@ export default function CrearOutfit() {
   const [estacion, setEstacion] = useState("primavera");
   const [generando, setGenerando] = useState(false);
 
-  // ⛔️ QUITAR HEADER BLANCO DEL ROUTER
   const HiddenHeader = (
     <Stack.Screen
       options={{
