@@ -215,83 +215,77 @@ export default function AddPrenda() {
     }
   };
 
-  // 🔄 Reclasificar imagen manualmente
-  // 🔄 Reclasificar imagen manualmente (CORREGIDO)
-const reclasificar = async () => {
-  if (!form.imagen) {
-    Alert.alert("Sin imagen", "Primero selecciona una imagen.");
-    return;
+  // 🔄 Reclasificar desde URL de Cloud Storage
+const reclasificarDesdeURL = async (imageUrl: string) => {
+  setClasificando(true);
+  try {
+    console.log("🔄 Descargando imagen para reclasificar...");
+
+    // 1️⃣ Descargar la imagen desde Cloud Storage
+    const response = await fetch(imageUrl);
+    const arrayBuffer = await response.arrayBuffer();
+    const blob = new Blob([arrayBuffer], { type: "image/jpeg" });
+    const file = new File([blob], "imagen.jpg", { type: "image/jpeg" });
+
+    // 2️⃣ Enviar al endpoint /api/prendas/upload
+    const data = new FormData();
+    data.append("archivo", file);
+
+    const clasificacionResponse = await apiFetch("/api/prendas/upload", {
+      method: "POST",
+      body: data,
+    });
+
+    if (!clasificacionResponse.ok) {
+      throw new Error("Error al reclasificar");
+    }
+
+    const resultado = await clasificacionResponse.json();
+    const prenda = resultado.prenda || resultado;
+
+    // 3️⃣ Actualizar el formulario
+    setForm((prev) => ({
+      ...prev,
+      nombre: prenda.nombre || prev.nombre,
+      tipo: prenda.tipo || prev.tipo,
+      color: prenda.color || prev.color,
+      ocasion: prenda.ocasion || prev.ocasion,
+      estacion: prenda.estacion || prev.estacion,
+      imagen: prenda.imagen || prev.imagen,
+    }));
+
+    Alert.alert(
+      "✨ Reclasificación completada",
+      `Ahora es: ${prenda.tipo || "prenda"} ${prenda.color || ""}`,
+      [{ text: "OK" }]
+    );
+  } catch (error: any) {
+    console.error("❌ Error reclasificando:", error);
+    Alert.alert("Error", error.message || "No se pudo reclasificar la imagen");
+  } finally {
+    setClasificando(false);
   }
-
-  const esURL = form.imagen.startsWith("http");
-
-  Alert.alert(
-    "Reclasificar prenda",
-    "La IA volverá a analizar esta imagen.",
-    [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Reclasificar",
-        onPress: async () => {
-          setClasificando(true);
-
-          try {
-            let response;
-
-            if (esURL) {
-              // ⭐ Reclasificar desde URL (ruta EXISTENTE en backend)
-              response = await apiFetch("/api/prendas", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ imagen: form.imagen }),
-              });
-            } else {
-              // ⭐ Reclasificar desde archivo (ruta EXISTENTE)
-              const data = new FormData();
-              data.append(
-                "archivo",
-                {
-                  uri: form.imagen,
-                  type: "image/jpeg",
-                  name: "reclass.jpg",
-                } as any, // <-- para RN es válido
-                "reclass.jpg" // <-- filename para Web
-              );
-
-
-              response = await apiFetch("/api/prendas/upload", {
-                method: "POST",
-                body: data,
-              });
-            }
-
-            if (!response.ok) throw new Error("No se pudo clasificar");
-
-            const resultado = await response.json();
-            const prenda = resultado.prenda || resultado;
-
-            setForm(prev => ({
-              ...prev,
-              nombre: prenda.nombre,
-              tipo: prenda.tipo,
-              color: prenda.color,
-              ocasion: prenda.ocasion,
-              estacion: prenda.estacion,
-              imagen: prenda.imagen,
-            }));
-
-            Alert.alert("Éxito", "Prenda reclasificada correctamente.");
-          } catch (err: any) {
-            Alert.alert("Error", err.message);
-          } finally {
-            setClasificando(false);
-          }
-        },
-      },
-    ]
-  );
 };
 
+  // 🔄 Reclasificar imagen manualmente
+  const reclasificar = async () => {
+    if (!form.imagen) {
+      Alert.alert("Sin imagen", "Primero selecciona una imagen para clasificar.");
+      return;
+    }
+
+    Alert.alert(
+      "Reclasificar prenda",
+      "¿Quieres que la IA vuelva a analizar esta imagen? Esto sobrescribirá los campos actuales.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Reclasificar",
+          onPress: () => clasificarImagen(form.imagen),
+        },
+      ]
+    );
+  };
 
   // 🧩 Guardar o actualizar prenda
   const handleSubmit = async () => {
