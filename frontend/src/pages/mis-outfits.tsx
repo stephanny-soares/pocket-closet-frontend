@@ -17,17 +17,17 @@ import { useLocalSearchParams, router } from "expo-router";
 import Header from "components/Header";
 import colors from "../constants/colors";
 import { useLoader } from "../context/LoaderContext";
-import { apiRequest, apiFetch } from "../utils/apiClient";
+import { apiRequest } from "../utils/apiClient";
 
 interface Outfit {
   id: string;
   nombre: string;
   imagen: string;
   prendas: { id: string; imagen: string }[];
-  categoria?: string;   // casual, formal, etc.
-  estacion?: string;    // verano, invierno, etc.
-  evento?: string;      // boda, oficina, cena, ...
-  clima?: string;       // lluvia, frío, calor, ...
+  categoria?: string; // casual, formal, etc.
+  estacion?: string; // verano, invierno, etc.
+  evento?: string; // boda, oficina, cena, ...
+  clima?: string; // lluvia, frío, calor, ...
   createdAt?: string;
 }
 
@@ -54,13 +54,16 @@ export default function MisOutfits() {
     prenda: "todos",
   });
 
+  // nuevo: confirmación de borrado
+  const [confirmVisible, setConfirmVisible] = useState(false);
+  const [outfitAEliminar, setOutfitAEliminar] = useState<Outfit | null>(null);
+
   const { showLoader, hideLoader } = useLoader();
   const { width } = useWindowDimensions();
   const isWeb = width > 768;
 
-  // soporte tanto para "sugerida" antiguo como para "prendaBase"
-  const params = useLocalSearchParams<{ sugerida?: string; prendaBase?: string }>();
-  const prendaBase = params.prendaBase || params.sugerida;
+  // soporte para abrir directamente un outfit desde Home
+  const params = useLocalSearchParams<{ id?: string }>();
 
   useEffect(() => {
     cargarOutfits();
@@ -74,16 +77,24 @@ export default function MisOutfits() {
       });
       setOutfits(data.outfits || []);
     } catch (err: any) {
-      Alert.alert(
-        "Error",
-        err.message || "No se pudieron cargar los outfits"
-      );
+      Alert.alert("Error", err.message || "No se pudieron cargar los outfits");
     } finally {
       hideLoader();
     }
   };
 
-  // 🔹 Filtros dinámicos: categoría, estación, evento, clima, prenda
+  // abrir modal automáticamente si venimos de Home con ?id=...
+  useEffect(() => {
+    if (!params.id || outfits.length === 0) return;
+
+    const outfit = outfits.find((o) => o.id === params.id);
+    if (outfit) {
+      setOutfitSeleccionado(outfit);
+      setModalVisible(true);
+    }
+  }, [params.id, outfits]);
+
+  // filtros dinámicos
   const opcionesFiltros = useMemo(() => {
     const setCategorias = new Set<string>();
     const setEstaciones = new Set<string>();
@@ -142,29 +153,24 @@ export default function MisOutfits() {
     setModalVisible(true);
   };
 
-  const handleEliminarOutfit = (id: string, nombre: string) => {
-    Alert.alert("Eliminar outfit", `¿Eliminar "${nombre}"?`, [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Eliminar",
-        style: "destructive",
-        onPress: async () => {
-          showLoader("Eliminando outfit...");
-          try {
-            const res = await apiFetch(`/api/outfits/${id}`, {
-              method: "DELETE",
-            });
-            if (res.ok) {
-              setOutfits((prev) => prev.filter((o) => o.id !== id));
-            }
-          } catch {
-            Alert.alert("Error", "No se pudo eliminar el outfit.");
-          } finally {
-            hideLoader();
-          }
-        },
-      },
-    ]);
+  // eliminación real (se llama desde el modal de confirmación)
+  const eliminarOutfitAhora = async () => {
+    if (!outfitAEliminar) return;
+
+    showLoader("Eliminando outfit...");
+
+    try {
+      await apiRequest(`/api/outfits/${outfitAEliminar.id}`, {
+        method: "DELETE",
+      });
+
+      setOutfits((prev) => prev.filter((o) => o.id !== outfitAEliminar.id));
+    } catch (err: any) {
+      Alert.alert("Error", err.message || "No se pudo eliminar el outfit");
+    } finally {
+      hideLoader();
+      setConfirmVisible(false);
+    }
   };
 
   const renderOutfit = ({ item }: { item: Outfit }) => (
@@ -213,72 +219,6 @@ export default function MisOutfits() {
         >
           <Ionicons name="options-outline" size={22} color={colors.primary} />
         </TouchableOpacity>
-      </View>
-
-      {/* 🪄 Prenda base para sugerencia (cuando llegamos desde mi-armario) */}
-      {prendaBase && (
-        <View style={styles.sugeridaBox}>
-          <Text style={styles.sugeridaText}>
-            Tienes una prenda seleccionada para crear un outfit ✨
-          </Text>
-          <TouchableOpacity
-            style={styles.btnSugerir}
-            onPress={() =>
-              router.push({
-                pathname: "/crear-outfit",
-                params: { prendaBase: prendaBase as string },
-              } as any)
-            }
-          >
-            <Ionicons name="sparkles-outline" size={20} color="#FFF" />
-            <Text style={styles.btnSugerirText}>Crear outfit con IA</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* 🧠 Atajos para sugerencias por evento / clima / prenda */}
-      <View style={styles.aiBox}>
-        <Text style={styles.aiTitle}>¿No sabes qué ponerte?</Text>
-        <View style={styles.aiButtonsRow}>
-          <TouchableOpacity
-            style={styles.aiBtn}
-            onPress={() =>
-              router.push({
-                pathname: "/crear-outfit",
-                params: { modo: "evento" },
-              } as any)
-            }
-          >
-            <Ionicons name="calendar-outline" size={18} color="#FFF" />
-            <Text style={styles.aiBtnText}>Por evento</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.aiBtn}
-            onPress={() =>
-              router.push({
-                pathname: "/crear-outfit",
-                params: { modo: "clima" },
-              } as any)
-            }
-          >
-            <Ionicons name="cloud-outline" size={18} color="#FFF" />
-            <Text style={styles.aiBtnText}>Por clima</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.aiBtn}
-            onPress={() =>
-              router.push({
-                pathname: "/crear-outfit",
-                params: { modo: "prenda" },
-              } as any)
-            }
-          >
-            <Ionicons name="shirt-outline" size={18} color="#FFF" />
-            <Text style={styles.aiBtnText}>Por prenda</Text>
-          </TouchableOpacity>
-        </View>
       </View>
 
       {/* 🔽 Filtros dinámicos */}
@@ -415,16 +355,11 @@ export default function MisOutfits() {
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    style={[
-                      styles.modalBtn,
-                      { backgroundColor: "#E53935" },
-                    ]}
+                    style={[styles.modalBtn, { backgroundColor: "#E53935" }]}
                     onPress={() => {
+                      setOutfitAEliminar(outfitSeleccionado);
                       setModalVisible(false);
-                      handleEliminarOutfit(
-                        outfitSeleccionado.id,
-                        outfitSeleccionado.nombre
-                      );
+                      setTimeout(() => setConfirmVisible(true), 60);
                     }}
                   >
                     <Ionicons name="trash-outline" size={20} color="#FFF" />
@@ -436,10 +371,37 @@ export default function MisOutfits() {
                   style={styles.modalClose}
                   onPress={() => setModalVisible(false)}
                 >
-                  <Ionicons name="close-circle" size={28} color="#FFF" />
+                  <Ionicons name="close" size={20} color="#000" />
                 </TouchableOpacity>
               </>
             )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal confirmación eliminación */}
+      <Modal visible={confirmVisible} transparent animationType="fade">
+        <View style={styles.confirmOverlay}>
+          <View style={styles.confirmBox}>
+            <Text style={styles.confirmText}>
+              ¿Seguro que quieres eliminar este outfit?
+            </Text>
+
+            <View style={styles.confirmActions}>
+              <TouchableOpacity
+                style={[styles.confirmBtn, { backgroundColor: "#CCC" }]}
+                onPress={() => setConfirmVisible(false)}
+              >
+                <Text>Cancelar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.confirmBtn, { backgroundColor: "#E53935" }]}
+                onPress={eliminarOutfitAhora}
+              >
+                <Text style={{ color: "#FFF" }}>Eliminar</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -476,66 +438,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFF",
     padding: 10,
     borderRadius: 10,
-  },
-
-  /* Caja prenda sugerida */
-  sugeridaBox: {
-    backgroundColor: "#FFFFFFAA",
-    borderRadius: 16,
-    marginHorizontal: 16,
-    marginBottom: 8,
-    padding: 14,
-  },
-  sugeridaText: {
-    color: "#222",
-    fontWeight: "600",
-    marginBottom: 8,
-  },
-  btnSugerir: {
-    backgroundColor: colors.primary,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 10,
-    borderRadius: 10,
-  },
-  btnSugerirText: { color: "#FFF", fontWeight: "600" },
-
-  /* Caja IA: por evento / clima / prenda */
-  aiBox: {
-    backgroundColor: "#FFFFFFAA",
-    borderRadius: 16,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-  },
-  aiTitle: {
-    color: "#222",
-    fontWeight: "600",
-    marginBottom: 6,
-  },
-  aiButtonsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 8,
-  },
-  aiBtn: {
-    flex: 1,
-    backgroundColor: colors.primary,
-    borderRadius: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
-  aiBtnText: {
-    color: "#FFF",
-    fontSize: 12,
-    fontWeight: "600",
   },
 
   /* Filtros */
@@ -662,6 +564,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-around",
     marginTop: 12,
+    marginBottom: 8,
   },
   modalBtn: {
     flexDirection: "row",
@@ -673,5 +576,46 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   modalBtnText: { color: "#FFF", fontWeight: "600" },
-  modalClose: { position: "absolute", top: 10, right: 10 },
+  modalClose: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    backgroundColor: "#FFF",
+    borderRadius: 20,
+    padding: 4,
+  },
+
+  /* Modal confirmación */
+  confirmOverlay: {
+    flex: 1,
+    backgroundColor: "#00000088",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 30,
+  },
+  confirmBox: {
+    backgroundColor: "#FFF",
+    padding: 20,
+    borderRadius: 16,
+    width: "90%",
+    maxWidth: 320,
+  },
+  confirmText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#333",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  confirmActions: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  confirmBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 10,
+    alignItems: "center",
+  },
 });

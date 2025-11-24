@@ -8,6 +8,7 @@ import colors from "../constants/colors";
 import { useLoader } from "../context/LoaderContext";
 import { useAuth } from "../hooks/useAuth";
 import { apiFetch, apiRequest } from "../utils/apiClient";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 interface Prenda {
   id: string;
@@ -47,7 +48,7 @@ const Home: React.FC = () => {
   useEffect(() => {
     if (!loading && auth?.token) {
       console.log('✅ Token cargado, obteniendo outfits...');
-      fetchOutfitsSugeridos();
+      inicializarOutfitsDelDia();
     } else if (!loading && !auth?.token) {
       console.log('⚠️ No hay token disponible');
     }
@@ -84,20 +85,57 @@ const Home: React.FC = () => {
     }
   };
 
-  const fetchOutfitsSugeridos = async () => {
-    setLoadingOutfits(true);
-    try {
-      const data = await apiRequest<{ outfits: OutfitSugerido[] }>(
-        "/api/outfits/sugerir",
-        { method: "POST" }
-      );
-      setOutfits(data.outfits || []);
-    } catch (error) {
-      console.error("❌ Error en fetchOutfitsSugeridos:", error);
-    } finally {
-      setLoadingOutfits(false);
+  const inicializarOutfitsDelDia = async () => {
+  try {
+    const hoy = new Date().toISOString().split("T")[0];
+
+    const fechaGuardada = await AsyncStorage.getItem("outfits_fecha");
+    const outfitsGuardadosRaw = await AsyncStorage.getItem("outfits_data");
+
+    // 🟦 Si hay outfits guardados y son del día actual → mostrarlos sin llamar API
+    if (fechaGuardada === hoy && outfitsGuardadosRaw) {
+      console.log("✔ usando outfits almacenados del día");
+      setOutfits(JSON.parse(outfitsGuardadosRaw));
+      return;
     }
-  };
+
+    // 🟧 Intentar generar nuevos outfits
+    console.log("✨ generando outfits nuevos del día…");
+    const data = await apiRequest<{ outfits: OutfitSugerido[] }>(
+      "/api/outfits/sugerir",
+      { method: "POST" }
+    );
+
+    // si API responde sin outfits válidos → fallback
+    if (!data?.outfits || data.outfits.length === 0) {
+      console.log("⚠ API devolvió vacío, usando outfits guardados si existen");
+      if (outfitsGuardadosRaw) {
+        setOutfits(JSON.parse(outfitsGuardadosRaw));
+      }
+      return;
+    }
+
+    // guardar en estado
+    setOutfits(data.outfits);
+
+    // guardar outfits y fecha en storage
+    await AsyncStorage.setItem("outfits_fecha", hoy);
+    await AsyncStorage.setItem("outfits_data", JSON.stringify(data.outfits));
+
+    console.log("💾 outfits del día guardados");
+
+  } catch (error) {
+    console.log("❌ Error generando outfits del día:", error);
+
+    // 🟥 fallback final: tratar de cargar los guardados
+    const outfitsGuardadosRaw = await AsyncStorage.getItem("outfits_data");
+    if (outfitsGuardadosRaw) {
+      console.log("↩ usando outfits guardados por error en API");
+      setOutfits(JSON.parse(outfitsGuardadosRaw));
+    }
+  }
+};
+
 
 
   const handleNavigate = (route: string) => {
@@ -145,7 +183,7 @@ const Home: React.FC = () => {
             <Text style={styles.sectionTitle}>
               Tus outfits para hoy <Text style={{ fontSize: 18 }}>👕</Text>
             </Text>
-            <TouchableOpacity onPress={fetchOutfitsSugeridos} disabled={loadingOutfits}>
+            <TouchableOpacity onPress={inicializarOutfitsDelDia} disabled={loadingOutfits}>
               <Ionicons
                 name="refresh"
                 size={20}

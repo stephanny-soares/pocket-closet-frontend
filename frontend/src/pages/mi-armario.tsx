@@ -323,13 +323,28 @@ export default function MiArmario() {
 
                 <ScrollView style={{ maxHeight: 220 }}>
                   <Text style={styles.modalTitle}>{prendaSeleccionada.nombre}</Text>
-                  <Text style={styles.modalDetail}>{prendaSeleccionada.tipo}</Text>
-                  <Text style={styles.modalDetail}>{prendaSeleccionada.color}</Text>
+                  <Text style={styles.modalDetail}>
+                    <Text style={{ fontWeight: "700" }}>Tipo: </Text>
+                    {prendaSeleccionada.tipo}
+                  </Text>
+
+                  <Text style={styles.modalDetail}>
+                    <Text style={{ fontWeight: "700" }}>Color: </Text>
+                    {prendaSeleccionada.color}
+                  </Text>
+
                   {prendaSeleccionada.ocasion && (
-                    <Text style={styles.modalDetail}>{prendaSeleccionada.ocasion}</Text>
+                    <Text style={styles.modalDetail}>
+                      <Text style={{ fontWeight: "700" }}>Ocasión: </Text>
+                      {prendaSeleccionada.ocasion}
+                    </Text>
                   )}
+
                   {prendaSeleccionada.estacion && (
-                    <Text style={styles.modalDetail}>{prendaSeleccionada.estacion}</Text>
+                    <Text style={styles.modalDetail}>
+                      <Text style={{ fontWeight: "700" }}>Estación: </Text>
+                      {prendaSeleccionada.estacion}
+                    </Text>
                   )}
                 </ScrollView>
 
@@ -353,8 +368,8 @@ export default function MiArmario() {
                     onPress={() => {
                       setModalVisible(false);
                       router.push({
-                        pathname: "../crear-outfit",
-                        params: { prendaBase: prendaSeleccionada.id },
+                        pathname: "/crear-outfit",
+                        params: { prendaId: prendaSeleccionada.id },
                       });
                     }}
                   >
