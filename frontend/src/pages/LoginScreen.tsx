@@ -21,6 +21,21 @@ import { useAuth } from "../hooks/useAuth";
 import { logEvent } from "../logger/logEvent";
 import { getClientInfo } from "../utils/getClientInfo";
 import { useLoader } from "../context/LoaderContext";
+import * as Google from "expo-auth-session/providers/google";
+import * as WebBrowser from "expo-web-browser";
+import * as AppleAuthentication from "expo-apple-authentication";
+import { Image } from "react-native";
+
+
+WebBrowser.maybeCompleteAuthSession();
+let AppleAuthModule: typeof import("expo-apple-authentication") | null = null;
+
+try {
+  if (Platform.OS === "ios") {
+    AppleAuthModule = require("expo-apple-authentication");
+  }
+} catch {}
+
 
 declare const window: any;
 const API_BASE = (process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000").replace(/\/+$/, "");
@@ -37,6 +52,12 @@ const LoginScreen: React.FC = () => {
   const { showLoader, hideLoader } = useLoader();
 
   const [bannerMessage, setBannerMessage] = useState<string | null>(null);
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_ID,
+    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_ID,
+    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_ID,
+  });
+
 
   useEffect(() => {
     if (isAuthenticated) router.replace("/(protected)/home");
@@ -128,6 +149,86 @@ const LoginScreen: React.FC = () => {
       hideLoader();
     }
   };
+  const handleGoogleLogin = async () => {
+    try {
+      const result = await promptAsync();
+
+      if (result?.type === "success") {
+        const idToken = result.authentication?.idToken;
+
+        const res = await fetch(`${API_BASE}/api/auth/oauth/google`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id_token: idToken }),
+        });
+
+        const data = await res.json();
+
+        if (res.ok && data.token) {
+          await login(data.token, data.usuario?.name, data.usuario?.id, true);
+
+          Toast.show({
+            type: "success",
+            text1: "Inicio de sesión con Google exitoso",
+          });
+        } else {
+          Toast.show({
+            type: "error",
+            text1: "Error con Google",
+            text2: data.error || "No se pudo iniciar sesión",
+          });
+        }
+      }
+    } catch (error) {
+      console.log("Google login error:", error);
+      Toast.show({
+        type: "error",
+        text1: "Error inesperado",
+      });
+    }
+  };
+  const handleAppleLogin = async () => {
+    if (Platform.OS !== "ios") {
+      Toast.show({
+        type: "info",
+        text1: "Apple Login no disponible",
+        text2: "Solo funciona en dispositivos iOS reales."
+      });
+      return;
+    }
+
+    try {
+      const appleResponse = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      const res = await fetch(`${API_BASE}/api/auth/oauth/apple`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id_token: appleResponse.identityToken }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.token) {
+        await login(data.token, data.usuario?.name, data.usuario?.id, true);
+        Toast.show({
+          type: "success",
+          text1: "Inicio de sesión con Apple exitoso",
+        });
+      }
+    } catch (error: any) {
+      if (error?.code !== "ERR_CANCELED") {
+        Toast.show({
+          type: "error",
+          text1: "No se pudo iniciar sesión con Apple",
+        });
+      }
+    }
+  };
 
   const handleRegisterPress = () => {
     router.push("/register");
@@ -188,6 +289,24 @@ const LoginScreen: React.FC = () => {
 
               <View style={styles.buttonContainer}>
                 <PrimaryButton title="Iniciar sesión" onPress={handleLogin} />
+              </View>
+              <View style={styles.socialRow}>
+
+                {/* GOOGLE */}
+                <TouchableOpacity style={styles.socialCircle} onPress={handleGoogleLogin}>
+                  <Image 
+                    source={require("../../assets/icons/google.png")}
+                    style={styles.socialIcon}
+                  />
+                </TouchableOpacity>
+
+                {/* APPLE */}
+                <TouchableOpacity style={styles.socialCircle} onPress={handleAppleLogin}>
+                  <Image 
+                    source={require("../../assets/icons/apple.png")}
+                    style={styles.socialIcon}
+                  />
+                </TouchableOpacity>
               </View>
 
               <View style={styles.registerContainer}>
@@ -275,6 +394,44 @@ const styles = StyleSheet.create({
   },
   registerText: { color: "#666666" },
   registerLink: { color: "#4B0082", fontWeight: "bold" },
+  socialButton: {
+    backgroundColor: "#fff",
+    padding: 14,
+    borderRadius: 12,
+    alignItems: "center",
+    marginVertical: 6,
+    borderWidth: 1,
+    borderColor: "#ddd",
+  },
+  socialText: {
+    fontSize: 16,
+    color: "#333",
+  },
+  socialRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    marginTop: 20,
+    gap: 20
+  },
+  socialCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "#fff",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 4
+  },
+  socialIcon: {
+    width: 24,
+    height: 24,
+    resizeMode: "contain"
+  }
+
+
 });
 
 export default LoginScreen;

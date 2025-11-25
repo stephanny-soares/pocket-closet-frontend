@@ -5,21 +5,49 @@
     "jsx": "react-native",
     "moduleResolution": "bundler",
     "target": "esnext",
-    "lib": ["esnext","dom"],
-    "types": ["jest", "react", "react-native", "expo"],
+    "lib": [
+      "esnext",
+      "dom"
+    ],
+    "types": [
+      "jest",
+      "react",
+      "react-native",
+      "expo"
+    ],
     "skipLibCheck": true,
     "baseUrl": "./",
     "paths": {
-      "@/*": ["./*"],
-      "src/*": ["src/*"],
-      "components/*": ["src/components/*"],
-      "pages/*": ["src/pages/*"],
-      "hooks/*": ["src/hooks/*"],
-      "constants/*": ["src/constants/*"],
-      "logger/*": ["src/logger/*"],
-      "styles/*": ["src/styles/*"],
-      "assets/*": ["assets/*"],
-      "app/*": ["app/*"]
+      "@/*": [
+        "./*"
+      ],
+      "src/*": [
+        "src/*"
+      ],
+      "components/*": [
+        "src/components/*"
+      ],
+      "pages/*": [
+        "src/pages/*"
+      ],
+      "hooks/*": [
+        "src/hooks/*"
+      ],
+      "constants/*": [
+        "src/constants/*"
+      ],
+      "logger/*": [
+        "src/logger/*"
+      ],
+      "styles/*": [
+        "src/styles/*"
+      ],
+      "assets/*": [
+        "assets/*"
+      ],
+      "app/*": [
+        "app/*"
+      ]
     }
   },
   "include": [
@@ -27,9 +55,9 @@
     "**/*.tsx",
     "**/*.test.ts",
     "**/*.test.tsx",
-    ".expo/types/**/*.ts",
-    "expo-env.d.ts",
     "nativewind-env.d.ts",
-    "global.d.ts"
+    "global.d.ts",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
   ]
 }

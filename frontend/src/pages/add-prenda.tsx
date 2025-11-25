@@ -41,6 +41,7 @@ export default function AddPrenda() {
   const { showLoader, hideLoader } = useLoader();
   const { width } = useWindowDimensions();
   const isWeb = width >= 768;
+  
 
   // 🧩 Cargar datos si estamos en modo edición
   useEffect(() => {
@@ -399,15 +400,7 @@ const reclasificarDesdeURL = async (imageUrl: string) => {
           {form.imagen ? (
             <View style={styles.imageContainer}>
               <Image
-                source={{ 
-                  uri: form.imagen,
-                  // Añadir headers si es necesario
-                  ...(form.imagen.includes('storage.googleapis.com') && {
-                    headers: {
-                      Accept: 'image/*',
-                    }
-                  })
-                }}
+               source={{ uri: form.imagen }}
                 style={styles.imagePreview}
                 resizeMode="contain"
                 onError={(error) => {
@@ -527,13 +520,16 @@ const reclasificarDesdeURL = async (imageUrl: string) => {
               const file = e.target.files?.[0];
               if (!file) return;
 
-              // crea URL local
+              // crea URL local temporal para mostrar la previsualización rápido
               const uri = URL.createObjectURL(file);
-
               setForm((prev) => ({ ...prev, imagen: uri }));
 
               // clasificar con File real
               await clasificarImagenWeb(file);
+
+              // 🔁 IMPORTANTE: resetear el input para que el mismo archivo dispare onChange otra vez
+              const input = e.target as HTMLInputElement;
+              input.value = "";
             }}
           />
         )}

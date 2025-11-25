@@ -1,52 +1,64 @@
 {
-  "name": "frontend",
-  "slug": "frontend",
-  "version": "1.0.0",
-  "orientation": "portrait",
-  "icon": "./assets/images/icon.png",
-  "scheme": "frontend",
-  "userInterfaceStyle": "automatic",
-  "newArchEnabled": true,
+  "expo": {
+    "name": "frontend",
+    "slug": "frontend",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "pocketcloset",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
 
-  "updates": {
-    "enabled": false,
-    "checkAutomatically": "ON_ERROR_RECOVERY"
-  },
-
-  "ios": {
-    "supportsTablet": true
-  },
-  "android": {
-    "adaptiveIcon": {
-      "foregroundImage": "./assets/images/icon.png",
-      "backgroundColor": "#ffffff"
+    "updates": {
+      "enabled": false,
+      "checkAutomatically": "ON_ERROR_RECOVERY"
     },
-    "edgeToEdgeEnabled": true,
-    "predictiveBackGestureEnabled": false,
-    "package": "com.anonymous.frontend"
-  },
-  "web": {
-    "output": "static",
-    "favicon": "./assets/images/favicon.png",
-    "bundler": "metro"
-  },
-  "plugins": [
-    "expo-router",
-    [
-      "expo-splash-screen",
-      {
-        "image": "./assets/images/icon.png",
-        "imageWidth": 200,
-        "resizeMode": "contain",
-        "backgroundColor": "#ffffff",
-        "dark": {
-          "backgroundColor": "#000000"
+
+    "ios": {
+      "supportsTablet": true
+    },
+
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "package": "com.anonymous.frontend"
+    },
+
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png",
+      "bundler": "metro"
+    },
+
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff",
+          "dark": { "backgroundColor": "#000000" }
         }
+      ]
+    ],
+
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+
+    "extra": {
+      "googleClientId": {
+        "ios": "<IOS_CLIENT_ID>",
+        "android": "<ANDROID_CLIENT_ID>",
+        "web": "<WEB_CLIENT_ID>"
       }
-    ]
-  ],
-  "experiments": {
-    "typedRoutes": true,
-    "reactCompiler": true
+    }
   }
 }

@@ -54,12 +54,6 @@ const Home: React.FC = () => {
   useEffect(() => {
     fetchWeather();
   }, []);
-  // 🧹 BORRAR CACHE ANTIGUA (ejecutar una sola vez)
-useEffect(() => {
-  AsyncStorage.removeItem("outfits_fecha");
-  AsyncStorage.removeItem("outfits_data");
-}, []);
-
 
   // Esperar a que auth esté cargado antes de pedir outfits
   useEffect(() => {
