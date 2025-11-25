@@ -54,6 +54,12 @@ const Home: React.FC = () => {
   useEffect(() => {
     fetchWeather();
   }, []);
+  // 🧹 BORRAR CACHE ANTIGUA (ejecutar una sola vez)
+useEffect(() => {
+  AsyncStorage.removeItem("outfits_fecha");
+  AsyncStorage.removeItem("outfits_data");
+}, []);
+
 
   // Esperar a que auth esté cargado antes de pedir outfits
   useEffect(() => {
@@ -208,8 +214,11 @@ const Home: React.FC = () => {
 
       const hoy = new Date().toISOString().split("T")[0];
 
-      const fechaGuardada = await AsyncStorage.getItem("outfits_fecha");
-      const outfitsGuardadosRaw = await AsyncStorage.getItem("outfits_data");
+      const usuarioId = auth?.userId ?? "unknown";
+
+      const fechaGuardada = await AsyncStorage.getItem(`outfits_fecha_${usuarioId}`);
+      const outfitsGuardadosRaw = await AsyncStorage.getItem(`outfits_data_${usuarioId}`);
+
 
       // 🟦 Si hay outfits guardados y son del día actual → mostrarlos sin llamar API
       if (fechaGuardada === hoy && outfitsGuardadosRaw) {
@@ -240,8 +249,8 @@ const Home: React.FC = () => {
       setOutfits(data.outfits);
 
       // guardar outfits y fecha en storage
-      await AsyncStorage.setItem("outfits_fecha", hoy);
-      await AsyncStorage.setItem("outfits_data", JSON.stringify(data.outfits));
+      await AsyncStorage.setItem(`outfits_fecha_${usuarioId}`, hoy);
+      await AsyncStorage.setItem(`outfits_data_${usuarioId}`, JSON.stringify(data.outfits));
 
       console.log("💾 outfits del día guardados");
     } catch (error) {
@@ -380,7 +389,7 @@ const Home: React.FC = () => {
             </ScrollView>
           ) : (
             <View style={styles.emptyContainer}>
-              <Ionicons name="images-outline" size={40} color="#CCC" />
+              <Ionicons name="images-outline" size={40} color={colors.primary} />
               <Text style={styles.emptyText}>
                 No hay suficientes prendas para generar outfits
               </Text>
@@ -603,12 +612,12 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     marginTop: 10,
-    color: "#999",
+    color: colors.primary,
     fontSize: 14,
     marginBottom: 16,
   },
   emptySubtext: {
-    color: "#CCC",
+    color: colors.primary,
     fontSize: 12,
   },
   gridContainer: {
