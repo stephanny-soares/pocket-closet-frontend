@@ -359,6 +359,7 @@ export default function MisOutfits() {
                     onPress={() => {
                       setOutfitAEliminar(outfitSeleccionado);
                       setModalVisible(false);
+                      setOutfitSeleccionado(null);
                       setTimeout(() => setConfirmVisible(true), 60);
                     }}
                   >
@@ -529,7 +530,13 @@ const styles = StyleSheet.create({
     position: "relative",
     paddingBottom: 10,
   },
-  modalImage: { width: "100%", height: 220 },
+  modalImage: {
+    width: "100%",
+    height: undefined,
+    aspectRatio: 1,      
+    resizeMode: "contain", 
+    backgroundColor: "#F5F5F5",
+  },
   modalTitle: {
     textAlign: "center",
     fontSize: 18,
