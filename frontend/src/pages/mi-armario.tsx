@@ -16,11 +16,12 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
+import { router, useLocalSearchParams} from "expo-router";
 import Header from "components/Header";
 import colors from "../constants/colors";
 import { apiRequest } from "../utils/apiClient";
 import { useLoader } from "../context/LoaderContext";
+
 
 if (
   Platform.OS === "android" &&
@@ -62,6 +63,8 @@ export default function MiArmario() {
   });
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
   const [orden, setOrden] = useState<"fecha" | "tipo" | "color">("fecha");
+  const params = useLocalSearchParams();
+  const selectMode = params.selectMode;
   const [prendaSeleccionada, setPrendaSeleccionada] =
     useState<Prenda | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
@@ -177,9 +180,18 @@ export default function MiArmario() {
   const columnas = isWeb ? Math.min(Math.floor(width / 220), 5) : 4;
 
   const abrirDetalle = (prenda: Prenda) => {
-    setPrendaSeleccionada(prenda);
-    setModalVisible(true);
-  };
+  // ✔ Si venimos desde crear-outfit
+  if (selectMode === "prenda") {
+    router.push(`/crear-outfit?prendaId=${prenda.id}`);
+    return;
+  }
+
+  // ✔ Flujo normal
+  setPrendaSeleccionada(prenda);
+  setModalVisible(true);
+};
+
+
 
   const actualizarFiltro = (campo: keyof FiltrosState, valor: FiltroValor) => {
     setFiltros((prev) => ({ ...prev, [campo]: valor }));

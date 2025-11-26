@@ -8,25 +8,19 @@ import {
   ScrollView,
   Alert,
   TextInput,
-  useWindowDimensions,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, router, Stack } from "expo-router";
-import Header from "components/Header";
+import Header from "../components/Header";
 import colors from "../constants/colors";
 import { apiRequest } from "../utils/apiClient";
 import { useLoader } from "../context/LoaderContext";
 
 export default function CrearOutfit() {
-  const { prendaId, eventoId } = useLocalSearchParams<{
-    prendaId?: string;
-    eventoId?: string;
-  }>();
+  const { prendaId, eventoId } = useLocalSearchParams();
 
   const { showLoader, hideLoader } = useLoader();
-  const { width } = useWindowDimensions();
-  const isWeb = width >= 768;
 
   const [outfit, setOutfit] = useState<any>(null);
 
@@ -38,22 +32,26 @@ export default function CrearOutfit() {
 
   /** AUTO-GENERACIÓN al volver desde otra pantalla */
   useEffect(() => {
-    if (prendaId) generarOutfitPorPrenda(prendaId);
-    if (eventoId) generarOutfitPorEvento(eventoId);
+    if (prendaId) generarOutfitPorPrenda(prendaId as string);
+    if (eventoId) generarOutfitPorEvento(eventoId as string);
   }, [prendaId, eventoId]);
 
   /** ----------- GENERAR OUTFIT POR PRENDA ------------ */
   const generarOutfitPorPrenda = async (id: string) => {
-    showLoader("Generando outfit por prenda...");
+    showLoader("Generando outfit por prenda…");
     try {
-      const data = await apiRequest<{ outfit: any }>("/api/outfits/por-prenda", {
+      const data = await apiRequest("/api/outfits/por-prenda", {
         method: "POST",
         body: JSON.stringify({ prendaId: id }),
       });
 
-      cargarOutfitEnFormulario(data.outfit || data);
+      if (!data || !data.outfit) {
+        throw new Error(data?.message || "No se pudo generar el outfit");
+      }
+
+      cargarOutfitEnFormulario(data.outfit);
     } catch (err: any) {
-      Alert.alert("Error", err.message);
+      Alert.alert("Error", err.message || "Error generando outfit");
     } finally {
       hideLoader();
     }
@@ -61,16 +59,20 @@ export default function CrearOutfit() {
 
   /** ----------- GENERAR OUTFIT POR EVENTO ------------ */
   const generarOutfitPorEvento = async (id: string) => {
-    showLoader("Generando outfit por evento...");
+    showLoader("Generando outfit por evento…");
     try {
-      const data = await apiRequest<{ outfit: any }>("/api/outfits/por-evento", {
+      const data = await apiRequest("/api/outfits/por-evento", {
         method: "POST",
         body: JSON.stringify({ eventoId: id }),
       });
 
-      cargarOutfitEnFormulario(data.outfit || data);
+      if (!data || !data.outfit) {
+        throw new Error(data?.message || "No se pudo generar el outfit");
+      }
+
+      cargarOutfitEnFormulario(data.outfit);
     } catch (err: any) {
-      Alert.alert("Error", err.message);
+      Alert.alert("Error", err.message || "Error generando outfit");
     } finally {
       hideLoader();
     }
@@ -78,15 +80,19 @@ export default function CrearOutfit() {
 
   /** ----------- GENERAR OUTFIT POR CLIMA ------------ */
   const generarOutfitPorClima = async () => {
-    showLoader("Generando outfit por clima...");
+    showLoader("Generando outfit por clima…");
     try {
-      const data = await apiRequest<{ outfit: any }>("/api/outfits/sugerir", {
+      const data = await apiRequest("/api/outfits/sugerir", {
         method: "POST",
       });
 
-      cargarOutfitEnFormulario(data.outfit || data.outfit?.[0] || data);
+      if (!data || !data.outfits || data.outfits.length === 0) {
+        throw new Error(data?.message || "No se pudo generar el outfit");
+      }
+
+      cargarOutfitEnFormulario(data.outfits[0]);
     } catch (err: any) {
-      Alert.alert("Error", err.message);
+      Alert.alert("Error", err.message || "Error generando outfit");
     } finally {
       hideLoader();
     }
@@ -105,16 +111,18 @@ export default function CrearOutfit() {
   const guardarOutfit = async () => {
     if (!outfit) return;
 
-    showLoader("Guardando outfit...");
+    const prendasIds = outfit.prendas?.map((p: any) => p.id) ?? [];
+
+    const payload = {
+      nombre,
+      categoria,
+      estacion,
+      imagen,
+      prendasIds,
+    };
 
     try {
-      const payload = {
-        ...outfit,
-        nombre,
-        categoria,
-        estacion,
-        imagen,
-      };
+      showLoader("Guardando outfit…");
 
       await apiRequest("/api/outfits", {
         method: "POST",
@@ -125,7 +133,7 @@ export default function CrearOutfit() {
       router.replace("/mis-outfits");
     } catch (err: any) {
       hideLoader();
-      Alert.alert("Error", err.message || "No se pudo guardar");
+      Alert.alert("Error", err.message || "No se pudo guardar el outfit");
     }
   };
 
@@ -154,8 +162,8 @@ export default function CrearOutfit() {
           <TouchableOpacity
             style={styles.optionBtn}
             onPress={() => {
-              Alert.alert("Selecciona prenda");
-              router.push("/mi-armario");
+              alert("Selecciona una prenda");
+              router.push("/mi-armario?selectMode=prenda");
             }}
           >
             <Ionicons name="shirt-outline" size={24} color="#FFF" />
@@ -164,26 +172,27 @@ export default function CrearOutfit() {
 
           <TouchableOpacity
             style={styles.optionBtn}
-            onPress={() => {
-              Alert.alert("Selecciona evento");
-              router.push("/mis-eventos");
-            }}
+            onPress={() => router.push("/mis-eventos")}
           >
             <Ionicons name="calendar-outline" size={24} color="#FFF" />
             <Text style={styles.optionText}>Por evento</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.optionBtn} onPress={generarOutfitPorClima}>
+          <TouchableOpacity
+            style={styles.optionBtn}
+            onPress={generarOutfitPorClima}
+          >
             <Ionicons name="cloud-outline" size={24} color="#FFF" />
             <Text style={styles.optionText}>Por clima</Text>
           </TouchableOpacity>
 
-          {/* -------- TARJETA CON FORMULARIO EDITABLE -------- */}
+          {/* -------- TARJETA DEL OUTFIT -------- */}
           {outfit && (
             <View style={styles.card}>
-              <Image source={{ uri: imagen }} style={styles.cardImage} />
+              {imagen ? (
+                <Image source={{ uri: imagen }} style={styles.cardImage} />
+              ) : null}
 
-              {/* NOMBRE */}
               <Text style={styles.label}>Nombre del outfit</Text>
               <TextInput
                 style={styles.input}
@@ -192,7 +201,6 @@ export default function CrearOutfit() {
                 placeholder="Nombre del outfit"
               />
 
-              {/* CATEGORÍA */}
               <Text style={styles.label}>Categoría</Text>
               <TextInput
                 style={styles.input}
@@ -201,7 +209,6 @@ export default function CrearOutfit() {
                 placeholder="casual, formal…"
               />
 
-              {/* ESTACIÓN */}
               <Text style={styles.label}>Estación</Text>
               <TextInput
                 style={styles.input}
@@ -210,29 +217,33 @@ export default function CrearOutfit() {
                 placeholder="verano, invierno…"
               />
 
-              {/* IMAGEN */}
               <Text style={styles.label}>URL de la imagen</Text>
               <TextInput
                 style={styles.input}
                 value={imagen}
                 onChangeText={setImagen}
-                placeholder="https://..."
+                placeholder="https://…"
               />
 
-              {/* PRENDAS INCLUIDAS */}
               <Text style={styles.sectionLabel}>Prendas incluidas</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 {outfit.prendas?.map((p: any) => (
-                  <Image key={p.id} source={{ uri: p.imagen }} style={styles.prendaThumb} />
+                  <Image
+                    key={p.id}
+                    source={{ uri: p.imagen }}
+                    style={styles.prendaThumb}
+                  />
                 ))}
               </ScrollView>
 
-              {/* -------- BOTONES -------- */}
               <TouchableOpacity style={styles.btnGuardar} onPress={guardarOutfit}>
                 <Text style={styles.btnGuardarText}>Guardar outfit</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.btnCancelar} onPress={() => setOutfit(null)}>
+              <TouchableOpacity
+                style={styles.btnCancelar}
+                onPress={() => setOutfit(null)}
+              >
                 <Text style={styles.btnCancelarText}>Cancelar</Text>
               </TouchableOpacity>
             </View>
@@ -264,6 +275,7 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 18,
   },
+
   optionText: { color: "#FFF", fontWeight: "700", fontSize: 15 },
 
   card: {
@@ -273,69 +285,73 @@ const styles = StyleSheet.create({
     padding: 16,
     shadowColor: "#000",
     shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 6,
+    shadowRadius: 8,
+    elevation: 3,
   },
 
   cardImage: {
     width: "100%",
-    height: 250,
+    height: 220,
     borderRadius: 16,
     marginBottom: 16,
+    resizeMode: "cover",
   },
 
   label: {
-    fontWeight: "600",
     fontSize: 14,
-    marginTop: 10,
-    marginBottom: 6,
-  },
-
-  input: {
-    backgroundColor: "#EFEFEF",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 10,
+    fontWeight: "600",
+    marginTop: 8,
+    marginBottom: 4,
   },
 
   sectionLabel: {
-    marginTop: 20,
-    fontWeight: "600",
     fontSize: 14,
-    marginBottom: 10,
+    fontWeight: "700",
+    marginTop: 16,
+    marginBottom: 8,
+  },
+
+  input: {
+    backgroundColor: "#F5F5F5",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    marginBottom: 8,
   },
 
   prendaThumb: {
     width: 70,
     height: 70,
     borderRadius: 12,
-    marginRight: 10,
-    backgroundColor: "#DDD",
+    marginRight: 8,
   },
 
   btnGuardar: {
     backgroundColor: colors.primary,
+    borderRadius: 16,
     paddingVertical: 14,
-    borderRadius: 14,
-    marginTop: 20,
+    alignItems: "center",
+    marginTop: 16,
   },
+
   btnGuardarText: {
-    textAlign: "center",
     color: "#FFF",
     fontWeight: "700",
     fontSize: 15,
   },
 
   btnCancelar: {
-    backgroundColor: "#DDD",
+    backgroundColor: "#EEE",
+    borderRadius: 16,
     paddingVertical: 12,
-    borderRadius: 14,
-    marginTop: 12,
-    marginBottom: 10,
+    alignItems: "center",
+    marginTop: 10,
   },
+
   btnCancelarText: {
-    textAlign: "center",
+    color: "#333",
     fontWeight: "600",
-    color: "#444",
+    fontSize: 14,
   },
 });
