@@ -18,7 +18,7 @@ import { apiRequest } from "../utils/apiClient";
 import { useLoader } from "../context/LoaderContext";
 
 export default function CrearOutfit() {
-  const { prendaId, eventoId } = useLocalSearchParams();
+  const { prendaId, eventoId, eventoNombre } = useLocalSearchParams();
 
   const { showLoader, hideLoader } = useLoader();
 
@@ -33,7 +33,9 @@ export default function CrearOutfit() {
   /** AUTO-GENERACIÓN al volver desde otra pantalla */
   useEffect(() => {
     if (prendaId) generarOutfitPorPrenda(prendaId as string);
-    if (eventoId) generarOutfitPorEvento(eventoId as string);
+    if (eventoId && eventoNombre) {
+      generarOutfitPorEvento(eventoId as string, eventoNombre as string);
+    }
   }, [prendaId, eventoId]);
 
   /** ----------- GENERAR OUTFIT POR PRENDA ------------ */
@@ -58,12 +60,14 @@ export default function CrearOutfit() {
   };
 
   /** ----------- GENERAR OUTFIT POR EVENTO ------------ */
-  const generarOutfitPorEvento = async (id: string) => {
+  const generarOutfitPorEvento = async (id: string, nombreEvento: string) => {
     showLoader("Generando outfit por evento…");
     try {
       const data = await apiRequest("/api/outfits/por-evento", {
         method: "POST",
-        body: JSON.stringify({ eventoId: id }),
+        body: JSON.stringify({
+          evento: nombreEvento,   // <-- BACKEND LO EXIGE
+        }),
       });
 
       if (!data || !data.outfit) {
@@ -77,6 +81,7 @@ export default function CrearOutfit() {
       hideLoader();
     }
   };
+
 
   /** ----------- GENERAR OUTFIT POR CLIMA ------------ */
   const generarOutfitPorClima = async () => {

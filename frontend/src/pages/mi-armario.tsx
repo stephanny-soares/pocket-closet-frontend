@@ -366,7 +366,7 @@ export default function MiArmario() {
                     onPress={() => {
                       setModalVisible(false);
                       router.push({
-                        pathname: "/add-prenda",
+                        pathname: "/editar-prenda",
                         params: { id: prendaSeleccionada.id },
                       });
                     }}

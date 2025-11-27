@@ -174,15 +174,18 @@ export default function MisOutfits() {
   };
 
   const renderOutfit = ({ item }: { item: Outfit }) => (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={() => abrirDetalle(item)}
-      activeOpacity={0.9}
-    >
-      <Image source={{ uri: item.imagen }} style={styles.cardImage} />
-      <Text style={styles.cardName}>{item.nombre}</Text>
-    </TouchableOpacity>
+    <View style={[styles.cardWrapper, { width: `${100 / columnas}%` }]}>
+      <TouchableOpacity
+        style={styles.card}
+        onPress={() => abrirDetalle(item)}
+        activeOpacity={0.9}
+      >
+        <Image source={{ uri: item.imagen }} style={styles.cardImage} />
+        <Text style={styles.cardName}>{item.nombre}</Text>
+      </TouchableOpacity>
+    </View>
   );
+
 
   const limpiarFiltros = () => {
     setFiltros({
@@ -345,7 +348,7 @@ export default function MisOutfits() {
                     onPress={() => {
                       setModalVisible(false);
                       router.push({
-                        pathname: "/editar-outfit/[id]" as any,
+                        pathname: "/editar-outfit" as any,
                         params: { id: outfitSeleccionado.id },
                       });
                     }}
@@ -492,13 +495,10 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: "#FFF",
     borderRadius: 14,
-    margin: 6,
-    flex: 1,
-    aspectRatio: 0.8,
     overflow: "hidden",
     elevation: 3,
   },
-  cardImage: { width: "100%", height: "80%", resizeMode: "cover" },
+  cardImage: { width: "100%", aspectRatio: 1, resizeMode: "cover" },
   cardName: {
     textAlign: "center",
     color: "#222",
@@ -507,6 +507,9 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   listContent: { paddingHorizontal: 12, paddingBottom: 60 },
+  cardWrapper: {
+    padding: 6,
+  },
 
   /* Empty */
   emptyContainer: { flex: 1, alignItems: "center", marginTop: 60 },
@@ -625,4 +628,5 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
   },
+
 });
