@@ -1,10 +1,16 @@
 // frontend/src/utils/apiClient.ts
 
 import { getToken } from "../utils/storage";  
+import Constants from "expo-constants";
+import { Platform } from "react-native";
 // ⬆️ Ajusta la ruta si fuera necesario (por ejemplo: "../../utils/storage")
 
-const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_BASE_URL || "http://192.168.0.101:5000";
+const fromEnv = process.env.EXPO_PUBLIC_API_URL || Constants.expoConfig?.extra?.apiUrl;
+const LOCAL_URL = Platform.OS === "android" ? "http://10.0.2.2:5000" : "http://localhost:5000";
+
+export const API_BASE = (fromEnv || LOCAL_URL).replace(/\/+$/, "");
+
+console.log("🔧 API_BASE configurado:", API_BASE);
 
 /**
  * Wrapper para fetch sin romper compatibilidad
@@ -16,7 +22,7 @@ export async function apiFetch(
   const url =
     path.startsWith("http://") || path.startsWith("https://")
       ? path
-      : `${API_BASE_URL}${path}`;
+      : `${API_BASE}${path}`;
 
   const token = await getToken(); // ⬅️ USAMOS TU TOKEN REAL
 

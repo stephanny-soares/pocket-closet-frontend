@@ -175,7 +175,7 @@ export default function AddPrenda() {
 
       await apiRequest("/api/prendas", {
         method: "POST",
-        body: {
+        body: JSON.stringify({
           imagen,
           nombre,
           tipo,
@@ -184,7 +184,7 @@ export default function AddPrenda() {
           ocasion,
           marca,
           seccion,
-        } as any,
+        }),
       });
 
       hideLoader();
