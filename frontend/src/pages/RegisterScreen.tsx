@@ -15,7 +15,7 @@ import Toast from "react-native-toast-message";
 import CustomInput from "components/CustomInput";
 import PasswordInput from "components/PasswordInput";
 import CheckBox from "components/CheckBox";
-import PrimaryButton from "components/PrimaryButton";
+import PrimaryButton from "components/ui/PrimaryButton";
 import colors from "../constants/colors";
 import { validateEmail, validatePassword, validatePasswordMatch } from "../utils/validation";
 import { useAuth } from "../hooks/useAuth";
