@@ -8,16 +8,13 @@
     "scheme": "pocketcloset",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-
     "updates": {
       "enabled": false,
       "checkAutomatically": "ON_ERROR_RECOVERY"
     },
-
     "ios": {
       "supportsTablet": true
     },
-
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
@@ -27,13 +24,11 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.anonymous.frontend"
     },
-
     "web": {
       "output": "static",
       "favicon": "./assets/images/favicon.png",
       "bundler": "metro"
     },
-
     "plugins": [
       "expo-router",
       [
@@ -43,16 +38,17 @@
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff",
-          "dark": { "backgroundColor": "#000000" }
+          "dark": {
+            "backgroundColor": "#000000"
+          }
         }
-      ]
+      ],
+      "expo-font"
     ],
-
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
     },
-
     "extra": {
       "googleClientId": {
         "ios": "<IOS_CLIENT_ID>",

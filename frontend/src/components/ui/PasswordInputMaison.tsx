@@ -1,90 +1,99 @@
-// components/ui/PasswordInputMaison.tsx
-
 import React, { useState } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  TextInputProps,
+} from "react-native";
 import colors from "../../constants/colors";
-import typography from "../../constants/typography";
+import { Ionicons } from "@expo/vector-icons";
+import { Platform, } from "react-native";
+
+
+interface PasswordProps extends TextInputProps {
+  label?: string;
+  error?: string;
+}
 
 export default function PasswordInputMaison({
   label,
-  placeholder,
-  value,
-  onChangeText,
   error,
-  ...rest
-}: any) {
-  const [show, setShow] = useState(false);
+  style,
+  ...props
+}: PasswordProps) {
+  const [visible, setVisible] = useState(false);
 
   return (
-    <View style={{ marginBottom: 18 }}>
-      {label && (
-        <Text style={styles.label}>
-          {label}
-        </Text>
-      )}
+    <View style={styles.wrapper}>
+      {label && <Text style={styles.label}>{label}</Text>}
 
-      <View style={[
-        styles.inputWrapper,
-        error && styles.inputError
-      ]}>
+      <View style={[styles.container, error && styles.errorBorder]}>
         <TextInput
-          style={styles.input}
-          placeholder={placeholder}
+          {...props}
+          secureTextEntry={!visible}
           placeholderTextColor={colors.textMuted}
-          secureTextEntry={!show}
-          value={value}
-          onChangeText={onChangeText}
-          {...rest}
+          style={[styles.input, style]}
         />
 
-        <TouchableOpacity onPress={() => setShow(!show)}>
+        <TouchableOpacity
+          onPress={() => setVisible((v) => !v)}
+          style={styles.iconRight}
+        >
           <Ionicons
-            name={show ? "eye-off-outline" : "eye-outline"}
+            name={visible ? "eye-off-outline" : "eye-outline"}
             size={22}
             color={colors.icon}
           />
         </TouchableOpacity>
       </View>
 
-      {error && <Text style={styles.error}>{error}</Text>}
+      {error && <Text style={styles.errorText}>{error}</Text>}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  label: {
-    ...typography.body,
-    color: colors.textSecondary,
-    marginBottom: 6,
+  wrapper: {
+    marginBottom: 16,
   },
-
-  inputWrapper: {
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+  label: {
+    fontSize: 14,
+    marginBottom: 6,
+    color: colors.textPrimary,
+    fontWeight: "500",
+  },
+  container: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
-
   input: {
     flex: 1,
     fontSize: 15,
     color: colors.textPrimary,
-    marginRight: 10,
+
+    ...(Platform.OS === "web" && {
+      outline: "none",
+      outlineColor: "transparent",
+    }),
   },
 
-  inputError: {
+  iconRight: {
+    marginLeft: 8,
+  },
+  errorBorder: {
     borderColor: colors.danger,
   },
-
-  error: {
-    color: colors.danger,
+  errorText: {
+    marginTop: 4,
     fontSize: 12,
-    marginTop: 6,
+    color: colors.danger,
   },
 });
