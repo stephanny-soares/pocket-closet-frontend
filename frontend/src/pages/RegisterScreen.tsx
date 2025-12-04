@@ -9,18 +9,22 @@ import {
   StyleSheet,
   useWindowDimensions,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import Toast from "react-native-toast-message";
-import CustomInput from "components/CustomInput";
-import PasswordInput from "components/PasswordInput";
-import CheckBox from "components/CheckBox";
-import PrimaryButton from "components/ui/PrimaryButton";
+
+import InputMaison from "../components/ui/InputMaison";
+import PasswordInputMaison from "../components/ui/PasswordInputMaison";
+import CheckBoxMaison from "../components/ui/CheckBoxMaison";
+import PrimaryButton from "../components/ui/PrimaryButton";
+
+import TitleSerif from "../components/ui/TitleSerif";
+import BodyText from "../components/ui/BodyText";
+
 import colors from "../constants/colors";
 import { validateEmail, validatePassword, validatePasswordMatch } from "../utils/validation";
 import { useAuth } from "../hooks/useAuth";
 import { logEvent } from "../logger/logEvent";
-import { useLoader } from "../context/LoaderContext"; // 👈 Loader global
+import { useLoader } from "../context/LoaderContext";
 
 const API_BASE = (process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000").replace(/\/+$/, "");
 
@@ -41,7 +45,7 @@ const RegisterScreen: React.FC = () => {
   const [passwordStrength, setPasswordStrength] = useState({ label: "", color: "" });
 
   const { login, isAuthenticated } = useAuth();
-  const { showLoader, hideLoader } = useLoader(); // 👈 Loader global
+  const { showLoader, hideLoader } = useLoader();
 
   useEffect(() => {
     if (isAuthenticated) router.replace("/home");
@@ -83,7 +87,7 @@ const RegisterScreen: React.FC = () => {
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
-    showLoader("Creando tu cuenta..."); // 👈 Muestra loader
+    showLoader("Creando tu cuenta...");
 
     try {
       const response = await fetch(`${API_BASE}/api/auth/register`, {
@@ -116,18 +120,12 @@ const RegisterScreen: React.FC = () => {
           visibilityTime: 2000,
           bottomOffset: 70,
         });
+
         setTimeout(() => {
-         router.replace("/(protected)/questionnaire");
+          router.replace("/(protected)/questionnaire");
         }, 2100);
 
       } else {
-        await logEvent({
-          level: "warn",
-          event: "RegisterFailed",
-          message: data.error || "Fallo en registro de usuario",
-          extra: { email: form.email },
-        });
-
         Toast.show({
           type: "error",
           text1: "⚠️ Error",
@@ -138,148 +136,165 @@ const RegisterScreen: React.FC = () => {
         });
       }
     } catch (error: any) {
-      await logEvent({
-        event: "RegisterFailed",
-        message: error?.message || "Error al conectar con el servidor",
-        level: "warn",
-        extra: { email: form.email },
-      });
-
       Toast.show({
         type: "error",
         text1: "⚠️ Error de conexión",
-        text2: "No se pudo conectar con el servidor. Inténtalo más tarde.",
-        position: "bottom",
-        visibilityTime: 3000,
-        bottomOffset: 70,
+        text2: "No se pudo conectar con el servidor.",
       });
     } finally {
-      hideLoader(); // 👈 Cierra loader
+      hideLoader();
     }
   };
 
   return (
-    <LinearGradient
-      colors={colors.gradient as any}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.gradient}
+    <KeyboardAvoidingView
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      style={styles.root}
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.keyboardView}
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={styles.scrollContent}
       >
-        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.scrollContent}>
-          <View style={[styles.content, { maxWidth }]}>
-            <View style={styles.titleSection}>
-              <Text style={styles.title}>Crear cuenta</Text>
-              <Text style={styles.subtitle}>Regístrate para comenzar</Text>
+        <View style={[styles.cardWrapper, { maxWidth }]}>
+          <View style={styles.card}>
+            
+            {/* TITLE */}
+            <TitleSerif style={styles.title}>Crear cuenta</TitleSerif>
+            <BodyText style={styles.subtitle}>Regístrate para comenzar</BodyText>
+
+            {/* NAME */}
+            <InputMaison
+              label="Nombre completo"
+              placeholder="Introduce tu nombre"
+              value={form.name}
+              onChangeText={(v: string) => setField("name", v)}
+              error={errors.name}
+            />
+
+            {/* EMAIL */}
+            <InputMaison
+              label="Correo electrónico"
+              placeholder="Introduce tu correo"
+              keyboardType="email-address"
+              value={form.email}
+              onChangeText={(v: string) => setField("email", v)}
+              error={errors.email}
+            />
+
+            {/* PASSWORD */}
+            <PasswordInputMaison
+              label="Contraseña"
+              placeholder="Introduce tu contraseña"
+              value={form.password}
+              onChangeText={(v: string) => setField("password", v)}
+              error={errors.password}
+            />
+
+            {/* STRENGTH */}
+            {passwordStrength.label ? (
+              <Text style={[styles.strength, { color: passwordStrength.color }]}>
+                Fuerza: {passwordStrength.label}
+              </Text>
+            ) : null}
+
+            {/* CONFIRM PASSWORD */}
+            <PasswordInputMaison
+              label="Confirmar contraseña"
+              placeholder="Repite tu contraseña"
+              value={form.confirmPassword}
+              onChangeText={(v: string) => setField("confirmPassword", v)}
+              error={errors.confirmPassword}
+            />
+
+            {/* TERMS */}
+            <View style={styles.termsRow}>
+              <CheckBoxMaison
+                checked={form.terms}
+                onToggle={() => setField("terms", !form.terms)}
+              />
+
+              <Text style={styles.termsText}>
+                Acepto los{" "}
+                <Text style={styles.termsLink}>Términos y Condiciones</Text>{" "}
+                y la{" "}
+                <Text style={styles.termsLink}>Política de Privacidad</Text>
+              </Text>
             </View>
 
-            <View style={styles.formContainer}>
-              <CustomInput
-                label="Nombre completo"
-                placeholder="Introduce tu nombre"
-                value={form.name}
-                onChangeText={(val: string) => setField("name", val)}
-                error={errors.name}
-              />
+            {errors.terms && <Text style={styles.error}>{errors.terms}</Text>}
 
-              <CustomInput
-                label="Correo electrónico"
-                placeholder="Introduce tu correo"
-                keyboardType="email-address"
-                value={form.email}
-                onChangeText={(val: string) => setField("email", val)}
-                error={errors.email}
-              />
+            {/* SUBMIT */}
+            <PrimaryButton title="Registrar" onPress={handleSubmit} style={{ marginTop: 28 }} />
 
-              <PasswordInput
-                label="Contraseña"
-                placeholder="Introduce tu contraseña"
-                value={form.password}
-                onChangeText={(val: string) => setField("password", val)}
-                error={errors.password}
-              />
-
-              {passwordStrength.label ? (
-                <Text style={[styles.strengthText, { color: passwordStrength.color }]}>
-                  Fuerza: {passwordStrength.label}
-                </Text>
-              ) : null}
-
-              <PasswordInput
-                label="Confirmar contraseña"
-                placeholder="Repite tu contraseña"
-                value={form.confirmPassword}
-                onChangeText={(val: string) => setField("confirmPassword", val)}
-                error={errors.confirmPassword}
-              />
-
-              <View style={styles.termsSection}>
-                <CheckBox checked={form.terms} onToggle={() => setField("terms", !form.terms)} label="" />
-                <Text style={styles.termsText}>
-                  Acepto los{" "}
-                  <TouchableOpacity>
-                    <Text style={styles.termsLink}>Términos y Condiciones</Text>
-                  </TouchableOpacity>{" "}
-                  y la{" "}
-                  <TouchableOpacity>
-                    <Text style={styles.termsLink}>Política de Privacidad</Text>
-                  </TouchableOpacity>
-                </Text>
-              </View>
-
-              {errors.terms && <Text style={styles.error}>{errors.terms}</Text>}
-
-              <View style={styles.buttonContainer}>
-                <PrimaryButton title="Registrar" onPress={handleSubmit} />
-              </View>
-            </View>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </LinearGradient>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
 const styles = StyleSheet.create({
-  gradient: { flex: 1, minHeight: "100vh" as any },
-  keyboardView: { flex: 1 },
+  root: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
   scrollContent: {
     flexGrow: 1,
-    alignItems: "center",
     justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 40,
   },
-  content: { width: "100%", alignSelf: "center" },
-  titleSection: { marginBottom: 40, alignItems: "center" },
-  title: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "#1E1E1E",
-    marginBottom: 8,
-    textAlign: "center",
+  cardWrapper: {
+    width: "100%",
+    alignSelf: "center",
   },
-  subtitle: { fontSize: 16, color: "#666666", textAlign: "center" },
-  formContainer: {
+  card: {
     backgroundColor: "#FFFFFF",
     borderRadius: 24,
     padding: 24,
-    marginBottom: 32,
     shadowColor: "#000",
     shadowOpacity: 0.1,
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 8,
     elevation: 5,
   },
-  strengthText: { fontSize: 12, marginBottom: 12 },
-  termsSection: { marginTop: 16, marginBottom: 16 },
-  termsText: { color: "#666666", fontSize: 14, marginLeft: 32, marginTop: -24 },
-  termsLink: { color: "#4B0082", textDecorationLine: "underline" },
-  error: { color: "#E53935", fontSize: 12, marginTop: 8 },
-  buttonContainer: { marginTop: 24 },
+  title: {
+    fontSize: 30,
+    textAlign: "center",
+    marginBottom: 6,
+  },
+  subtitle: {
+    textAlign: "center",
+    fontSize: 15,
+    color: "#777",
+    marginBottom: 28,
+  },
+  strength: {
+    marginTop: -4,
+    marginBottom: 12,
+    fontSize: 12,
+  },
+  termsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 10,
+  },
+  termsText: {
+    marginLeft: 8,
+    color: "#444",
+    flex: 1,
+    fontSize: 13,
+  },
+  termsLink: {
+    color: "#A5A5A5",
+    textDecorationLine: "underline",
+  },
+  error: {
+    fontSize: 12,
+    color: "#E53935",
+    marginTop: 6,
+  },
 });
 
 export default RegisterScreen;

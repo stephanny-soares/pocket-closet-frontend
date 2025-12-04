@@ -7,6 +7,8 @@ import Toast from "react-native-toast-message";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import { LoaderProvider } from "../src/context/LoaderContext"; // 👈 importamos el provider
+import { useFonts } from "expo-font";
+import { ActivityIndicator } from "react-native";
 
 export default function RootLayout() {
   const pathname = usePathname();
@@ -15,6 +17,16 @@ export default function RootLayout() {
     !pathname.includes("login") &&
     !pathname.includes("register") &&
     !pathname.includes("index");
+  const [fontsLoaded] = useFonts({
+    "CormorantGaramond-Regular": require("../assets/fonts/CormorantGaramond-Regular.ttf"),
+    "CormorantGaramond-Medium": require("../assets/fonts/CormorantGaramond-Medium.ttf"),
+    "CormorantGaramond-SemiBold": require("../assets/fonts/CormorantGaramond-SemiBold.ttf"),
+    "CormorantGaramond-Bold": require("../assets/fonts/CormorantGaramond-Bold.ttf"),
+  });
+
+  if (!fontsLoaded) {
+    return <ActivityIndicator size="large" style={{ flex: 1 }} />;
+  }
 
   return (
     <ErrorBoundary>

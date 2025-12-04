@@ -2,24 +2,32 @@ import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
-  StyleSheet,
-  TouchableOpacity,
   ScrollView,
-  useWindowDimensions,
+  TouchableOpacity,
   Image,
   ActivityIndicator,
+  StyleSheet,
+  Platform,
 } from "react-native";
+
 import { LinearGradient } from "expo-linear-gradient";
+import * as Location from "expo-location";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import Header from "../components/Header";
+
+import TitleSerif from "../components/ui/TitleSerif";
+import BodyText from "../components/ui/BodyText";
+import Card from "../components/ui/Card"; // <-- CORRECTO
 import colors from "../constants/colors";
+
+import { apiRequest } from "../utils/apiClient";
 import { useLoader } from "../context/LoaderContext";
 import { useAuth } from "../hooks/useAuth";
-import { apiRequest } from "../utils/apiClient";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as Location from "expo-location";
 
+/* ============================================================
+   Tipos
+============================================================ */
 interface Prenda {
   id: string;
   nombre: string;
@@ -35,611 +43,418 @@ interface OutfitSugerido {
 }
 
 interface Weather {
-  temperature: number;
+  temperature: number | null;
   condition: string;
   icon: string;
   city: string;
 }
 
-const Home: React.FC = () => {
+/* ============================================================
+   Home
+============================================================ */
+
+export default function Home() {
   const [weather, setWeather] = useState<Weather | null>(null);
   const [outfits, setOutfits] = useState<OutfitSugerido[]>([]);
   const [loadingOutfits, setLoadingOutfits] = useState(false);
-  const { width } = useWindowDimensions();
-  const { showLoader, hideLoader } = useLoader();
-  const { auth, loading } = useAuth();
 
-  const isWeb = width > 768;
+  const { showLoader, hideLoader } = useLoader();
+  const { auth } = useAuth();
+
+  /* ------------------- Saludo dinámico ------------------- */
+  const getGreeting = () => {
+    const h = new Date().getHours();
+    if (h < 12) return "Buenos días";
+    if (h < 20) return "Buenas tardes";
+    return "Buenas noches";
+  };
+
+  const username = auth?.userName || "Usuario";
+
+  const greeting = `${getGreeting()}, ${username}.`;
+
+  /* ============================================================
+     Cargar clima real
+  ============================================================ */
 
   useEffect(() => {
-    fetchWeather();
+    cargarClima();
   }, []);
 
-  // Esperar a que auth esté cargado antes de pedir outfits
-  useEffect(() => {
-    if (!loading && auth?.token) {
-      console.log("✅ Token cargado, obteniendo outfits...");
-      inicializarOutfitsDelDia();
-    } else if (!loading && !auth?.token) {
-      console.log("⚠️ No hay token disponible");
+  const cargarClima = async () => {
+    showLoader("Cargando clima…");
+
+    let lat: number | null = null;
+    let lon: number | null = null;
+
+    /* ---------------- WEB ---------------- */
+    if (Platform.OS === "web") {
+      await new Promise<void>((resolve) => {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            lat = pos.coords.latitude;
+            lon = pos.coords.longitude;
+            resolve();
+          },
+          () => resolve(),
+          { timeout: 5000 }
+        );
+      });
     }
-  }, [loading, auth?.token]);
 
-  const fetchWeather = async () => {
-  showLoader("Cargando clima...");
+    /* ---------------- ANDROID / IOS ---------------- */
+    if (!lat || !lon) {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === "granted") {
+          const pos = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Lowest,
+          });
+          lat = pos.coords.latitude;
+          lon = pos.coords.longitude;
+        }
+      } catch (_) {}
+    }
 
-  try {
-    let latitude: number | null = null;
-    let longitude: number | null = null;
-    let cityName: string | null = null;
-
-    // Helper timeout para evitar bloqueos largos
-    const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T> => {
-      const timeout = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("TIMEOUT")), ms)
-      );
-      return Promise.race([promise, timeout]);
-    };
-
-    // PREFETCH (súper rápido): cargar ciudad del usuario
+    /* ---------------- Ciudad de preferencias ---------------- */
     let prefsCity: string | null = null;
     try {
-      const prefsRaw = await AsyncStorage.getItem("user_preferences");
-      const prefs = prefsRaw ? JSON.parse(prefsRaw) : null;
-      prefsCity = prefs?.ciudad?.trim() || null;
+      const raw = await AsyncStorage.getItem("user_preferences");
+      const prefs = raw ? JSON.parse(raw) : null;
+      prefsCity = prefs?.ciudad ?? null;
     } catch (_) {}
 
-    // 1️⃣ Intentar ubicación (máx 2 segundos)
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
+    /* ---------------- Ciudad detectada del backend ---------------- */
+    let cityName: string | null = null;
 
-      if (status === "granted") {
-        const loc = await withTimeout(
-          Location.getCurrentPositionAsync({ accuracy: 1 }),
-          2000 // TIMEOUT GPS: 2s
-        );
-        latitude = loc.coords.latitude;
-        longitude = loc.coords.longitude;
-        console.log("📍 Ubicación por GPS:", latitude, longitude);
-      } else {
-        console.log("⚠️ Permisos de ubicación denegados");
-      }
-    } catch (e) {
-      console.log("⛔ GPS tardó demasiado → usando ciudad del usuario", e);
-    }
-
-    // 2️⃣ Si no hay coords → usar ciudad del usuario (instantáneo)
-    if (!latitude || !longitude) {
-      if (prefsCity) {
-        cityName = prefsCity;
-        console.log("🏙 Usando ciudad del usuario:", cityName);
-
-        try {
-          const geoRes = await fetch(
-            `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(
-              cityName
-            )}&count=1`
-          );
-          const geoData = await geoRes.json();
-
-          if (geoData?.results?.length > 0) {
-            latitude = geoData.results[0].latitude;
-            longitude = geoData.results[0].longitude;
-            console.log("📍 Coords por ciudad:", latitude, longitude);
-          }
-        } catch (e) {
-          console.log("⚠️ Error en geocoding de ciudad:", e);
-        }
-      }
-    }
-
-    // 3️⃣ Si hay coords pero no cityName → reverse geocoding
-    if (latitude && longitude && !cityName) {
+    if (lat && lon) {
       try {
-        const reverseRes = await fetch(
-          `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${latitude}&longitude=${longitude}`
+        const res = await apiRequest<any>(
+          "/api/utils/reverse-geocode",
+          {
+            method: "POST",
+            body: JSON.stringify({ latitude: lat, longitude: lon }),
+          }
         );
-        const reverseData = await reverseRes.json();
 
-        cityName =
-          reverseData?.results?.[0]?.name ||
-          reverseData?.results?.[0]?.city ||
-          "Tu ubicación";
+        // 💥 ESTA ES LA CLAVE: tu backend devuelve { ok: true, ciudad: "Alicante" }
+        cityName = res?.ciudad ?? null;
 
-        console.log("🏷 Ciudad por reverse geocoding:", cityName);
-      } catch (e) {
-        console.log("⚠️ Error en reverse geocoding:", e);
+      } catch (error) {
+        console.log("Error reverse-geocode:", error);
       }
     }
 
-    // 4️⃣ Si seguimos sin coords → no mostramos clima
-    if (!latitude || !longitude) {
-      console.log("🚫 Sin coordenadas finales, no se muestra clima");
-      setWeather(null);
+    if (!cityName && prefsCity) cityName = prefsCity;
+    if (!cityName) cityName = "Tu ubicación";
+
+    /* ---------------- Si NO hay coordenadas → mostrar ciudad sin clima ---------------- */
+    if (!lat || !lon) {
+      setWeather({
+        temperature: null,
+        condition: "Desconocido",
+        icon: "weather-cloudy",
+        city: cityName!,
+      });
+      hideLoader();
       return;
     }
 
-    // 5️⃣ Obtener el clima
-    const response = await fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&timezone=auto`
-    );
+    /* ---------------- Obtener clima real ---------------- */
+    try {
+      const res = await fetch(
+        `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&timezone=auto`
+      );
 
-    const data: any = await response.json();
+      const data = await res.json();
 
-    const temp = Math.round(data.current.temperature_2m);
-    const code: number = data.current.weather_code;
+      const temp = Math.round(data.current.temperature_2m);
+      const code = data.current.weather_code;
 
-    const weatherMap: { [key: number]: { condition: string; icon: string } } = {
-      0: { condition: "Despejado", icon: "weather-sunny" },
-      1: { condition: "Mayormente despejado", icon: "weather-partly-cloudy" },
-      2: { condition: "Parcialmente nublado", icon: "weather-partly-cloudy" },
-      3: { condition: "Nublado", icon: "weather-cloudy" },
-      45: { condition: "Niebla", icon: "weather-fog" },
-      51: { condition: "Lluvia ligera", icon: "weather-rainy" },
-      61: { condition: "Lluvia", icon: "weather-rainy" },
-      80: { condition: "Lluvia fuerte", icon: "weather-pouring" },
-      95: { condition: "Tormenta", icon: "weather-lightning" },
-    };
+      const weatherMap: Record<number, { condition: string; icon: string }> = {
+        0: { condition: "Despejado", icon: "weather-sunny" },
+        1: { condition: "Mayormente despejado", icon: "weather-partly-cloudy" },
+        2: { condition: "Parcialmente nublado", icon: "weather-partly-cloudy" },
+        3: { condition: "Nublado", icon: "weather-cloudy" },
+        45: { condition: "Niebla", icon: "weather-fog" },
+        51: { condition: "Lluvia ligera", icon: "weather-rainy" },
+        61: { condition: "Lluvia", icon: "weather-rainy" },
+        80: { condition: "Lluvia fuerte", icon: "weather-pouring" },
+        95: { condition: "Tormenta", icon: "weather-lightning" },
+      };
 
-    const weatherInfo =
-      weatherMap[code] || ({ condition: "Desconocido", icon: "weather-cloudy" } as const);
+      const info = weatherMap[code] ?? {
+        condition: "Desconocido",
+        icon: "weather-cloudy",
+      };
 
-    setWeather({
-      temperature: temp,
-      condition: weatherInfo.condition,
-      icon: weatherInfo.icon,
-      city: cityName || "Tu ubicación",
-    });
+      setWeather({
+        temperature: temp,
+        condition: info.condition,
+        icon: info.icon,
+        city: cityName!,
+      });
 
-    console.log("🌡 Clima establecido:", temp, weatherInfo.condition);
+    } catch (err) {
+      console.log("Error clima:", err);
+      setWeather({
+        temperature: null,
+        condition: "Desconocido",
+        icon: "weather-cloudy",
+        city: cityName!,
+      });
+    }
 
-  } catch (e) {
-    console.log("❌ Error obteniendo clima general:", e);
-    setWeather(null);
-  } finally {
     hideLoader();
-  }
-};
+  };
 
+  /* ============================================================
+     OUTFITS
+  ============================================================ */
 
-  const inicializarOutfitsDelDia = async () => {
+  useEffect(() => {
+    cargarOutfits();
+  }, []);
+
+  const cargarOutfits = async () => {
     try {
       setLoadingOutfits(true);
 
-      const hoy = new Date().toISOString().split("T")[0];
-
-      const usuarioId = auth?.userId ?? "unknown";
-
-      const fechaGuardada = await AsyncStorage.getItem(`outfits_fecha_${usuarioId}`);
-      const outfitsGuardadosRaw = await AsyncStorage.getItem(`outfits_data_${usuarioId}`);
-
-
-      // 🟦 Si hay outfits guardados y son del día actual → mostrarlos sin llamar API
-      if (fechaGuardada === hoy && outfitsGuardadosRaw) {
-        console.log("✔ usando outfits almacenados del día");
-        setOutfits(JSON.parse(outfitsGuardadosRaw));
-        return;
-      }
-
-      // 🟧 Intentar generar nuevos outfits
-      console.log("✨ generando outfits nuevos del día…");
-      const data = await apiRequest<{ outfits: OutfitSugerido[] }>(
+      const result = await apiRequest<{ outfits: OutfitSugerido[] }>(
         "/api/outfits/sugerir",
         { method: "POST" }
       );
 
-      // si API responde sin outfits válidos → fallback
-      if (!data?.outfits || data.outfits.length === 0) {
-        console.log(
-          "⚠ API devolvió vacío, usando outfits guardados si existen"
-        );
-        if (outfitsGuardadosRaw) {
-          setOutfits(JSON.parse(outfitsGuardadosRaw));
-        }
-        return;
-      }
-
-      // guardar en estado
-      setOutfits(data.outfits);
-
-      // guardar outfits y fecha en storage
-      await AsyncStorage.setItem(`outfits_fecha_${usuarioId}`, hoy);
-      await AsyncStorage.setItem(`outfits_data_${usuarioId}`, JSON.stringify(data.outfits));
-
-      console.log("💾 outfits del día guardados");
-    } catch (error) {
-      console.log("❌ Error generando outfits del día:", error);
-
-      // 🟥 fallback final: tratar de cargar los guardados
-      const outfitsGuardadosRaw = await AsyncStorage.getItem("outfits_data");
-      if (outfitsGuardadosRaw) {
-        console.log("↩ usando outfits guardados por error en API");
-        setOutfits(JSON.parse(outfitsGuardadosRaw));
-      }
+      setOutfits(result?.outfits ?? []);
+    } catch (err) {
+      console.log("Error outfits:", err);
     } finally {
       setLoadingOutfits(false);
     }
   };
 
-  const handleNavigate = (route: string) => {
-    router.push(route as any);
-  };
-
-  const handleOutfitPress = (outfitId: string) => {
-    router.push({
-      pathname: "/mis-outfits",
-      params: { id: outfitId },
-    });
-  };
+  /* ============================================================
+     RENDER
+  ============================================================ */
 
   return (
-    <LinearGradient
-      colors={colors.gradient as any}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.gradient}
-    >
-      <Header />
+    <LinearGradient colors={colors.gradient} style={{ flex: 1 }}>
+      <ScrollView contentContainerStyle={styles.container}>
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Clima */}
+        {/* Saludo */}
+        <TitleSerif style={styles.greeting}>{greeting}</TitleSerif>
+
+        {/* ----- CLIMA ----- */}
         {weather && (
-          <View style={styles.weatherCard}>
-            <View style={styles.weatherContent}>
-              <View
-                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
-              >
-                <MaterialCommunityIcons
-                  name={(weather.icon || "weather-cloudy") as any}
-                  size={32}
-                  color={colors.primary}
-                />
-                <Text style={styles.weatherCity}>
-                  {weather.city || "Tu ubicación"}
-                </Text>
-              </View>
-              <View style={{ alignItems: "flex-end" }}>
-                <Text style={styles.weatherCondition}>{weather.condition}</Text>
-                <Text style={styles.temperature}>{weather.temperature}°</Text>
-              </View>
+          <Card style={styles.weatherCard}>
+            <View style={styles.weatherRow}>
+              <Ionicons
+                name="location-outline"
+                size={16}
+                color={colors.textSecondary}
+              />
+              <Text style={styles.weatherCity}>{weather.city}</Text>
             </View>
-          </View>
+
+            <BodyText style={styles.weatherDesc}>
+              {weather.condition}
+              {weather.temperature !== null ? ` · ${weather.temperature}°` : ""}
+            </BodyText>
+          </Card>
         )}
 
-        {/* Tus outfits para hoy */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>
-              Tus outfits para hoy <Text style={{ fontSize: 18 }}>👕</Text>
-            </Text>
-          </View>
+        {/* ----- OUTFITS DEL DÍA ----- */}
+        <TitleSerif style={styles.sectionTitle}>Outfits del día</TitleSerif>
 
-          {loadingOutfits ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={colors.primary} />
-              <Text style={styles.loadingText}>Generando outfits...</Text>
-            </View>
-          ) : outfits.length > 0 ? (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={styles.outfitScroll}
-            >
-              {outfits.map((outfit, index) => (
-                <TouchableOpacity
-                  key={outfit.id || index}
-                  style={styles.outfitCard}
-                  onPress={() => handleOutfitPress(outfit.id)}
-                  activeOpacity={0.8}
-                >
-                  {/* Mostrar las prendas de forma flexible */}
-                  <View style={styles.outfitImageContainer}>
-                    {outfit.prendas && outfit.prendas.length > 0 ? (
-                      <View
-                        style={[
-                          styles.prendasGrid,
-                          outfit.prendas.length === 1 &&
-                            styles.prendasGridSingle,
-                          outfit.prendas.length === 2 &&
-                            styles.prendasGridDouble,
-                        ]}
-                      >
-                        {outfit.prendas.map((prenda, i) => (
-                          <Image
-                            key={prenda.id || i}
-                            source={{ uri: prenda.imagen }}
-                            style={[
-                              styles.prendaImage,
-                              outfit.prendas.length === 1 &&
-                                styles.prendaImageFull,
-                              outfit.prendas.length === 2 &&
-                                styles.prendaImageHalf,
-                            ]}
-                            onError={() =>
-                              console.log(
-                                `Error cargando imagen: ${prenda.imagen}`
-                              )
-                            }
-                          />
-                        ))}
-                      </View>
-                    ) : (
-                      <View
-                        style={[
-                          styles.outfitImage,
-                          { backgroundColor: "#E8E8E8" },
-                        ]}
-                      />
-                    )}
-                  </View>
-                  <Text style={styles.outfitLabel}>{outfit.nombre}</Text>
-                  <Text style={styles.outfitCategory}>{outfit.categoria}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          ) : (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="images-outline" size={40} color={colors.primary} />
-              <Text style={styles.emptyText}>
-                No hay suficientes prendas para generar outfits
-              </Text>
-              <Text style={styles.emptySubtext}>
-                Agrega al menos 2 prendas a tu armario
-              </Text>
-            </View>
-          )}
+        {loadingOutfits && (
+          <ActivityIndicator size="large" color={colors.primary} />
+        )}
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {outfits.slice(0, 3).map((o) => (
+            <Card key={o.id} style={styles.outfitCard}>
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => router.push(`/mis-outfits?id=${o.id}`)}
+              >
+                <Image
+                  source={{
+                    uri:
+                      o.prendas?.[0]?.imagen ||
+                      "https://via.placeholder.com/200",
+                  }}
+                  style={styles.outfitImage}
+                />
+                <Text style={styles.outfitName}>{o.nombre}</Text>
+                <Text style={styles.outfitCat}>{o.categoria}</Text>
+              </TouchableOpacity>
+            </Card>
+          ))}
+        </ScrollView>
+
+        {/* ----- ACCIONES RÁPIDAS ----- */}
+        <TitleSerif style={styles.sectionTitle}>Acciones rápidas</TitleSerif>
+
+        <View style={styles.actionsGrid}>
+          <QuickAction label="Try-on" icon="camera-outline" route="/add-prenda" />
+          <QuickAction label="Crear outfit" icon="plus-circle-outline" route="/crear-outfit" />
+          <QuickAction label="Estilista IA" icon="wand" route="/mis-outfits" />
+          <QuickAction label="Moodboard" icon="image-multiple-outline" route="/mi-armario" />
         </View>
 
-        {/* Secciones principales */}
-        <View style={styles.section}>
-          <View
-            style={[
-              styles.gridContainer,
-              isWeb && {
-                justifyContent: "center",
-                gap: 24,
-                paddingHorizontal: 80,
-              },
-            ]}
-          >
-            <TouchableOpacity
-              style={[
-                styles.gridItem,
-                isWeb && { width: "20%", minWidth: 200, aspectRatio: 1 },
-              ]}
-              onPress={() => handleNavigate("/mi-armario")}
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name="shirt-outline"
-                size={isWeb ? 50 : 40}
-                color={colors.primary}
-              />
-              <Text style={styles.gridText}>Mi Armario</Text>
-            </TouchableOpacity>
+        {/* ----- SELECCIÓN PARA HOY ----- */}
+        <TitleSerif style={styles.sectionTitle}>Selección para hoy</TitleSerif>
 
+        {outfits.slice(1).map((o) => (
+          <Card key={o.id} style={styles.editCard}>
             <TouchableOpacity
-              style={[
-                styles.gridItem,
-                isWeb && { width: "20%", minWidth: 200, aspectRatio: 1 },
-              ]}
-              onPress={() => handleNavigate("/mis-outfits")}
+              style={styles.editRow}
               activeOpacity={0.8}
+              onPress={() => router.push(`/mis-outfits?id=${o.id}`)}
             >
-              <Ionicons
-                name="images-outline"
-                size={isWeb ? 50 : 40}
-                color={colors.primary}
+              <Image
+                source={{ uri: o.prendas?.[0]?.imagen }}
+                style={styles.editThumb}
               />
-              <Text style={styles.gridText}>Mis Outfits</Text>
-            </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[
-                styles.gridItem,
-                isWeb && { width: "20%", minWidth: 200, aspectRatio: 1 },
-              ]}
-              onPress={() => handleNavigate("/mis-eventos")}
-              activeOpacity={0.8}
-            >
-              <Ionicons
-                name="calendar-outline"
-                size={isWeb ? 50 : 40}
-                color={colors.primary}
-              />
-              <Text style={styles.gridText}>Mis Eventos</Text>
-            </TouchableOpacity>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.editName}>{o.nombre}</Text>
+                <Text style={styles.editCat}>{o.categoria}</Text>
+              </View>
 
-            <TouchableOpacity
-              style={[
-                styles.gridItem,
-                isWeb && { width: "20%", minWidth: 200, aspectRatio: 1 },
-              ]}
-              onPress={() => handleNavigate("/mis-viajes")}
-              activeOpacity={0.8}
-            >
               <Ionicons
-                name="airplane-outline"
-                size={isWeb ? 50 : 40}
-                color={colors.primary}
+                name="chevron-forward"
+                size={18}
+                color={colors.textSecondary}
               />
-              <Text style={styles.gridText}>Mis Viajes</Text>
             </TouchableOpacity>
-          </View>
-        </View>
+          </Card>
+        ))}
+
+        <View style={{ height: 40 }} />
       </ScrollView>
     </LinearGradient>
   );
-};
+}
+
+/* ============================================================
+   QuickAction
+============================================================ */
+
+function QuickAction({ label, icon, route }: any) {
+  return (
+    <Card style={styles.quickCard}>
+      <TouchableOpacity
+        style={styles.quickInner}
+        onPress={() => router.push(route)}
+      >
+        <MaterialCommunityIcons
+          name={icon as any}
+          size={22}
+          color={colors.iconActive}
+        />
+        <Text style={styles.quickLabel}>{label}</Text>
+      </TouchableOpacity>
+    </Card>
+  );
+}
+
+/* ============================================================
+   Estilos
+============================================================ */
 
 const styles = StyleSheet.create({
-  gradient: { flex: 1 },
-  scroll: { flex: 1 },
-  scrollContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 60,
+  container: {
+    paddingHorizontal: 20,
+    paddingBottom: 50,
+    paddingTop: 16,
   },
+
+  greeting: {
+    fontSize: 32,
+    marginBottom: 20,
+  },
+
   weatherCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 20,
-    marginTop: 16,
-    marginBottom: 24,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 8,
-    elevation: 5,
+    marginBottom: 28,
   },
-  weatherContent: {
+  weatherRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    gap: 6,
   },
   weatherCity: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#1E1E1E",
+    fontSize: 14,
+    color: colors.textSecondary,
   },
-  weatherCondition: { fontSize: 14, color: "#666" },
-  temperature: { fontSize: 36, fontWeight: "bold", color: colors.primary },
-  section: { marginBottom: 24 },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
+  weatherDesc: {
+    fontSize: 16,
+    marginTop: 6,
   },
+
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#1E1E1E",
+    fontSize: 24,
+    marginBottom: 12,
   },
-  outfitScroll: { flexDirection: "row" },
+
   outfitCard: {
-    marginRight: 16,
-    alignItems: "center",
-    width: 110,
-  },
-  outfitImageContainer: {
-    width: 110,
-    height: 130,
-    marginBottom: 8,
-  },
-  prendasGrid: {
-    flex: 1,
-    flexDirection: "row",
-    flexWrap: "wrap",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    overflow: "hidden",
-    padding: 2,
-    justifyContent: "space-between",
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  prendasGridSingle: {
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  prendasGridDouble: {
-    justifyContent: "space-around",
-  },
-  prendaImage: {
-    width: "31%",
-    height: "48%",
-    borderRadius: 6,
-    backgroundColor: "#F0F0F0",
-  },
-  prendaImageFull: {
-    width: "100%",
-    height: "100%",
-  },
-  prendaImageHalf: {
-    width: "45%",
-    height: "100%",
+    width: 180,
+    marginRight: 14,
   },
   outfitImage: {
     width: "100%",
-    height: "100%",
-    borderRadius: 12,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 3,
+    height: 180,
+    borderRadius: 16,
+    marginBottom: 10,
   },
-  outfitLabel: {
-    fontSize: 12,
-    color: "#1E1E1E",
+  outfitName: {
+    fontSize: 15,
     fontWeight: "600",
-    textAlign: "center",
   },
-  outfitCategory: {
-    fontSize: 10,
-    color: "#999",
-    textAlign: "center",
-    marginTop: 2,
+  outfitCat: {
+    fontSize: 13,
+    color: colors.textSecondary,
   },
-  loadingContainer: {
-    paddingVertical: 30,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  loadingText: {
-    marginTop: 10,
-    color: colors.primary,
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  emptyContainer: {
-    paddingVertical: 40,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  emptyText: {
-    marginTop: 10,
-    color: colors.primary,
-    fontSize: 14,
-    marginBottom: 16,
-  },
-  emptySubtext: {
-    color: colors.primary,
-    fontSize: 12,
-  },
-  gridContainer: {
+
+  actionsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
-    gap: 16,
+    gap: 14,
+    marginBottom: 28,
   },
-  gridItem: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+  quickCard: {
     width: "47%",
-    aspectRatio: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 4,
   },
-  gridText: {
-    marginTop: 10,
+  quickInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  quickLabel: {
     fontSize: 14,
+    color: colors.textPrimary,
+  },
+
+  editCard: {
+    marginBottom: 14,
+  },
+  editRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  editThumb: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+  },
+  editName: {
+    fontSize: 15,
     fontWeight: "600",
-    color: "#1E1E1E",
-    textAlign: "center",
+  },
+  editCat: {
+    fontSize: 13,
+    color: colors.textSecondary,
   },
 });
-
-export default Home;

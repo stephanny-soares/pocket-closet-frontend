@@ -2,23 +2,23 @@
 
 const colors = {
   /** Colores base */
-  primary: "#C9B39C",        // Beige topo principal (botones, acentos)
-  primaryDark: "#A88F74",    // Versión más oscura para pressed / hover
-  primarySoft: "#E6DBCF",    // Fondos suaves, tags, chips activos suaves
+  primary: "#C8B6A6",        // Beige topo principal (botones, acentos)
+  primaryDark: "#B89F8D",    // Versión más oscura para pressed / hover
+  primarySoft: "#EDE6E1",    // Fondos suaves, tags, chips activos suaves
 
   /** Fondo y superficies */
-  background: "#F7F3EC",     // Fondo general de la app (pantallas)
-  backgroundAlt: "#F2EAE0",  // Alternativa para secciones destacadas
+  background: "#F9F9F7",     // Fondo general de la app (pantallas)
+  backgroundAlt: "#F9F9F7",  // Alternativa para secciones destacadas
   card: "#FFFFFF",           // Tarjetas, modales, contenedores
 
   /** Texto */
-  textPrimary: "#262626",    // Texto principal (títulos, contenido)
-  textSecondary: "#7A7A7A",  // Texto secundario, descripciones
-  textMuted: "#A5A5A5",      // Placeholders, labels suaves
+  textPrimary: "#2A2A2A",    // Texto principal (títulos, contenido)
+  textSecondary: "#6F6F6F",  // Texto secundario, descripciones
+  textMuted: "#9A9A9A",      // Placeholders, labels suaves
   textOnPrimary: "#FFFFFF",  // Texto sobre botones primary
 
   /** Bordes y separadores */
-  border: "#E4D9CC",
+  border:  "#E7E3DF",
   divider: "#E7DFD4",
 
   /** Estados */
@@ -27,7 +27,7 @@ const colors = {
   warning: "#F5A623",
 
   /** Iconos */
-  icon: "#7B7B7B",
+  icon: "#5B5B5B",
   iconActive: "#2F2F2F",
 
   /** Filtros / chips */
@@ -36,8 +36,16 @@ const colors = {
   chipText: "#5A5A5A",
   chipTextActive: "#FFFFFF",
 
+  // Sombra suave estilo iOS
+  shadow: "rgba(0,0,0,0.08)",
+  shadowColor: "rgba(0,0,0,0.1)",
+  shadowOpacity: 0.12,
+  shadowOffset: { width: 0, height: 6 },
+  shadowRadius: 16,
+  elevation: 5,
+
   /** Gradiente muy suave para no tocar todavía el layout */
-  gradient: ["#F9F5EE", "#F4EEE5"] as const,
+  gradient: ["#F9F9F7", "#F9F9F7"] as const,
 };
 
 export default colors;
