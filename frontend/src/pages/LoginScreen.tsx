@@ -21,6 +21,7 @@ import { useAuth } from "../hooks/useAuth";
 import { logEvent } from "../logger/logEvent";
 import { getClientInfo } from "../utils/getClientInfo";
 import { useLoader } from "../context/LoaderContext";
+import { makeRedirectUri } from "expo-auth-session";
 
 // COMPONENTES MAISON
 import TitleSerif from "components/ui/TitleSerif";
@@ -51,11 +52,15 @@ const LoginScreen: React.FC = () => {
   const { showLoader, hideLoader } = useLoader();
 
   const [bannerMessage, setBannerMessage] = useState<string | null>(null);
+  const redirectUri = makeRedirectUri({
+  useProxy: true,
+});
 
   const [request, response, promptAsync] = Google.useAuthRequest({
     iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_ID,
     androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_ID,
     webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_ID,
+     redirectUri, 
   });
 
   // Redirección si ya está autenticado
@@ -191,12 +196,12 @@ const LoginScreen: React.FC = () => {
       const result = await promptAsync();
 
       if (result?.type === "success") {
-        const idToken = result.authentication?.idToken;
+        const token = result.authentication?.idToken || result.authentication?.accessToken;
 
         const res = await fetch(`${API_BASE}/api/auth/oauth/google`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id_token: idToken }),
+          body: JSON.stringify({ id_token: token }),
         });
 
         const data = await res.json();
