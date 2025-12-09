@@ -158,13 +158,15 @@ export function useAuth() {
   const logout = async () => {
     console.log("🚪 [logout] Cerrando sesión...");
     
-    if (auth.userId) {
-      await logEvent({
-        event: "UserLogout",
-        message: "Usuario cerró sesión desde el cliente",
-        userId: auth.userId,
-      });
-    }
+    // Desactivado porque el endpoint de logs no existe y rompe el flujo de logout
+    // if (auth.userId) {
+    //   logEvent({
+    //     event: "UserLogout",
+    //     message: "Usuario cerró sesión desde el cliente",
+    //     userId: auth.userId,
+    //   });
+    // }
+
 
     // 🔒 Limpiar storage en web y móvil
     try {

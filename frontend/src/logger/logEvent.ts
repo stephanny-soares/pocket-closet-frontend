@@ -47,12 +47,17 @@ export const logEvent = async ({
   logger.debug('[LOG-EVENT]', payload);
 
   try {
-    await fetch(LOG_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    // NO BLOQUEAR EN NINGÚN CASO: eliminar await
+    fetch(LOG_ENDPOINT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
+    }).catch((err: any) => {
+      // envío de logs fallido → NO DEBE INTERFERIR con la app
+      logger.warn("⚠️ Error enviando log al backend:", err?.message ?? err);
     });
   } catch (err: any) {
-    logger.warn('⚠️ Error enviando log al backend:', err?.message);
+    logger.warn("⚠️ Error inesperado enviando log:", err?.message ?? err);
   }
+
 };

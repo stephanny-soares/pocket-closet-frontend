@@ -1,267 +1,395 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import {
+  View,
+  Text,
+  Image,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
+} from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { Stack } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
-import Header from "../components/Header";
+import * as SecureStore from "expo-secure-store";
+
+
 import colors from "../constants/colors";
+import HeaderMaison from "../components/Header";
+import TitleSerif from "../components/ui/TitleSerif";
+import SubtitleSerif from "../components/ui/SubtitleSerif";
+import Card from "../components/ui/Card";
+import PrimaryButton from "../components/ui/PrimaryButton";
+import { apiRequest } from "../utils/apiClient";
 import { useAuth } from "../hooks/useAuth";
-import Toast from "react-native-toast-message";
-import { useRouter } from "expo-router";
-import { useLoader } from "../context/LoaderContext";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+
 
 export default function Perfil() {
-  const { logout, auth } = useAuth();
-  const router = useRouter();
-  const { showLoader, hideLoader } = useLoader();
+  const { auth, logout } = useAuth();
 
-  const [preferences, setPreferences] = useState<any>(null);
+  console.log("AUTH EN PERFIL =>", auth);
 
-  // 🔹 Cargar preferencias almacenadas
-  useEffect(() => {
-    const loadPreferences = async () => {
-      try {
-        const saved = await AsyncStorage.getItem("user_preferences");
-        if (saved) setPreferences(JSON.parse(saved));
-      } catch (err) {
-        console.warn("Error al cargar preferencias:", err);
-      }
-    };
-    loadPreferences();
-  }, []);
+  const defaultAvatar = "https://i.pravatar.cc/200?img=1";
 
-  const handleLogout = async () => {
+  const [usuario, setUsuario] = useState({
+    nombre: "",
+    email: "",
+    avatar: "",
+  });
+
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalTitle, setModalTitle] = useState("");
+
+  const abrirModal = (title: string) => {
+    setModalTitle(title);
+    setModalVisible(true);
+  };
+
+  // Cargar datos reales del usuario
+  const cargarUsuario = async () => {
     try {
-      showLoader("Cerrando sesión...");
-      await new Promise((resolve) => setTimeout(resolve, 600));
-      await logout();
-      hideLoader();
+      const data = await apiRequest("/api/users/perfil", { method: "GET" });
+      console.log("RESPUESTA /api/users/perfil =>", data);
 
-      Toast.show({
-        type: "success",
-        text1: "👋 Sesión cerrada",
-        text2: "Has cerrado sesión correctamente.",
-        position: "bottom",
-        visibilityTime: 1500,
-        bottomOffset: 70,
-      });
+      if (data.ok && data.usuario) {
+        const nombre =
+          data.usuario.userName ??
+          data.usuario.name ??               // fallback por si el servicio devuelve name
+          auth?.userName ??                  // último recurso
+          "";
 
-      router.replace("/login?loggedOut=true");
-    } catch (error) {
-      hideLoader();
-      Toast.show({
-        type: "error",
-        text1: "Error",
-        text2: "No se pudo cerrar sesión correctamente.",
-        position: "bottom",
-        bottomOffset: 70,
-      });
-      console.error("Error al cerrar sesión:", error);
+        setUsuario({
+          nombre,
+          email: data.usuario.email ?? "",
+          avatar: data.usuario.avatar || "",
+        });
+      }
+    } catch (err) {
+      console.error("Error cargando perfil:", err);
+    }
+};
+
+  useEffect(() => {
+    if (auth?.userId) {
+      cargarUsuario();
+    }
+  }, [auth?.userId]);
+
+
+
+
+  // Elegir nueva foto de perfil
+  const cambiarAvatar = async () => {
+    const res = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.8,
+    });
+
+    if (!res.canceled) {
+      const uri = res.assets[0].uri;
+
+      setUsuario((prev) => ({ ...prev, avatar: uri }));
+
+      // TODO: Subir avatar al backend aquí
     }
   };
 
   return (
-    <LinearGradient
-      colors={colors.gradient as any}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.gradient}
-    >
-      <Header title="Perfil" />
+    <>
+      <Stack.Screen options={{ headerShown: false }} />
 
-      <View style={styles.container}>
-        <Text style={styles.welcome}>¡Hola {auth?.userName || "Usuario"}! 👋</Text>
+      <LinearGradient colors={colors.gradient} style={{ flex: 1 }}>
+        <HeaderMaison />
 
-        {/* 🔹 Bloque de preferencias del usuario */}
-        {preferences ? (
-          <View style={styles.preferencesBox}>
-            <Text style={styles.prefTitle}>Tus preferencias:</Text>
-
-            <View style={styles.prefItemRow}>
-              <Ionicons name="location-outline" size={20} color={colors.primary} />
-              <Text style={styles.prefItem}>
-                Ciudad: {preferences.ciudad || "No especificada"}
-              </Text>
-            </View>
-
-            <View style={styles.prefItemRow}>
-              <Ionicons name="briefcase-outline" size={20} color={colors.primary} />
-              <Text style={styles.prefItem}>
-                Entorno: {preferences.entorno || "No especificado"}
-              </Text>
-            </View>
-
-            <View style={styles.prefItemRow}>
-              <Ionicons name="shirt-outline" size={20} color={colors.primary} />
-              <Text style={styles.prefItem}>
-                Estilo:{" "}
-                {Array.isArray(preferences.estilo)
-                  ? preferences.estilo.join(", ")
-                  : preferences.estilo || "No especificado"}
-              </Text>
-            </View>
-
-            <View style={styles.prefItemRow}>
-              <Ionicons name="color-palette-outline" size={20} color={colors.primary} />
-              <Text style={styles.prefItem}>
-                Colores:{" "}
-                {Array.isArray(preferences.colores)
-                  ? preferences.colores.join(", ")
-                  : preferences.colores || "No especificados"}
-              </Text>
-            </View>
-
-            {/* Botón para editar preferencias */}
-            <TouchableOpacity
-              style={styles.editButton}
-              onPress={() => router.push("/(protected)/questionnaire")}
-            >
-              <Ionicons name="create-outline" size={20} color="#FFF" />
-              <Text style={styles.editText}>Editar preferencias</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <TouchableOpacity
-            style={[styles.optionButton, { marginBottom: 20 }]}
-            onPress={() => router.push("/(protected)/questionnaire")}
-          >
-            <Ionicons name="shirt-outline" size={24} color={colors.primary} />
-            <Text style={styles.optionText}>Configurar preferencias</Text>
-          </TouchableOpacity>
-        )}
-
-        {/* 🔹 Opciones generales */}
-        <View style={styles.section}>
-          <TouchableOpacity
-            style={styles.optionButton}
-            onPress={() =>
-              Toast.show({
-                type: "info",
-                text1: "Configuración",
-                text2: "Función disponible próximamente",
-                position: "bottom",
-                bottomOffset: 70,
-              })
-            }
-          >
-            <Ionicons name="settings-outline" size={24} color={colors.primary} />
-            <Text style={styles.optionText}>Configuración de cuenta</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.optionButton}
-            onPress={() =>
-              Toast.show({
-                type: "info",
-                text1: "Notificaciones",
-                text2: "Sección en desarrollo",
-                position: "bottom",
-                bottomOffset: 70,
-              })
-            }
-          >
-            <Ionicons name="notifications-outline" size={24} color={colors.primary} />
-            <Text style={styles.optionText}>Notificaciones</Text>
-          </TouchableOpacity>
-
-          {/* 🔹 Botón logout */}
-          <TouchableOpacity
-            style={[styles.optionButton, styles.logoutButton]}
-            onPress={handleLogout}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="log-out-outline" size={24} color="#FFFFFF" />
-            <Text style={[styles.optionText, styles.logoutText]}>Cerrar sesión</Text>
-          </TouchableOpacity>
+        {/* TITLE */}
+        <View style={styles.titleBlock}>
+          <TitleSerif>Perfil</TitleSerif>
+          <SubtitleSerif>Tu espacio personal y estilo</SubtitleSerif>
         </View>
-      </View>
-    </LinearGradient>
+
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          {/* --------------------------- */}
+          {/* PROFILE CARD */}
+          {/* --------------------------- */}
+          <View style={styles.profileCardWrapper}>
+            <Card style={styles.profileCard}>
+              <View style={{ position: "relative" }}>
+                <Image
+                  source={{ uri: usuario.avatar || defaultAvatar }}
+                  style={styles.avatar}
+                />
+
+                {/* Botón editar avatar */}
+                <TouchableOpacity
+                  onPress={cambiarAvatar}
+                  style={styles.editAvatarBtn}
+                >
+                  <Ionicons name="camera" size={16} color="#fff" />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.name}>
+                {usuario.nombre || auth?.userName || "Usuario"}
+              </Text>
+
+              <Text style={styles.email}>
+                {usuario.email || ""}
+              </Text>
+
+            </Card>
+          </View>
+
+          {/* --------------------------- */}
+          {/* SETTINGS GRUPO 1 */}
+          {/* --------------------------- */}
+          <Card style={styles.settingsCard}>
+            <TouchableOpacity
+              style={styles.settingsRow}
+              onPress={() => abrirModal("Suscripción")}
+            >
+              <View style={styles.iconWrapper}>
+                <Ionicons name="star-outline" size={22} color={colors.primary} />
+              </View>
+              <Text style={styles.settingsText}>Suscripción</Text>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={colors.textSecondary}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.settingsRow}
+              onPress={() => abrirModal("Preferencias de estilo")}
+            >
+              <View style={styles.iconWrapper}>
+                <Ionicons
+                  name="color-palette-outline"
+                  size={22}
+                  color={colors.primary}
+                />
+              </View>
+              <Text style={styles.settingsText}>Preferencias de estilo</Text>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={colors.textSecondary}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.settingsRow}
+              onPress={() => abrirModal("Favoritos")}
+            >
+              <View style={styles.iconWrapper}>
+                <Ionicons name="heart-outline" size={22} color={colors.primary} />
+              </View>
+              <Text style={styles.settingsText}>Favoritos</Text>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={colors.textSecondary}
+              />
+            </TouchableOpacity>
+          </Card>
+
+          {/* --------------------------- */}
+          {/* SETTINGS GRUPO 2 */}
+          {/* --------------------------- */}
+          <Card style={styles.settingsCard}>
+            <TouchableOpacity
+              style={styles.settingsRow}
+              onPress={() => abrirModal("Notificaciones")}
+            >
+              <View style={styles.iconWrapper}>
+                <Ionicons
+                  name="notifications-outline"
+                  size={22}
+                  color={colors.primary}
+                />
+              </View>
+              <Text style={styles.settingsText}>Notificaciones</Text>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={colors.textSecondary}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.settingsRow}
+              onPress={() => abrirModal("Privacidad y seguridad")}
+            >
+              <View style={styles.iconWrapper}>
+                <Ionicons
+                  name="lock-closed-outline"
+                  size={22}
+                  color={colors.primary}
+                />
+              </View>
+              <Text style={styles.settingsText}>Privacidad y seguridad</Text>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={colors.textSecondary}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.settingsRow}
+              onPress={() => abrirModal("Soporte")}
+            >
+              <View style={styles.iconWrapper}>
+                <Ionicons
+                  name="help-circle-outline"
+                  size={22}
+                  color={colors.primary}
+                />
+              </View>
+              <Text style={styles.settingsText}>Soporte</Text>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={colors.textSecondary}
+              />
+            </TouchableOpacity>
+          </Card>
+
+          {/* LOGOUT */}
+          <PrimaryButton
+            text="Cerrar sesión"
+            variant="secondary"
+            style={styles.signOut}
+            onPress={logout}
+          />
+
+
+          {/* --------------------------- */}
+          {/* MODAL */}
+          {/* --------------------------- */}
+          {modalVisible && (
+            <View style={styles.modalOverlay}>
+              <Card style={styles.modalBox}>
+                <TitleSerif>{modalTitle}</TitleSerif>
+                <SubtitleSerif>Esta sección está en construcción.</SubtitleSerif>
+
+                <PrimaryButton
+                  text="Cerrar"
+                  variant="secondary"
+                  onPress={() => setModalVisible(false)}
+                  style={{ marginTop: 20 }}
+                />
+              </Card>
+            </View>
+          )}
+        </ScrollView>
+      </LinearGradient>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  gradient: { flex: 1 },
-  container: {
-    flex: 1,
-    padding: 24,
-    justifyContent: "flex-start",
+  titleBlock: {
+    width: "100%",
+    maxWidth: 650,
+    alignSelf: "center",
+    paddingHorizontal: 20,
+    marginBottom: 10,
   },
-  welcome: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#1E1E1E",
+
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+  },
+
+  profileCardWrapper: {
+    width: "100%",
+    maxWidth: 650,
+    alignSelf: "center",
     marginBottom: 20,
   },
-  preferencesBox: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
-    padding: 16,
-    marginBottom: 30,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  prefTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    marginBottom: 10,
-    color: "#1E1E1E",
-  },
-  prefItemRow: {
-    flexDirection: "row",
+
+  profileCard: {
     alignItems: "center",
-    marginBottom: 8,
-    gap: 6,
+    paddingVertical: 30,
   },
-  prefItem: {
-    fontSize: 15,
-    color: "#333",
+
+  avatar: {
+    width: 110,
+    height: 110,
+    borderRadius: 60,
+    marginBottom: 12,
   },
-  editButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+
+  editAvatarBtn: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
     backgroundColor: colors.primary,
-    paddingVertical: 10,
-    borderRadius: 12,
-    marginTop: 12,
-    gap: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  editText: {
-    color: "#FFF",
+
+  name: {
+    fontSize: 20,
     fontWeight: "600",
+    color: colors.textPrimary,
   },
-  section: {
-    marginTop: 10,
-    gap: 16,
+
+  email: {
+    fontSize: 14,
+    color: colors.textSecondary,
   },
-  optionButton: {
+
+  settingsCard: {
+    width: "100%",
+    maxWidth: 650,
+    alignSelf: "center",
+    marginBottom: 20,
+  },
+
+  settingsRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
     paddingVertical: 14,
-    paddingHorizontal: 18,
-    borderRadius: 12,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 4,
-    elevation: 3,
-    gap: 12,
   },
-  optionText: {
+
+  iconWrapper: {
+    width: 32,
+    alignItems: "center",
+    marginRight: 10,
+  },
+
+  settingsText: {
+    flex: 1,
     fontSize: 16,
-    color: "#1E1E1E",
-    fontWeight: "500",
+    color: colors.textPrimary,
   },
-  logoutButton: {
-    backgroundColor: colors.primary,
+
+  signOut: {
+    width: "100%",
+    maxWidth: 650,
+    alignSelf: "center",
+    marginTop: 10,
+  },
+
+  modalOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "#00000055",
     justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
   },
-  logoutText: {
-    color: "#FFFFFF",
-    fontWeight: "600",
+
+  modalBox: {
+    width: "100%",
+    maxWidth: 380,
   },
 });
