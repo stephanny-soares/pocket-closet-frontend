@@ -10,24 +10,34 @@ import {
   Alert,
   useWindowDimensions,
   ScrollView,
+  Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, router } from "expo-router";
-import Header from "components/Header";
+
+import TitleSerif from "../components/ui/TitleSerif";
+import SubtitleSerif from "../components/ui/SubtitleSerif";
+import Card from "../components/ui/Card";
+import FloatingActionButton from "../components/ui/FloatingActionButton";
+
 import colors from "../constants/colors";
 import { useLoader } from "../context/LoaderContext";
 import { apiRequest } from "../utils/apiClient";
+
+/* -------------------------------------------- */
+/* ------------------ INTERFACES -------------- */
+/* -------------------------------------------- */
 
 interface Outfit {
   id: string;
   nombre: string;
   imagen: string;
   prendas: { id: string; imagen: string }[];
-  categoria?: string; // casual, formal, etc.
-  estacion?: string; // verano, invierno, etc.
-  evento?: string; // boda, oficina, cena, ...
-  clima?: string; // lluvia, frío, calor, ...
+  categoria?: string;
+  estacion?: string;
+  evento?: string;
+  clima?: string;
   createdAt?: string;
 }
 
@@ -39,22 +49,34 @@ interface FiltrosOutfit {
   prenda: string;
 }
 
+const VALOR_TODOS = "todos";
+const QUICK_ALL = "Todas";
+
+/* -------------------------------------------- */
+/* ------------------ COMPONENT ---------------- */
+/* -------------------------------------------- */
+
 export default function MisOutfits() {
   const [outfits, setOutfits] = useState<Outfit[]>([]);
   const [outfitSeleccionado, setOutfitSeleccionado] = useState<Outfit | null>(
     null
   );
   const [modalVisible, setModalVisible] = useState(false);
+
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
+  const [orden, setOrden] = useState<"fecha" | "nombre" | "categoria">("fecha");
+
   const [filtros, setFiltros] = useState<FiltrosOutfit>({
-    categoria: "todos",
-    estacion: "todos",
-    evento: "todos",
-    clima: "todos",
-    prenda: "todos",
+    categoria: VALOR_TODOS,
+    estacion: VALOR_TODOS,
+    evento: VALOR_TODOS,
+    clima: VALOR_TODOS,
+    prenda: VALOR_TODOS,
   });
 
-  // nuevo: confirmación de borrado
+  const [filtroCategoriaRapida, setFiltroCategoriaRapida] =
+    useState<string>(QUICK_ALL);
+
   const [confirmVisible, setConfirmVisible] = useState(false);
   const [outfitAEliminar, setOutfitAEliminar] = useState<Outfit | null>(null);
 
@@ -62,8 +84,11 @@ export default function MisOutfits() {
   const { width } = useWindowDimensions();
   const isWeb = width > 768;
 
-  // soporte para abrir directamente un outfit desde Home
   const params = useLocalSearchParams<{ id?: string }>();
+
+  /* -------------------------------------------- */
+  /* ------------ Cargar outfits ---------------- */
+  /* -------------------------------------------- */
 
   useEffect(() => {
     cargarOutfits();
@@ -77,16 +102,18 @@ export default function MisOutfits() {
       });
       setOutfits(data.outfits || []);
     } catch (err: any) {
-      Alert.alert("Error", err.message || "No se pudieron cargar los outfits");
+      Alert.alert("Error", err.message);
     } finally {
       hideLoader();
     }
   };
 
-  // abrir modal automáticamente si venimos de Home con ?id=...
+  /* -------------------------------------------- */
+  /* --- Abrir outfit directo desde ?id=... ----- */
+  /* -------------------------------------------- */
+
   useEffect(() => {
     if (!params.id || outfits.length === 0) return;
-
     const outfit = outfits.find((o) => o.id === params.id);
     if (outfit) {
       setOutfitSeleccionado(outfit);
@@ -94,7 +121,10 @@ export default function MisOutfits() {
     }
   }, [params.id, outfits]);
 
-  // filtros dinámicos
+  /* -------------------------------------------- */
+  /* ----------- Filtros dinámicos ------------- */
+  /* -------------------------------------------- */
+
   const opcionesFiltros = useMemo(() => {
     const setCategorias = new Set<string>();
     const setEstaciones = new Set<string>();
@@ -107,12 +137,10 @@ export default function MisOutfits() {
       if (o.estacion) setEstaciones.add(o.estacion);
       if (o.evento) setEventos.add(o.evento);
       if (o.clima) setClimas.add(o.clima);
-      o.prendas?.forEach((p) => {
-        if (p.id) setPrendas.add(p.id);
-      });
+      o.prendas?.forEach((p) => p.id && setPrendas.add(p.id));
     });
 
-    const toArray = (set: Set<string>) => ["todos", ...Array.from(set)];
+    const toArray = (set: Set<string>) => [VALOR_TODOS, ...Array.from(set)];
 
     return {
       categoria: toArray(setCategorias),
@@ -123,267 +151,412 @@ export default function MisOutfits() {
     };
   }, [outfits]);
 
+  /* -------------------------------------------- */
+  /* -------- Chips rápidas categoría ----------- */
+  /* -------------------------------------------- */
+
+  const categoriasRapidas = useMemo(() => {
+    const setCategorias = new Set<string>();
+    outfits.forEach((o) => o.categoria && setCategorias.add(o.categoria));
+    return [QUICK_ALL, ...Array.from(setCategorias)];
+  }, [outfits]);
+
+  /* -------------------------------------------- */
+  /* ------------- Ordenar outfits -------------- */
+  /* -------------------------------------------- */
+
+  const ordenar = (lista: Outfit[]) => {
+    switch (orden) {
+      case "nombre":
+        return [...lista].sort((a, b) => a.nombre.localeCompare(b.nombre));
+      case "categoria":
+        return [...lista].sort(
+          (a, b) => (a.categoria || "").localeCompare(b.categoria || "")
+        );
+      case "fecha":
+      default:
+        return [...lista].sort(
+          (a, b) =>
+            new Date(b.createdAt || "").getTime() -
+            new Date(a.createdAt || "").getTime()
+        );
+    }
+  };
+
+  /* -------------------------------------------- */
+  /* ------ Filtro final con chips rápidas ------ */
+  /* -------------------------------------------- */
+
   const outfitsFiltrados = useMemo(() => {
-    return outfits.filter((o) => {
+    const filtrados = outfits.filter((o) => {
       const matchCategoria =
-        filtros.categoria === "todos" || o.categoria === filtros.categoria;
+        filtros.categoria === VALOR_TODOS || o.categoria === filtros.categoria;
+
       const matchEstacion =
-        filtros.estacion === "todos" || o.estacion === filtros.estacion;
+        filtros.estacion === VALOR_TODOS || o.estacion === filtros.estacion;
+
       const matchEvento =
-        filtros.evento === "todos" || o.evento === filtros.evento;
-      const matchClima = filtros.clima === "todos" || o.clima === filtros.clima;
+        filtros.evento === VALOR_TODOS || o.evento === filtros.evento;
+
+      const matchClima =
+        filtros.clima === VALOR_TODOS || o.clima === filtros.clima;
+
       const matchPrenda =
-        filtros.prenda === "todos" ||
-        !!o.prendas?.some((p) => p.id === filtros.prenda);
+        filtros.prenda === VALOR_TODOS ||
+        o.prendas.some((p) => p.id === filtros.prenda);
+
+      const matchQuick =
+        filtroCategoriaRapida === QUICK_ALL ||
+        o.categoria === filtroCategoriaRapida;
 
       return (
         matchCategoria &&
         matchEstacion &&
         matchEvento &&
         matchClima &&
-        matchPrenda
+        matchPrenda &&
+        matchQuick
       );
     });
-  }, [outfits, filtros]);
 
-  const columnas = isWeb ? Math.min(Math.floor(width / 220), 5) : 3;
+    return ordenar(filtrados);
+  }, [outfits, filtros, filtroCategoriaRapida, orden]);
 
-  const abrirDetalle = (o: Outfit) => {
-    setOutfitSeleccionado(o);
-    setModalVisible(true);
-  };
+  const columnas = isWeb ? 3 : 2;
 
-  // eliminación real (se llama desde el modal de confirmación)
-  const eliminarOutfitAhora = async () => {
-    if (!outfitAEliminar) return;
-
-    showLoader("Eliminando outfit...");
-
-    try {
-      await apiRequest(`/api/outfits/${outfitAEliminar.id}`, {
-        method: "DELETE",
-      });
-
-      setOutfits((prev) => prev.filter((o) => o.id !== outfitAEliminar.id));
-    } catch (err: any) {
-      Alert.alert("Error", err.message || "No se pudo eliminar el outfit");
-    } finally {
-      hideLoader();
-      setConfirmVisible(false);
-    }
-  };
+  /* -------------------------------------------- */
+  /* ---------------- Render Item --------------- */
+  /* -------------------------------------------- */
 
   const renderOutfit = ({ item }: { item: Outfit }) => (
-    <View style={[styles.cardWrapper, { width: `${100 / columnas}%` }]}>
+    <Card style={styles.outfitCard}>
       <TouchableOpacity
-        style={styles.card}
-        onPress={() => abrirDetalle(item)}
-        activeOpacity={0.9}
+        style={styles.outfitTouchable}
+        onPress={() => {
+          setOutfitSeleccionado(item);
+          setModalVisible(true);
+        }}
       >
-        <Image source={{ uri: item.imagen }} style={styles.cardImage} />
-        <Text style={styles.cardName}>{item.nombre}</Text>
+        <Image
+          source={{ uri: item.imagen }}
+          style={[
+            styles.outfitImagen,
+            isWeb && styles.outfitImagenWeb,
+          ]}
+          resizeMode="contain"
+        />
+
+        <View style={styles.outfitInfo}>
+          <Text style={styles.outfitNombre}>{item.nombre}</Text>
+          {item.categoria && (
+            <Text style={styles.outfitCategoria}>
+              {item.categoria.charAt(0).toUpperCase() +
+                item.categoria.slice(1)}
+            </Text>
+          )}
+        </View>
       </TouchableOpacity>
-    </View>
+    </Card>
   );
 
+  /* -------------------------------------------- */
+  /* ---------------- Limpia filtros ------------ */
+  /* -------------------------------------------- */
 
   const limpiarFiltros = () => {
     setFiltros({
-      categoria: "todos",
-      estacion: "todos",
-      evento: "todos",
-      clima: "todos",
-      prenda: "todos",
+      categoria: VALOR_TODOS,
+      estacion: VALOR_TODOS,
+      evento: VALOR_TODOS,
+      clima: VALOR_TODOS,
+      prenda: VALOR_TODOS,
     });
+    setFiltroCategoriaRapida(QUICK_ALL);
   };
 
+  /* -------------------------------------------- */
+  /* -------------------- RENDER ---------------- */
+  /* -------------------------------------------- */
+
   return (
-    <LinearGradient
-      colors={colors.gradient as any}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.gradient}
-    >
-      <Header title="Mis Outfits" />
+    <LinearGradient colors={colors.gradient} style={{ flex: 1 }}>
+      <View style={styles.headerArea}>
+        {/* ---------- TOP ROW ----------- */}
+        <View style={styles.headerTopRow}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+          >
+            <Ionicons
+              name="chevron-back-outline"
+              size={26}
+              color={colors.iconActive}
+            />
+          </TouchableOpacity>
 
-      {/* 🔝 Acciones: crear outfit + filtros */}
-      <View style={styles.topActions}>
-        <TouchableOpacity
-          style={styles.btnCrear}
-          onPress={() => router.push("/crear-outfit" as any)}
-        >
-          <Ionicons name="add-circle-outline" size={20} color="#FFF" />
-          <Text style={styles.btnCrearText}>Crear outfit</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => router.push("/perfil")}
+            style={styles.profileButton}
+          >
+            <Ionicons
+              name="person-circle-outline"
+              size={32}
+              color={colors.iconActive}
+            />
+          </TouchableOpacity>
+        </View>
 
-        <TouchableOpacity
-          style={styles.btnFiltros}
-          onPress={() => setMostrarFiltros((prev) => !prev)}
+        {/* ---------- TITLE + SUBTITLE ----------- */}
+        <View style={styles.titleBlock}>
+          <TitleSerif style={styles.title}>Tus outfits</TitleSerif>
+          <SubtitleSerif>
+            {outfits.length} outfits creados con IA para ti
+          </SubtitleSerif>
+        </View>
+
+        {/* ---------- CHIPS RÁPIDAS ----------- */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingRight: 20 }}
         >
-          <Ionicons name="options-outline" size={22} color={colors.primary} />
-        </TouchableOpacity>
+          {categoriasRapidas.map((cat) => (
+            <TouchableOpacity
+              key={cat}
+              style={[
+                styles.categoryChip,
+                filtroCategoriaRapida === cat && styles.categoryChipActive,
+              ]}
+              onPress={() => {
+                setFiltroCategoriaRapida(cat);
+                setFiltros((prev) => ({
+                  ...prev,
+                  categoria: cat === QUICK_ALL ? VALOR_TODOS : cat,
+                }));
+              }}
+            >
+              <Text
+                style={[
+                  styles.categoryText,
+                  filtroCategoriaRapida === cat && styles.categoryTextActive,
+                ]}
+              >
+                {cat}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* ---------- ACTION BUTTONS (TU ORDEN) ----------- */}
+        <View style={styles.topActions}>
+          {/* CREAR OUTFIT */}
+          <TouchableOpacity
+            style={styles.btnAgregar}
+            onPress={() => router.push("/crear-outfit")}
+          >
+            <Ionicons
+              name="add-circle-outline"
+              size={20}
+              color={colors.textOnPrimary}
+            />
+            <Text style={styles.btnAgregarText}>Crear outfit</Text>
+          </TouchableOpacity>
+
+          {/* ORDENAR */}
+          <TouchableOpacity
+            style={styles.btnOrdenar}
+            onPress={() => {
+              const next: any = {
+                fecha: "nombre",
+                nombre: "categoria",
+                categoria: "fecha",
+              };
+              setOrden(next[orden]);
+            }}
+          >
+            <Ionicons
+              name="swap-vertical-outline"
+              size={20}
+              color={colors.iconActive}
+            />
+            <Text style={styles.ordenarText}>
+              {orden === "fecha"
+                ? "Fecha"
+                : orden === "nombre"
+                ? "Nombre"
+                : "Categoría"}
+            </Text>
+          </TouchableOpacity>
+
+          {/* FILTROS */}
+          <TouchableOpacity
+            style={styles.btnFiltros}
+            onPress={() => setMostrarFiltros((prev) => !prev)}
+          >
+            <Ionicons name="options-outline" size={20} color={colors.iconActive} />
+          </TouchableOpacity>
+        </View>
+
+        {/* ---------- PANEL DE FILTROS ----------- */}
+        {mostrarFiltros && (
+          <View style={styles.filtrosContainer}>
+            <View style={styles.filtrosHeader}>
+              <Text style={styles.filtrosTitulo}>Filtros</Text>
+              <TouchableOpacity onPress={limpiarFiltros}>
+                <Text style={styles.limpiarFiltros}>Limpiar</Text>
+              </TouchableOpacity>
+            </View>
+
+            {Object.entries(opcionesFiltros).map(([campo, lista]) => (
+              <View key={campo} style={styles.filtroGroup}>
+                <Text style={styles.filtroLabel}>
+                  {campo.charAt(0).toUpperCase() + campo.slice(1)}
+                </Text>
+
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  {lista.map((v) => (
+                    <TouchableOpacity
+                      key={`${campo}-${v}`}
+                      style={[
+                        styles.filtroChip,
+                        filtros[campo as keyof FiltrosOutfit] === v &&
+                          styles.filtroChipActive,
+                      ]}
+                      onPress={() =>
+                        setFiltros((prev) => ({ ...prev, [campo]: v }))
+                      }
+                    >
+                      <Text
+                        style={[
+                          styles.filtroChipText,
+                          filtros[campo as keyof FiltrosOutfit] === v &&
+                            styles.filtroChipTextActive,
+                        ]}
+                      >
+                        {v === VALOR_TODOS ? "Todos" : v}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            ))}
+          </View>
+        )}
       </View>
 
-      {/* 🔽 Filtros dinámicos */}
-      {mostrarFiltros && (
-        <View style={styles.filtrosContainer}>
-          <View style={styles.filtrosHeader}>
-            <Text style={styles.filtrosTitulo}>Filtros</Text>
-            <TouchableOpacity onPress={limpiarFiltros}>
-              <Text style={styles.limpiarFiltros}>Limpiar</Text>
-            </TouchableOpacity>
-          </View>
-
-          {Object.entries(opcionesFiltros).map(([campo, valores]) => (
-            <View key={campo} style={styles.filtroGroup}>
-              <Text style={styles.filtroLabel}>
-                {campo.charAt(0).toUpperCase() + campo.slice(1)}
-              </Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {valores.map((v) => (
-                  <TouchableOpacity
-                    key={`${campo}-${v}`}
-                    style={[
-                      styles.filtroChip,
-                      filtros[campo as keyof FiltrosOutfit] === v &&
-                        styles.filtroChipActive,
-                    ]}
-                    onPress={() =>
-                      setFiltros((prev) => ({
-                        ...prev,
-                        [campo]: v,
-                      }))
-                    }
-                  >
-                    <Text
-                      style={[
-                        styles.filtroChipText,
-                        filtros[campo as keyof FiltrosOutfit] === v &&
-                          styles.filtroChipTextActive,
-                      ]}
-                    >
-                      {v === "todos"
-                        ? "Todos"
-                        : v.charAt(0).toUpperCase() + v.slice(1)}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          ))}
-        </View>
-      )}
-
-      {/* 📋 Lista */}
-      {outfitsFiltrados.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyIcon}>👚</Text>
-          <Text style={styles.emptyText}>No tienes outfits aún</Text>
-        </View>
-      ) : (
+      {/* ---------- GRID ----------- */}
+      <View style={{ flex: 1, minHeight: 0 }}>
         <FlatList
           data={outfitsFiltrados}
           renderItem={renderOutfit}
           keyExtractor={(i) => i.id}
           numColumns={columnas}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={styles.gridContainer}
+          showsVerticalScrollIndicator={false}
         />
-      )}
+      </View>
 
-      {/* 🔍 Modal detalle outfit */}
-      <Modal visible={modalVisible} animationType="slide" transparent>
+      <FloatingActionButton onPress={() => router.push("/crear-outfit")} />
+
+      {/* ---------- MODAL DETALLE ----------- */}
+      <Modal visible={modalVisible} animationType="fade" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             {outfitSeleccionado && (
               <>
-                <Image
-                  source={{ uri: outfitSeleccionado.imagen }}
-                  style={styles.modalImage}
-                />
-                <Text style={styles.modalTitle}>
-                  {outfitSeleccionado.nombre}
-                </Text>
-
-                {/* info rápida de filtros */}
-                <View style={styles.modalTagsRow}>
-                  {outfitSeleccionado.categoria && (
-                    <Text style={styles.modalTag}>
-                      {outfitSeleccionado.categoria}
-                    </Text>
-                  )}
-                  {outfitSeleccionado.estacion && (
-                    <Text style={styles.modalTag}>
-                      {outfitSeleccionado.estacion}
-                    </Text>
-                  )}
-                  {outfitSeleccionado.evento && (
-                    <Text style={styles.modalTag}>
-                      {outfitSeleccionado.evento}
-                    </Text>
-                  )}
-                  {outfitSeleccionado.clima && (
-                    <Text style={styles.modalTag}>
-                      {outfitSeleccionado.clima}
-                    </Text>
-                  )}
+                <View style={styles.modalImageWrapper}>
+                  <Image
+                    source={{ uri: outfitSeleccionado.imagen }}
+                    style={styles.modalImage}
+                  />
                 </View>
 
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  style={{ paddingHorizontal: 8 }}
-                >
-                  {outfitSeleccionado.prendas.map((p) => (
-                    <Image
-                      key={p.id}
-                      source={{ uri: p.imagen }}
-                      style={styles.miniPrenda}
-                    />
-                  ))}
-                </ScrollView>
+                <View style={styles.modalContent}>
+                  <Text style={styles.modalTitle}>
+                    {outfitSeleccionado.nombre}
+                  </Text>
 
-                <View style={styles.modalActions}>
-                  <TouchableOpacity
-                    style={styles.modalBtn}
-                    onPress={() => {
-                      setModalVisible(false);
-                      router.push({
-                        pathname: "/editar-outfit" as any,
-                        params: { id: outfitSeleccionado.id },
-                      });
-                    }}
-                  >
-                    <Ionicons name="create-outline" size={20} color="#FFF" />
-                    <Text style={styles.modalBtnText}>Editar</Text>
-                  </TouchableOpacity>
+                  <View style={styles.modalTagsRow}>
+                    {outfitSeleccionado.categoria && (
+                      <Text style={styles.modalTag}>
+                        {outfitSeleccionado.categoria}
+                      </Text>
+                    )}
+                    {outfitSeleccionado.estacion && (
+                      <Text style={styles.modalTag}>
+                        {outfitSeleccionado.estacion}
+                      </Text>
+                    )}
+                    {outfitSeleccionado.evento && (
+                      <Text style={styles.modalTag}>
+                        {outfitSeleccionado.evento}
+                      </Text>
+                    )}
+                    {outfitSeleccionado.clima && (
+                      <Text style={styles.modalTag}>
+                        {outfitSeleccionado.clima}
+                      </Text>
+                    )}
+                  </View>
+
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    {outfitSeleccionado.prendas.map((p) => (
+                      <Image
+                        key={p.id}
+                        source={{ uri: p.imagen }}
+                        style={styles.miniPrenda}
+                      />
+                    ))}
+                  </ScrollView>
+
+                  <View style={styles.modalActions}>
+                    {/* EDITAR */}
+                    <TouchableOpacity
+                      style={styles.modalBtnSecondary}
+                      onPress={() => {
+                        setModalVisible(false);
+                        router.push({
+                          pathname: "/editar-outfit",
+                          params: { id: outfitSeleccionado.id },
+                        });
+                      }}
+                    >
+                      <Ionicons
+                        name="create-outline"
+                        size={18}
+                        color={colors.textPrimary}
+                      />
+                      <Text style={styles.modalBtnSecondaryText}>Editar</Text>
+                    </TouchableOpacity>
+
+                    {/* ELIMINAR */}
+                    <TouchableOpacity
+                      style={styles.modalBtnDanger}
+                      onPress={() => {
+                        setOutfitAEliminar(outfitSeleccionado);
+                        setModalVisible(false);
+                        setTimeout(() => setConfirmVisible(true), 80);
+                      }}
+                    >
+                      <Ionicons name="trash-outline" size={18} color="#FFF" />
+                      <Text style={styles.modalBtnPrimaryText}>Eliminar</Text>
+                    </TouchableOpacity>
+                  </View>
 
                   <TouchableOpacity
-                    style={[styles.modalBtn, { backgroundColor: "#E53935" }]}
-                    onPress={() => {
-                      setOutfitAEliminar(outfitSeleccionado);
-                      setModalVisible(false);
-                      setOutfitSeleccionado(null);
-                      setTimeout(() => setConfirmVisible(true), 60);
-                    }}
+                    style={styles.modalClose}
+                    onPress={() => setModalVisible(false)}
                   >
-                    <Ionicons name="trash-outline" size={20} color="#FFF" />
-                    <Text style={styles.modalBtnText}>Eliminar</Text>
+                    <Ionicons name="close" size={20} color={colors.textPrimary} />
                   </TouchableOpacity>
                 </View>
-
-                <TouchableOpacity
-                  style={styles.modalClose}
-                  onPress={() => setModalVisible(false)}
-                >
-                  <Ionicons name="close" size={20} color="#000" />
-                </TouchableOpacity>
               </>
             )}
           </View>
         </View>
       </Modal>
 
-      {/* Modal confirmación eliminación */}
+      {/* ---------- MODAL CONFIRMACIÓN ----------- */}
       <Modal visible={confirmVisible} transparent animationType="fade">
         <View style={styles.confirmOverlay}>
           <View style={styles.confirmBox}>
@@ -393,15 +566,29 @@ export default function MisOutfits() {
 
             <View style={styles.confirmActions}>
               <TouchableOpacity
-                style={[styles.confirmBtn, { backgroundColor: "#CCC" }]}
+                style={[styles.confirmBtn, { backgroundColor: colors.primarySoft }]}
                 onPress={() => setConfirmVisible(false)}
               >
-                <Text>Cancelar</Text>
+                <Text style={{ color: colors.textPrimary }}>Cancelar</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.confirmBtn, { backgroundColor: "#E53935" }]}
-                onPress={eliminarOutfitAhora}
+                style={[styles.confirmBtn, { backgroundColor: colors.danger }]}
+                onPress={async () => {
+                  if (!outfitAEliminar) return;
+                  showLoader("Eliminando...");
+                  try {
+                    await apiRequest(`/api/outfits/${outfitAEliminar.id}`, {
+                      method: "DELETE",
+                    });
+                    setOutfits((prev) =>
+                      prev.filter((o) => o.id !== outfitAEliminar.id)
+                    );
+                  } finally {
+                    hideLoader();
+                    setConfirmVisible(false);
+                  }
+                }}
               >
                 <Text style={{ color: "#FFF" }}>Eliminar</Text>
               </TouchableOpacity>
@@ -413,220 +600,373 @@ export default function MisOutfits() {
   );
 }
 
-const styles = StyleSheet.create({
-  gradient: { flex: 1 },
+/* -------------------------------------------- */
+/* -------------------- STYLES ---------------- */
+/* -------------------------------------------- */
 
-  /* Top actions */
-  topActions: {
+const styles = StyleSheet.create({
+  headerArea: {
+    flexShrink: 0,
+    paddingHorizontal: 20,
+    paddingTop: 28,
+    paddingBottom: 10,
+  },
+
+  headerTopRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    marginBottom: 10,
   },
-  btnCrear: {
+
+  backButton: {
+    backgroundColor: colors.card,
+    padding: 8,
+    borderRadius: 12,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+  },
+
+  profileButton: {
+    padding: 4,
+  },
+
+  titleBlock: {
+    marginBottom: 16,
+  },
+
+  title: {
+    fontSize: 32,
+    color: colors.textPrimary,
+  },
+
+  /* Chips rápidas */
+  categoryChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: colors.chipBackground,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginRight: 10,
+  },
+  categoryChipActive: {
+    backgroundColor: colors.chipBackgroundActive,
+    borderColor: colors.chipBackgroundActive,
+  },
+  categoryText: {
+    color: colors.chipText,
+    fontSize: 14,
+  },
+  categoryTextActive: {
+    color: colors.chipTextActive,
+  },
+
+  /* Botones de acciones */
+  topActions: {
+    flexDirection: "row",
+    justifyContent: "flex-start",
+    alignItems: "center",
+    gap: 12,
+    marginTop: 12,
+    marginBottom: 6,
+  },
+
+  btnAgregar: {
     backgroundColor: colors.primary,
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 12,
-  },
-  btnCrearText: {
-    color: "#FFF",
-    fontWeight: "600",
-    fontSize: 14,
-  },
-  btnFiltros: {
-    backgroundColor: "#FFF",
-    padding: 10,
-    borderRadius: 10,
   },
 
-  /* Filtros */
-  filtrosContainer: {
-    backgroundColor: "#FFFFFFAA",
-    borderRadius: 16,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    padding: 12,
+  btnAgregarText: {
+    color: colors.textOnPrimary,
+    fontWeight: "600",
   },
+
+  btnOrdenar: {
+    backgroundColor: colors.card,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+
+  ordenarText: {
+    color: colors.textSecondary,
+  },
+
+  btnFiltros: {
+    backgroundColor: colors.card,
+    padding: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+
+  /* Panel filtros */
+  filtrosContainer: {
+    backgroundColor: colors.primarySoft,
+    borderRadius: 18,
+    padding: 12,
+    marginTop: 10,
+  },
+
   filtrosHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
     marginBottom: 8,
   },
+
   filtrosTitulo: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#1E1E1E",
   },
+
   limpiarFiltros: {
-    color: colors.primary,
+    color: colors.primaryDark,
     fontSize: 13,
     fontWeight: "500",
   },
-  filtroGroup: { marginBottom: 10 },
+
+  filtroGroup: {
+    marginBottom: 10,
+  },
+
   filtroLabel: {
     fontSize: 13,
-    fontWeight: "500",
-    color: "#444",
+    color: colors.textSecondary,
     marginBottom: 4,
   },
+
   filtroChip: {
-    backgroundColor: "#FFF",
+    backgroundColor: colors.chipBackground,
     borderRadius: 20,
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: "#EEE",
+    borderColor: colors.border,
     marginRight: 6,
   },
   filtroChipActive: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
-  filtroChipText: { color: "#666", fontSize: 13 },
-  filtroChipTextActive: { color: "#FFF" },
 
-  /* Tarjetas de outfit */
-  card: {
-    backgroundColor: "#FFF",
-    borderRadius: 14,
+  filtroChipText: {
+    color: colors.textSecondary,
+  },
+
+  filtroChipTextActive: {
+    color: colors.textOnPrimary,
+  },
+
+  /* GRID */
+  gridContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 120,
+  },
+
+  outfitCard: {
+    flex: 1,
+    margin: 8,
+    borderRadius: 22,
     overflow: "hidden",
-    elevation: 3,
   },
-  cardImage: { width: "100%", aspectRatio: 1, resizeMode: "cover" },
-  cardName: {
-    textAlign: "center",
-    color: "#222",
+
+  outfitTouchable: {
+    backgroundColor: colors.card,
+  },
+
+  outfitImagen: {
+    width: "100%",
+    height: 200,
+  },
+
+  outfitImagenWeb: {
+    height: 240,
+    ...(Platform.OS === "web" && { objectFit: "contain" }),
+  },
+
+  outfitInfo: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+
+  outfitNombre: {
+    fontSize: 15,
     fontWeight: "600",
-    fontSize: 13,
-    paddingVertical: 4,
   },
-  listContent: { paddingHorizontal: 12, paddingBottom: 60 },
-  cardWrapper: {
-    padding: 6,
+
+  outfitCategoria: {
+    fontSize: 13,
+    color: colors.textSecondary,
   },
 
   /* Empty */
-  emptyContainer: { flex: 1, alignItems: "center", marginTop: 60 },
-  emptyIcon: { fontSize: 50 },
-  emptyText: { color: "#555", marginTop: 6 },
+  emptyContainer: {
+    marginTop: 40,
+    alignItems: "center",
+  },
+  emptyIcon: {
+    fontSize: 50,
+  },
+  emptyText: {
+    marginTop: 6,
+    color: colors.textSecondary,
+  },
 
-  /* Modal detalle */
+  /* MODAL DETALLE */
   modalOverlay: {
     flex: 1,
-    backgroundColor: "#000000AA",
+    backgroundColor: "rgba(0,0,0,0.4)",
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
+    padding: 24,
   },
+
   modalCard: {
-    backgroundColor: "#FFF",
-    borderRadius: 20,
     width: "100%",
-    maxWidth: 400,
+    maxWidth: 420,
+    backgroundColor: colors.card,
+    borderRadius: 26,
     overflow: "hidden",
-    position: "relative",
-    paddingBottom: 10,
   },
+
+  modalImageWrapper: {
+    backgroundColor: colors.background,
+    paddingVertical: 16,
+  },
+
   modalImage: {
     width: "100%",
-    height: undefined,
-    aspectRatio: 1,      
-    resizeMode: "contain", 
-    backgroundColor: "#F5F5F5",
+    height: 250,
   },
+
+  modalContent: {
+    padding: 18,
+  },
+
   modalTitle: {
-    textAlign: "center",
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: "700",
-    color: colors.primary,
-    marginVertical: 10,
+    textAlign: "center",
+    marginBottom: 8,
   },
+
   modalTagsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "center",
-    marginBottom: 6,
-    paddingHorizontal: 12,
-    gap: 4,
+    gap: 6,
+    marginBottom: 10,
   },
+
   modalTag: {
-    fontSize: 11,
-    color: "#555",
     backgroundColor: "#F3F3F3",
-    borderRadius: 999,
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 3,
+    borderRadius: 999,
+    fontSize: 12,
+    color: colors.textSecondary,
   },
+
   miniPrenda: {
     width: 60,
     height: 60,
     borderRadius: 10,
-    marginHorizontal: 4,
-    resizeMode: "cover",
-  },
-  modalActions: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    marginTop: 12,
-    marginBottom: 8,
-  },
-  modalBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: colors.primary,
-    borderRadius: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-  },
-  modalBtnText: { color: "#FFF", fontWeight: "600" },
-  modalClose: {
-    position: "absolute",
-    top: 10,
-    right: 10,
-    backgroundColor: "#FFF",
-    borderRadius: 20,
-    padding: 4,
+    marginRight: 6,
   },
 
-  /* Modal confirmación */
+  modalActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 14,
+  },
+
+  modalBtnSecondary: {
+    flex: 1,
+    backgroundColor: colors.card,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: 10,
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 6,
+  },
+
+  modalBtnSecondaryText: {
+    fontWeight: "600",
+    color: colors.textPrimary,
+  },
+
+  modalBtnDanger: {
+    flex: 1,
+    backgroundColor: colors.danger,
+    borderRadius: 999,
+    paddingVertical: 10,
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 6,
+  },
+
+  modalBtnPrimaryText: {
+    color: "#FFF",
+    fontWeight: "600",
+  },
+
+  modalClose: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    padding: 6,
+    backgroundColor: "#FFFFFFEE",
+    borderRadius: 999,
+  },
+
+  /* Confirm delete */
   confirmOverlay: {
     flex: 1,
-    backgroundColor: "#00000088",
+    backgroundColor: "rgba(0,0,0,0.35)",
     justifyContent: "center",
     alignItems: "center",
     padding: 30,
   },
+
   confirmBox: {
-    backgroundColor: "#FFF",
+    backgroundColor: colors.card,
     padding: 20,
     borderRadius: 16,
     width: "90%",
     maxWidth: 320,
   },
+
   confirmText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#333",
     textAlign: "center",
     marginBottom: 20,
-  },
-  confirmActions: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 10,
-  },
-  confirmBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 10,
-    alignItems: "center",
+    fontSize: 16,
   },
 
+  confirmActions: {
+    flexDirection: "row",
+    gap: 10,
+  },
+
+  confirmBtn: {
+    flex: 1,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
 });

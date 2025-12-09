@@ -15,7 +15,7 @@ const colors = {
   textPrimary: "#2A2A2A",    // Texto principal (títulos, contenido)
   textSecondary: "#6F6F6F",  // Texto secundario, descripciones
   textMuted: "#9A9A9A",      // Placeholders, labels suaves
-  textOnPrimary: "#FFFFFF",  // Texto sobre botones primary
+  textOnPrimary: "#00000",  // Texto sobre botones primary
 
   /** Bordes y separadores */
   border:  "#E7E3DF",

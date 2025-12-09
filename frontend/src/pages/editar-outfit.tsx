@@ -1,8 +1,24 @@
+// ============================================================
+// EDITAR OUTFIT – ESTILO MAISON v2 (igual que Add-Prenda)
+// ============================================================
+
 import React, { useEffect, useState } from "react";
-import { View, Text, TextInput, Image, ScrollView, TouchableOpacity, Alert } from "react-native";
+import {
+  View,
+  ScrollView,
+  Image,
+  StyleSheet,
+  Alert,
+} from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { useLocalSearchParams, Stack, router } from "expo-router";
+import { Stack, useLocalSearchParams, router } from "expo-router";
+
 import colors from "../constants/colors";
+import HeaderMaison from "../components/Header";
+import TitleSerif from "../components/ui/TitleSerif";
+import InputMaison from "../components/ui/InputMaison";
+import PrimaryButton from "../components/ui/PrimaryButton";
+import Card from "../components/ui/Card";
 import { apiRequest } from "../utils/apiClient";
 import { useLoader } from "../context/LoaderContext";
 
@@ -11,30 +27,30 @@ export default function EditarOutfit() {
   const { showLoader, hideLoader } = useLoader();
 
   const [outfit, setOutfit] = useState<any>(null);
+
   const [nombre, setNombre] = useState("");
   const [categoria, setCategoria] = useState("");
   const [estacion, setEstacion] = useState("");
   const [imagen, setImagen] = useState("");
-  const [prendasIds, setPrendasIds] = useState<string[]>([]);
 
-  /** Cargar outfit */
+  // Cargar outfit existente
   useEffect(() => {
-    cargarOutfit();
-  }, [id]);
+    cargarDatos();
+  }, []);
 
-  const cargarOutfit = async () => {
-    showLoader("Cargando outfit...");
+  const cargarDatos = async () => {
     try {
-      const data = await apiRequest(`/api/outfits/${id}`, { method: "GET" });
+      showLoader("Cargando outfit…");
 
-      if (!data || !data.outfit) throw new Error("Outfit no encontrado");
+      const data = await apiRequest(`/api/outfits/${id}`);
+      const o = data.outfit;
 
-      setOutfit(data.outfit);
-      setNombre(data.outfit.nombre || "");
-      setCategoria(data.outfit.categoria || "");
-      setEstacion(data.outfit.estacion || "");
-      setImagen(data.outfit.imagen || "");
-      setPrendasIds(data.outfit.prendas?.map((p: any) => p.id) || []);
+      setOutfit(o);
+      setNombre(o.nombre);
+      setCategoria(o.categoria);
+      setEstacion(o.estacion);
+      setImagen(o.imagen);
+
     } catch (err: any) {
       Alert.alert("Error", err.message);
     } finally {
@@ -42,29 +58,25 @@ export default function EditarOutfit() {
     }
   };
 
-  /** Guardar cambios */
-  const actualizarOutfit = async () => {
-    showLoader("Actualizando outfit...");
-
-    const payload = {
-      nombre,
-      categoria,
-      estacion,
-      imagen,
-      prendasIds,
-    };
-
+  const guardarCambios = async () => {
     try {
+      showLoader("Guardando cambios…");
+
       await apiRequest(`/api/outfits/${id}`, {
         method: "PUT",
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          nombre,
+          categoria,
+          estacion,
+          imagen,
+        }),
       });
 
       hideLoader();
-      router.replace("/mis-outfits");
+      router.back();
     } catch (err: any) {
       hideLoader();
-      Alert.alert("Error", err.message || "No se pudo guardar");
+      Alert.alert("Error", err.message);
     }
   };
 
@@ -72,77 +84,73 @@ export default function EditarOutfit() {
     <>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <LinearGradient
-        colors={colors.gradient as any}
-        style={{ flex: 1 }}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <ScrollView contentContainerStyle={{ padding: 20 }}>
-          <Text style={{
-            textAlign: "center",
-            color: "#FFF",
-            fontWeight: "700",
-            fontSize: 20,
-            marginBottom: 20
-          }}>
-            Editar Outfit
-          </Text>
+      <LinearGradient colors={colors.gradient} style={{ flex: 1 }}>
+        
+        {/* HEADER */}
+        <HeaderMaison />
 
-          {imagen ? (
-            <Image source={{ uri: imagen }} style={{
-              width: "100%",
-              height: 220,
-              borderRadius: 16,
-              marginBottom: 16,
-              resizeMode: "cover"
-            }} />
-          ) : null}
+        {/* TÍTULO */}
+        <View style={styles.titleBlock}>
+          <TitleSerif>Editar outfit</TitleSerif>
+        </View>
 
-          <Text style={{ fontWeight: "600" }}>Nombre</Text>
-          <TextInput style={input} value={nombre} onChangeText={setNombre} />
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          
+          <Card style={styles.card}>
 
-          <Text style={{ fontWeight: "600" }}>Categoría</Text>
-          <TextInput style={input} value={categoria} onChangeText={setCategoria} />
-
-          <Text style={{ fontWeight: "600" }}>Estación</Text>
-          <TextInput style={input} value={estacion} onChangeText={setEstacion} />
-
-          <Text style={{ fontWeight: "600" }}>URL Imagen</Text>
-          <TextInput style={input} value={imagen} onChangeText={setImagen} />
-
-          <Text style={{ fontWeight: "700", marginTop: 12 }}>Prendas del outfit</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {outfit?.prendas?.map((p: any) => (
+            {/* Imagen principal o de la prenda 1 (fallback tipo Home) */}
+            {imagen || outfit?.prendas?.[0]?.imagen ? (
               <Image
-                key={p.id}
-                source={{ uri: p.imagen }}
-                style={{ width: 70, height: 70, borderRadius: 12, marginRight: 10 }}
+                source={{ uri: imagen || outfit.prendas[0].imagen }}
+                style={styles.img}
               />
-            ))}
-          </ScrollView>
+            ) : null}
 
-          <TouchableOpacity
-            style={{
-              backgroundColor: colors.primary,
-              paddingVertical: 14,
-              borderRadius: 16,
-              marginTop: 20,
-              alignItems: "center",
-            }}
-            onPress={actualizarOutfit}
-          >
-            <Text style={{ color: "#FFF", fontWeight: "700" }}>Guardar cambios</Text>
-          </TouchableOpacity>
+            <InputMaison label="Nombre del outfit" value={nombre} onChangeText={setNombre} />
+            <InputMaison label="Categoría" value={categoria} onChangeText={setCategoria} />
+            <InputMaison label="Estación" value={estacion} onChangeText={setEstacion} />
+            <InputMaison label="URL imagen" value={imagen} onChangeText={setImagen} />
+
+            <PrimaryButton
+              text="Guardar cambios"
+              onPress={guardarCambios}
+              style={{ marginTop: 20 }}
+            />
+          </Card>
+
         </ScrollView>
       </LinearGradient>
     </>
   );
 }
 
-const input = {
-  backgroundColor: "#FFF",
-  padding: 12,
-  borderRadius: 10,
-  marginBottom: 10,
-};
+const styles = StyleSheet.create({
+  titleBlock: {
+    width: "100%",
+    maxWidth: 650,
+    alignSelf: "center",
+    paddingHorizontal: 20,
+    marginTop: 8,
+    marginBottom: 6,
+  },
+
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 60,
+  },
+
+  card: {
+    width: "100%",
+    maxWidth: 650,
+    alignSelf: "center",
+    marginTop: 20,
+  },
+
+  img: {
+    width: "100%",
+    height: 260,
+    borderRadius: 16,
+    marginBottom: 20,
+    resizeMode: "cover",
+  },
+});

@@ -133,7 +133,6 @@ const LoginScreen: React.FC = () => {
           message: "Inicio de sesión exitoso",
           extra: { email: form.email, userId: data.usuario?.id },
         });
-
         await login(
           data.token,
           data.usuario?.nombre || data.usuario?.name,
@@ -185,18 +184,46 @@ const LoginScreen: React.FC = () => {
     }
   };
 
-  // Google OAuth
+  // ✅ Google OAuth - VERSIÓN DEBUG
   const handleGoogleLogin = async () => {
+    console.log('🔵 Google Login iniciado');
     try {
-      const result = await promptAsync();
+      const result: any = await promptAsync();
 
-      if (result?.type === "success") {
-        const idToken = result.authentication?.idToken;
+      console.log('════════════════════════════════════');
+      console.log('🔵 RESULT COMPLETO:');
+      console.log(JSON.stringify(result, null, 2));
+      console.log('════════════════════════════════════');
 
-        const res = await fetch(`${API_BASE}/api/auth/oauth/google`, {
+      console.log('🔵 result.type:', result?.type);
+      console.log('🔵 result.authentication (completo):', result?.authentication);
+
+      // 🔍 Ver TODOS los campos de authentication
+      if (result?.authentication) {
+        console.log('🔵 CAMPOS de authentication:');
+        for (const [key, value] of Object.entries(result.authentication)) {
+          console.log(`  - ${key}:`, value);
+        }
+      }
+
+      // Intentar obtener el token de varias formas
+      const token =
+        result?.authentication?.idToken ||
+        result?.authentication?.id_token ||
+        result?.authentication?.accessToken ||
+        result?.authentication?.access_token ||
+        result?.authentication?.token;
+
+      console.log('🔵 TOKEN ENCONTRADO:', token ? 'SÍ' : 'NO');
+      console.log('🔵 TOKEN VALUE:', token);
+
+      if (result?.type === "success" && token) {
+        console.log('✅ Enviando token al backend...');
+
+        const res = await fetch('${ API_BASE }/api/auth/oauth/google', {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id_token: idToken }),
+          body: JSON.stringify({ id_token: token }),
         });
 
         const data = await res.json();
@@ -219,8 +246,16 @@ const LoginScreen: React.FC = () => {
             text2: data.error || "No se pudo iniciar sesión",
           });
         }
+      } else {
+        console.log('❌ No hay token o result.type no es success');
+        Toast.show({
+          type: "error",
+          text1: "Error con Google",
+          text2: "No se pudo obtener el token",
+        });
       }
     } catch (error: any) {
+      console.error('❌ Error en handleGoogleLogin:', error);
       await logEvent({
         event: "LoginGoogleError",
         level: "error",
@@ -228,6 +263,7 @@ const LoginScreen: React.FC = () => {
       });
     }
   };
+
 
   // Apple OAuth
   const handleAppleLogin = async () => {

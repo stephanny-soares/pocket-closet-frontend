@@ -1,34 +1,41 @@
+// ========= MI-ARMARIO FINAL INTEGRADO =========
+// Con scroll fix, botón atrás, icono perfil, título más abajo, responsive web/mobile
+
 import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   TouchableOpacity,
   Image,
   Alert,
   FlatList,
-  LayoutAnimation,
   Modal,
   Platform,
   UIManager,
   useWindowDimensions,
   ScrollView,
+  StyleSheet,
 } from "react-native";
+
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { router, useLocalSearchParams} from "expo-router";
-import Header from "components/Header";
+import { router, useLocalSearchParams } from "expo-router";
+
+import TitleSerif from "../components/ui/TitleSerif";
+import SubtitleSerif from "../components/ui/SubtitleSerif";
+import Card from "../components/ui/Card";
+import FloatingActionButton from "../components/ui/FloatingActionButton";
+
 import colors from "../constants/colors";
 import { apiRequest } from "../utils/apiClient";
 import { useLoader } from "../context/LoaderContext";
 
-
+/* Android animation */
 if (
   Platform.OS === "android" &&
   UIManager.setLayoutAnimationEnabledExperimental
-) {
+)
   UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 interface Prenda {
   id: string;
@@ -52,6 +59,7 @@ interface FiltrosState {
 }
 
 const VALOR_TODOS = "todos";
+const QUICK_ALL = "All";
 
 export default function MiArmario() {
   const [prendas, setPrendas] = useState<Prenda[]>([]);
@@ -61,10 +69,13 @@ export default function MiArmario() {
     categoria: VALOR_TODOS,
     estacion: VALOR_TODOS,
   });
+
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
   const [orden, setOrden] = useState<"fecha" | "tipo" | "color">("fecha");
+
   const params = useLocalSearchParams();
   const selectMode = params.selectMode;
+
   const [prendaSeleccionada, setPrendaSeleccionada] =
     useState<Prenda | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
@@ -72,10 +83,13 @@ export default function MiArmario() {
   const [confirmVisible, setConfirmVisible] = useState(false);
   const [prendaAEliminar, setPrendaAEliminar] = useState<Prenda | null>(null);
 
+  const [filtroCategoria, setFiltroCategoria] = useState(QUICK_ALL);
+
   const { showLoader, hideLoader } = useLoader();
   const { width } = useWindowDimensions();
   const isWeb = width > 768;
 
+  /* -------------------- Load prendas -------------------- */
   useEffect(() => {
     cargarPrendas();
   }, []);
@@ -86,41 +100,32 @@ export default function MiArmario() {
       const data = await apiRequest<{ prendas: Prenda[] }>("/api/prendas", {
         method: "GET",
       });
-      setPrendas(Array.isArray(data) ? data : data.prendas || []);
-    } catch (error: any) {
-      Alert.alert("Error", error.message || "No se pudieron cargar las prendas");
+      setPrendas(Array.isArray(data) ? data : data.prendas ?? []);
+    } catch (e: any) {
+      Alert.alert("Error", e.message);
     } finally {
       hideLoader();
     }
   };
 
+  /* -------------------- Delete -------------------- */
   const eliminarAhora = async () => {
     if (!prendaAEliminar) return;
 
     showLoader("Eliminando prenda...");
 
     try {
-      await apiRequest(`/api/prendas/${prendaAEliminar.id}`, {
-        method: "DELETE",
-      });
-
-      setPrendas((prev) =>
-        prev.filter((p) => p.id !== prendaAEliminar.id)
-      );
-    } catch (error: any) {
-      console.error("❌ Error eliminando:", error);
-      Alert.alert("Error", error.message || "No se pudo eliminar la prenda");
+      await apiRequest(`/api/prendas/${prendaAEliminar.id}`, { method: "DELETE" });
+      setPrendas((prev) => prev.filter((p) => p.id !== prendaAEliminar.id));
+    } catch (e: any) {
+      Alert.alert("Error", e.message);
     } finally {
       hideLoader();
       setConfirmVisible(false);
     }
   };
 
-  const toggleFiltros = () => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    setMostrarFiltros(!mostrarFiltros);
-  };
-
+  /* -------------------- Orden -------------------- */
   const ordenarPrendas = (lista: Prenda[]) => {
     switch (orden) {
       case "tipo":
@@ -142,6 +147,8 @@ export default function MiArmario() {
     [prendas, orden]
   );
 
+  /* -------------------- Opciones filtro dinámicas -------------------- */
+
   const opcionesFiltros = useMemo(() => {
     const setTipos = new Set<string>();
     const setColores = new Set<string>();
@@ -155,7 +162,7 @@ export default function MiArmario() {
       if (p.estacion) setEstaciones.add(p.estacion);
     });
 
-    const toArray = (set: Set<string>) => [VALOR_TODOS, ...Array.from(set)];
+    const toArray = (s: Set<string>) => [VALOR_TODOS, ...Array.from(s)];
 
     return {
       tipo: toArray(setTipos),
@@ -165,33 +172,43 @@ export default function MiArmario() {
     };
   }, [prendas]);
 
+  /* -------------------- Chips rápidas -------------------- */
+  const categoriasRapidas = useMemo(() => {
+    const tipos = new Set<string>();
+    prendas.forEach((p) => p.tipo && tipos.add(p.tipo));
+    return [QUICK_ALL, ...Array.from(tipos)];
+  }, [prendas]);
+
+  /* -------------------- Filtros finales -------------------- */
   const prendasFiltradas = useMemo(() => {
     return prendasOrdenadas.filter((p) => {
-      const coincideTipo = filtros.tipo === VALOR_TODOS || p.tipo === filtros.tipo;
-      const coincideColor = filtros.color === VALOR_TODOS || p.color === filtros.color;
-      const coincideCategoria =
+      const coincideTipo =
+        filtros.tipo === VALOR_TODOS || p.tipo === filtros.tipo;
+      const coincideColor =
+        filtros.color === VALOR_TODOS || p.color === filtros.color;
+      const coincideCat =
         filtros.categoria === VALOR_TODOS || p.ocasion === filtros.categoria;
-      const coincideEstacion =
+      const coincideEst =
         filtros.estacion === VALOR_TODOS || p.estacion === filtros.estacion;
-      return coincideTipo && coincideColor && coincideCategoria && coincideEstacion;
+
+      const coincideQuick =
+        filtroCategoria === QUICK_ALL || p.tipo === filtroCategoria;
+
+      return coincideTipo && coincideColor && coincideCat && coincideEst && coincideQuick;
     });
-  }, [prendasOrdenadas, filtros]);
+  }, [prendasOrdenadas, filtros, filtroCategoria]);
 
-  const columnas = isWeb ? Math.min(Math.floor(width / 220), 5) : 4;
+  const columnas = isWeb ? 3 : 2;
 
+  /* -------------------- Navigation / Modal -------------------- */
   const abrirDetalle = (prenda: Prenda) => {
-  // ✔ Si venimos desde crear-outfit
-  if (selectMode === "prenda") {
-    router.push(`/crear-outfit?prendaId=${prenda.id}`);
-    return;
-  }
-
-  // ✔ Flujo normal
-  setPrendaSeleccionada(prenda);
-  setModalVisible(true);
-};
-
-
+    if (selectMode === "prenda") {
+      router.push(`/crear-outfit?prendaId=${prenda.id}`);
+      return;
+    }
+    setPrendaSeleccionada(prenda);
+    setModalVisible(true);
+  };
 
   const actualizarFiltro = (campo: keyof FiltrosState, valor: FiltroValor) => {
     setFiltros((prev) => ({ ...prev, [campo]: valor }));
@@ -206,208 +223,280 @@ export default function MiArmario() {
     });
   };
 
+  /* -------------------- Render Item -------------------- */
   const renderPrenda = ({ item }: { item: Prenda }) => (
-    <TouchableOpacity
-      style={styles.prendaContainer}
-      onPress={() => abrirDetalle(item)}
-      activeOpacity={0.9}
-    >
-      <Image source={{ uri: item.imagen }} style={styles.prendaImagen} />
-    </TouchableOpacity>
+    <Card style={styles.prendaCard}>
+      <TouchableOpacity
+        style={styles.prendaTouchable}
+        onPress={() => abrirDetalle(item)}
+        activeOpacity={0.9}
+      >
+        <Image
+          source={{ uri: item.imagen }}
+          style={[styles.prendaImagen, isWeb && styles.prendaImagenWeb]}
+          resizeMode={isWeb ? "contain" : "cover"}
+        />
+        <View style={styles.prendaInfo}>
+          <Text style={styles.prendaNombre}>{item.nombre}</Text>
+          <Text style={styles.prendaTipo}>{item.tipo}</Text>
+        </View>
+      </TouchableOpacity>
+    </Card>
   );
 
+  /* -------------------- RENDER -------------------- */
   return (
-    <LinearGradient
-      colors={colors.gradient as any}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.gradient}
-    >
-      <Header title="Mi Armario" />
+    <LinearGradient colors={colors.gradient} style={{ flex: 1, minHeight: 0 }}>
+      
+      {/* ░░░ CABECERA FIJA SIN SCROLL ░░░ */}
+      <View style={styles.headerArea}>
 
-      {/* Acciones superiores */}
-      <View style={styles.topActions}>
-        <TouchableOpacity
-          style={styles.btnAgregar}
-          onPress={() => router.push("/add-prenda")}
-        >
-          <Ionicons name="add-circle-outline" size={20} color="#FFF" />
-          <Text style={styles.btnAgregarText}>Agregar</Text>
-        </TouchableOpacity>
-
-        <View style={styles.rightActions}>
+        {/* Top row: botón atrás + perfil */}
+        <View style={styles.headerTopRow}>
           <TouchableOpacity
-            style={styles.btnOrdenar}
-            onPress={() => {
-              const ordenes: any = { fecha: "tipo", tipo: "color", color: "fecha" };
-              setOrden(ordenes[orden]);
-            }}
+            onPress={() => router.back()}
+            style={styles.backButton}
           >
-            <Ionicons name="swap-vertical-outline" size={22} color={colors.primary} />
-            <Text style={styles.ordenarText}>{orden}</Text>
+            <Ionicons
+              name="chevron-back-outline"
+              size={26}
+              color={colors.iconActive}
+            />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.btnFiltros} onPress={toggleFiltros}>
-            <Ionicons name="options-outline" size={22} color={colors.primary} />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Panel de filtros */}
-      {mostrarFiltros && (
-        <View style={styles.filtrosContainer}>
-          <View style={styles.filtrosHeader}>
-            <Text style={styles.filtrosTitulo}>Filtros</Text>
-            <TouchableOpacity onPress={limpiarFiltros}>
-              <Text style={styles.limpiarFiltros}>Limpiar</Text>
-            </TouchableOpacity>
-          </View>
-
-          {Object.entries(opcionesFiltros).map(([campo, valores]) => (
-            <View key={campo} style={styles.filtroGroup}>
-              <Text style={styles.filtroLabel}>
-                {campo.charAt(0).toUpperCase() + campo.slice(1)}
-              </Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {valores.map((v) => (
-                  <TouchableOpacity
-                    key={`${campo}-${v}`}
-                    style={[
-                      styles.filtroChip,
-                      filtros[campo as keyof FiltrosState] === v &&
-                        styles.filtroChipActive,
-                    ]}
-                    onPress={() => actualizarFiltro(campo as keyof FiltrosState, v)}
-                  >
-                    <Text
-                      style={[
-                        styles.filtroChipText,
-                        filtros[campo as keyof FiltrosState] === v &&
-                          styles.filtroChipTextActive,
-                      ]}
-                    >
-                      {v === VALOR_TODOS ? "Todos" : v.charAt(0).toUpperCase() + v.slice(1)}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          ))}
-        </View>
-      )}
-
-      {/* Grid */}
-      {prendasFiltradas.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyIcon}>👕</Text>
-          <Text style={styles.emptyText}>
-            {prendas.length === 0
-              ? "No tienes prendas aún"
-              : "No hay prendas que coincidan con los filtros"}
-          </Text>
           <TouchableOpacity
-            style={styles.btnAgregarEmpty}
+            onPress={() => router.push("/perfil")}
+            style={styles.profileButton}
+          >
+            <Ionicons
+              name="person-circle-outline"
+              size={32}
+              color={colors.iconActive}
+            />
+          </TouchableOpacity>
+        </View>
+
+        {/* Título “Tu armario” más abajo */}
+        <View style={styles.titleBlock}>
+          <TitleSerif style={styles.title}>Tu armario</TitleSerif>
+          <SubtitleSerif>{prendas.length} prendas organizadas</SubtitleSerif>
+        </View>
+
+        {/* Chips rápidas */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{ paddingRight: 20 }}
+          style={{ overflow: "visible" }}
+        >
+          {categoriasRapidas.map((cat) => (
+            <TouchableOpacity
+              key={cat}
+              style={[
+                styles.categoryChip,
+                filtroCategoria === cat && styles.categoryChipActive,
+              ]}
+              onPress={() => {
+                setFiltroCategoria(cat);
+                setFiltros((prev) => ({
+                  ...prev,
+                  tipo: cat === QUICK_ALL ? VALOR_TODOS : cat,
+                }));
+              }}
+            >
+              <Text
+                style={[
+                  styles.categoryText,
+                  filtroCategoria === cat && styles.categoryTextActive,
+                ]}
+              >
+                {cat}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* Top buttons */}
+        <View style={styles.topActions}>
+          <TouchableOpacity
+            style={styles.btnAgregar}
             onPress={() => router.push("/add-prenda")}
           >
-            <Text style={styles.btnAgregarEmptyText}>Agregar prenda</Text>
+            <Ionicons
+              name="add-circle-outline"
+              size={20}
+              color={colors.textOnPrimary}
+            />
+            <Text style={styles.btnAgregarText}>Agregar</Text>
           </TouchableOpacity>
+
+          <View style={styles.rightActions}>
+            <TouchableOpacity
+              style={styles.btnOrdenar}
+              onPress={() => {
+                const ordenes: any = { fecha: "tipo", tipo: "color", color: "fecha" };
+                setOrden(ordenes[orden]);
+              }}
+            >
+              <Ionicons name="swap-vertical-outline" size={20} color={colors.iconActive} />
+              <Text style={styles.ordenarText}>
+                {orden === "fecha" ? "Fecha" : orden}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.btnFiltros}
+              onPress={() => setMostrarFiltros(!mostrarFiltros)}
+            >
+              <Ionicons name="options-outline" size={20} color={colors.iconActive} />
+            </TouchableOpacity>
+          </View>
         </View>
-      ) : (
+
+        {/* Filtros */}
+        {mostrarFiltros && (
+          <View style={styles.filtrosContainer}>
+            <View style={styles.filtrosHeader}>
+              <Text style={styles.filtrosTitulo}>Filtros</Text>
+              <TouchableOpacity onPress={limpiarFiltros}>
+                <Text style={styles.limpiarFiltros}>Limpiar</Text>
+              </TouchableOpacity>
+            </View>
+
+            {Object.entries(opcionesFiltros).map(([campo, valores]) => (
+              <View key={campo} style={styles.filtroGroup}>
+                <Text style={styles.filtroLabel}>
+                  {campo.charAt(0).toUpperCase() + campo.slice(1)}
+                </Text>
+
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ paddingRight: 20 }}
+                >
+                  {valores.map((v) => (
+                    <TouchableOpacity
+                      key={`${campo}-${v}`}
+                      style={[
+                        styles.filtroChip,
+                        filtros[campo as keyof FiltrosState] === v &&
+                          styles.filtroChipActive,
+                      ]}
+                      onPress={() => actualizarFiltro(campo as keyof FiltrosState, v)}
+                    >
+                      <Text
+                        style={[
+                          styles.filtroChipText,
+                          filtros[campo as keyof FiltrosState] === v &&
+                            styles.filtroChipTextActive,
+                        ]}
+                      >
+                        {v === VALOR_TODOS ? "Todos" : v}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            ))}
+          </View>
+        )}
+
+      </View>
+
+      {/* ░░░ GRID CON SCROLL ░░░ */}
+      <View style={{ flex: 1, minHeight: 0 }}>
         <FlatList
           data={prendasFiltradas}
           renderItem={renderPrenda}
           keyExtractor={(item) => item.id}
           numColumns={columnas}
+          showsVerticalScrollIndicator={true}
           contentContainerStyle={styles.gridContainer}
         />
-      )}
+      </View>
 
-      {/* Modal detalle */}
-      <Modal visible={modalVisible} animationType="slide" transparent>
+      {/* FAB */}
+      <FloatingActionButton onPress={() => router.push("/add-prenda")} />
+
+      {/* MODAL DETALLE */}
+      <Modal visible={modalVisible} animationType="fade" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             {prendaSeleccionada && (
               <>
-                <Image
-                  source={{ uri: prendaSeleccionada.imagen }}
-                  style={styles.modalImage}
-                />
+                <View style={styles.modalImageWrapper}>
+                  <Image
+                    source={{ uri: prendaSeleccionada.imagen }}
+                    style={styles.modalImage}
+                    resizeMode="contain"
+                  />
+                </View>
 
-                <ScrollView style={{ maxHeight: 220 }}>
+                <View style={styles.modalContent}>
                   <Text style={styles.modalTitle}>{prendaSeleccionada.nombre}</Text>
-                  <Text style={styles.modalDetail}>
-                    <Text style={{ fontWeight: "700" }}>Tipo: </Text>
-                    {prendaSeleccionada.tipo}
+
+                  <Text style={styles.modalDetailText}>
+                    Tipo: {prendaSeleccionada.tipo}
                   </Text>
 
-                  <Text style={styles.modalDetail}>
-                    <Text style={{ fontWeight: "700" }}>Color: </Text>
-                    {prendaSeleccionada.color}
+                  <Text style={styles.modalDetailText}>
+                    Color: {prendaSeleccionada.color}
                   </Text>
 
                   {prendaSeleccionada.ocasion && (
-                    <Text style={styles.modalDetail}>
-                      <Text style={{ fontWeight: "700" }}>Ocasión: </Text>
-                      {prendaSeleccionada.ocasion}
+                    <Text style={styles.modalDetailText}>
+                      Ocasión: {prendaSeleccionada.ocasion}
                     </Text>
                   )}
 
                   {prendaSeleccionada.estacion && (
-                    <Text style={styles.modalDetail}>
-                      <Text style={{ fontWeight: "700" }}>Estación: </Text>
-                      {prendaSeleccionada.estacion}
+                    <Text style={styles.modalDetailText}>
+                      Estación: {prendaSeleccionada.estacion}
                     </Text>
                   )}
-                </ScrollView>
+                </View>
 
                 <View style={styles.modalActions}>
                   <TouchableOpacity
-                    style={styles.modalBtn}
+                    style={styles.modalBtnSecondary}
                     onPress={() => {
                       setModalVisible(false);
-                      router.push({
-                        pathname: "/editar-prenda",
-                        params: { id: prendaSeleccionada.id },
-                      });
+                      router.push(`/editar-prenda?id=${prendaSeleccionada.id}`);
                     }}
                   >
-                    <Ionicons name="create-outline" size={20} color="#FFF" />
-                    <Text style={styles.modalBtnText}>Editar</Text>
+                    <Ionicons name="create-outline" size={18} color={colors.textPrimary} />
+                    <Text style={styles.modalBtnSecondaryText}>Editar</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    style={styles.modalBtn}
+                    style={styles.modalBtnPrimary}
                     onPress={() => {
                       setModalVisible(false);
-                      router.push({
-                        pathname: "/crear-outfit",
-                        params: { prendaId: prendaSeleccionada.id },
-                      });
+                      router.push(`/crear-outfit?prendaId=${prendaSeleccionada.id}`);
                     }}
                   >
-                    <Ionicons name="sparkles-outline" size={20} color="#FFF" />
-                    <Text style={styles.modalBtnText}>Crear outfit</Text>
+                    <Ionicons name="sparkles-outline" size={18} color="#FFF" />
+                    <Text style={styles.modalBtnPrimaryText}>Crear outfit</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
-                    style={[styles.modalBtn, { backgroundColor: "#E53935" }]}
+                    style={styles.modalBtnDanger}
                     onPress={() => {
                       setPrendaAEliminar(prendaSeleccionada);
                       setModalVisible(false);
                       setTimeout(() => setConfirmVisible(true), 60);
                     }}
                   >
-                    <Ionicons name="trash-outline" size={20} color="#FFF" />
-                    <Text style={styles.modalBtnText}>Eliminar</Text>
+                    <Ionicons name="trash-outline" size={18} color="#FFF" />
+                    <Text style={styles.modalBtnPrimaryText}>Eliminar</Text>
                   </TouchableOpacity>
                 </View>
 
-                {/* ❗ CAMBIO: botón cerrar visible siempre */}
                 <TouchableOpacity
                   style={styles.modalClose}
                   onPress={() => setModalVisible(false)}
                 >
-                  <Ionicons name="close" size={20} color="#000" />
+                  <Ionicons name="close" size={20} color={colors.textPrimary} />
                 </TouchableOpacity>
               </>
             )}
@@ -415,7 +504,7 @@ export default function MiArmario() {
         </View>
       </Modal>
 
-      {/* Modal confirmación */}
+      {/* CONFIRM DELETE */}
       <Modal visible={confirmVisible} transparent animationType="fade">
         <View style={styles.confirmOverlay}>
           <View style={styles.confirmBox}>
@@ -425,14 +514,14 @@ export default function MiArmario() {
 
             <View style={styles.confirmActions}>
               <TouchableOpacity
-                style={[styles.confirmBtn, { backgroundColor: "#CCC" }]}
+                style={[styles.confirmBtn, { backgroundColor: colors.primarySoft }]}
                 onPress={() => setConfirmVisible(false)}
               >
-                <Text>Cancelar</Text>
+                <Text style={{ color: colors.textPrimary }}>Cancelar</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.confirmBtn, { backgroundColor: "#E53935" }]}
+                style={[styles.confirmBtn, { backgroundColor: colors.danger }]}
                 onPress={eliminarAhora}
               >
                 <Text style={{ color: "#FFF" }}>Eliminar</Text>
@@ -446,83 +535,167 @@ export default function MiArmario() {
   );
 }
 
+/* -------------------- STYLES -------------------- */
+
 const styles = StyleSheet.create({
-  gradient: { flex: 1 },
+
+  headerArea: {
+    flexShrink: 0,
+    paddingHorizontal: 20,
+    paddingTop: 28,       // título más abajo → estilo Home
+    paddingBottom: 10,
+  },
+
+  headerTopRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+
+  backButton: {
+    backgroundColor: colors.card,
+    padding: 8,
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
+  },
+
+  profileButton: {
+    padding: 4,
+  },
+
+  titleBlock: {
+    marginBottom: 16,
+  },
+
+  title: {
+    fontSize: 32,
+    marginBottom: 6,
+    color: colors.textPrimary,
+  },
+
+  categoryChip: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: colors.chipBackground,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginRight: 10,
+  },
+
+  categoryChipActive: {
+    backgroundColor: colors.chipBackgroundActive,
+    borderColor: colors.chipBackgroundActive,
+  },
+
+  categoryText: {
+    color: colors.chipText,
+    fontSize: 14,
+  },
+
+  categoryTextActive: {
+    color: colors.chipTextActive,
+  },
 
   topActions: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    marginTop: 12,
+    marginBottom: 6,
   },
 
   btnAgregar: {
     backgroundColor: colors.primary,
-    borderRadius: 12,
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
   },
 
-  btnAgregarText: { color: "#FFF", fontWeight: "600", fontSize: 14 },
+  btnAgregarText: {
+    color: colors.textOnPrimary,
+    fontWeight: "600",
+  },
 
-  rightActions: { flexDirection: "row", alignItems: "center", gap: 12 },
+  rightActions: {
+    flexDirection: "row",
+    gap: 10,
+    alignItems: "center",
+  },
 
   btnOrdenar: {
-    backgroundColor: "#FFF",
+    backgroundColor: colors.card,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 8,
+    gap: 6,
   },
 
   ordenarText: {
-    color: colors.primary,
-    fontWeight: "500",
-    textTransform: "capitalize",
+    color: colors.textSecondary,
   },
 
   btnFiltros: {
-    backgroundColor: "#FFF",
+    backgroundColor: colors.card,
     padding: 10,
     borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
 
   filtrosContainer: {
-    backgroundColor: "#FFFFFFAA",
-    borderRadius: 16,
-    marginHorizontal: 16,
-    marginBottom: 12,
+    backgroundColor: colors.primarySoft,
+    borderRadius: 18,
     padding: 12,
+    marginTop: 10,
   },
 
   filtrosHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
     marginBottom: 8,
   },
 
-  filtrosTitulo: { fontSize: 16, fontWeight: "600", color: "#1E1E1E" },
+  filtrosTitulo: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
 
-  limpiarFiltros: { color: colors.primary, fontSize: 13, fontWeight: "500" },
+  limpiarFiltros: {
+    color: colors.primaryDark,
+    fontSize: 13,
+    fontWeight: "500",
+  },
 
-  filtroGroup: { marginBottom: 10 },
+  filtroGroup: {
+    marginBottom: 10,
+  },
 
-  filtroLabel: { fontSize: 13, fontWeight: "500", color: "#444", marginBottom: 4 },
+  filtroLabel: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginBottom: 4,
+  },
 
   filtroChip: {
-    backgroundColor: "#FFF",
+    backgroundColor: colors.chipBackground,
     borderRadius: 20,
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderWidth: 1,
-    borderColor: "#EEE",
+    borderColor: colors.border,
     marginRight: 6,
   },
 
@@ -531,114 +704,179 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
   },
 
-  filtroChipText: { color: "#666", fontSize: 13 },
-
-  filtroChipTextActive: { color: "#FFF" },
-
-  gridContainer: {
-    paddingHorizontal: 12,
-    paddingBottom: 40,
-    justifyContent: "center",
+  filtroChipText: {
+    color: colors.textSecondary,
   },
 
-  prendaContainer: {
+  filtroChipTextActive: {
+    color: colors.textOnPrimary,
+  },
+
+  gridContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 120,
+  },
+
+  prendaCard: {
     flex: 1,
-    aspectRatio: 1,
-    margin: 6,
-    borderRadius: 10,
+    margin: 8,
+    borderRadius: 22,
     overflow: "hidden",
-    backgroundColor: "#FFF",
-    elevation: 3,
-    maxWidth: 250,
-    alignSelf: "center",
+  },
+
+  prendaTouchable: {
+    backgroundColor: colors.card,
   },
 
   prendaImagen: {
     width: "100%",
-    height: "100%",
-    resizeMode: "cover",
-    objectFit: "cover",
+    height: 180,
   },
+
+  prendaImagenWeb: {
+    height: 220,
+    ...(Platform.OS === "web" && {
+      objectFit: "contain",
+    }),
+  },
+
+  prendaInfo: {
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+
+  prendaNombre: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.textPrimary,
+  },
+
+  prendaTipo: {
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+
+  /* -------------------- Modal -------------------- */
 
   modalOverlay: {
     flex: 1,
-    backgroundColor: "#000000AA",
+    backgroundColor: "rgba(0,0,0,0.4)",
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
+    padding: 24,
   },
 
   modalCard: {
-    backgroundColor: "#FFF",
-    borderRadius: 20,
     width: "100%",
-    maxWidth: 400,
+    maxWidth: 420,
+    backgroundColor: colors.card,
+    borderRadius: 26,
     overflow: "hidden",
     position: "relative",
   },
 
-  /* ❗ CAMBIO: ver imagen completa */
+  modalImageWrapper: {
+    backgroundColor: colors.background,
+    paddingVertical: 16,
+  },
+
   modalImage: {
     width: "100%",
-    height: 260,
-    resizeMode: "contain",
-    backgroundColor: "#FFF",
+    height: 250,
+  },
+
+  modalContent: {
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: 6,
   },
 
   modalTitle: {
     fontSize: 20,
     fontWeight: "700",
-    color: colors.primary,
-    marginBottom: 8,
-    textAlign: "center",
+    marginBottom: 10,
+    color: colors.textPrimary,
   },
 
-  modalDetail: {
+  modalDetailText: {
     fontSize: 14,
-    color: "#444",
+    color: colors.textSecondary,
     marginBottom: 4,
-    textAlign: "center",
   },
 
   modalActions: {
     flexDirection: "row",
-    justifyContent: "space-around",
-    marginTop: 12,
-    marginBottom: 8,
+    gap: 10,
+    paddingHorizontal: 18,
+    paddingBottom: 16,
   },
 
-  modalBtn: {
-    flexDirection: "row",
+  modalBtnSecondary: {
+    flex: 1,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+    paddingVertical: 10,
     alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
     gap: 6,
-    backgroundColor: colors.primary,
-    borderRadius: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
   },
 
-  modalBtnText: { color: "#FFF", fontWeight: "600" },
+  modalBtnSecondaryText: {
+    color: colors.textPrimary,
+    fontWeight: "500",
+  },
 
-  /* ❗ CAMBIO: botón cerrar dentro de un círculo blanco */
+  modalBtnPrimary: {
+    flex: 1,
+    borderRadius: 999,
+    backgroundColor: colors.primary,
+    paddingVertical: 10,
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 6,
+  },
+
+  modalBtnDanger: {
+    flex: 0.9,
+    borderRadius: 999,
+    backgroundColor: colors.danger,
+    paddingVertical: 10,
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 6,
+  },
+
+  modalBtnPrimaryText: {
+    color: "#FFF",
+    fontWeight: "600",
+  },
+
   modalClose: {
     position: "absolute",
-    top: 10,
-    right: 10,
-    backgroundColor: "#FFF",
-    borderRadius: 20,
-    padding: 4,
+    top: 12,
+    right: 12,
+    backgroundColor: "#FFFFFFEE",
+    padding: 6,
+    borderRadius: 999,
   },
 
+  /* -------------------- Confirm delete -------------------- */
   confirmOverlay: {
     flex: 1,
-    backgroundColor: "#00000088",
+    backgroundColor: "rgba(0,0,0,0.35)",
     justifyContent: "center",
     alignItems: "center",
     padding: 30,
   },
 
   confirmBox: {
-    backgroundColor: "#FFF",
+    backgroundColor: colors.card,
     padding: 20,
     borderRadius: 16,
     width: "90%",
@@ -648,14 +886,13 @@ const styles = StyleSheet.create({
   confirmText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#333",
+    color: colors.textPrimary,
     textAlign: "center",
     marginBottom: 20,
   },
 
   confirmActions: {
     flexDirection: "row",
-    justifyContent: "space-between",
     gap: 10,
   },
 
@@ -665,23 +902,4 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
   },
-
-  emptyContainer: {
-    flex: 1,
-    alignItems: "center",
-    marginTop: 40,
-  },
-
-  emptyIcon: { fontSize: 50, marginBottom: 10 },
-
-  emptyText: { fontSize: 15, color: "#666", marginBottom: 12 },
-
-  btnAgregarEmpty: {
-    backgroundColor: colors.primary,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-  },
-
-  btnAgregarEmptyText: { color: "#FFF", fontWeight: "600" },
 });

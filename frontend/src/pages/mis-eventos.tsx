@@ -1,3 +1,7 @@
+// ================================
+// MIS EVENTOS — ESTILO MAISON
+// ================================
+
 import React, { useEffect, useMemo, useState } from "react";
 import {
   View,
@@ -5,21 +9,29 @@ import {
   StyleSheet,
   TouchableOpacity,
   Modal,
-  TextInput,
   Alert,
   Switch,
   ScrollView,
   Image,
 } from "react-native";
+
 import { LinearGradient } from "expo-linear-gradient";
 import { Calendar, DateData } from "react-native-calendars";
 import { Ionicons } from "@expo/vector-icons";
-import Header from "../components/Header";
+
+import HeaderMaison from "../components/Header";
 import colors from "../constants/colors";
+
 import { apiRequest } from "../utils/apiClient";
 import { useLoader } from "../context/LoaderContext";
 import * as DeviceCalendar from "expo-calendar";
 import { router } from "expo-router";
+
+import TitleSerif from "../components/ui/TitleSerif";
+import SubtitleSerif from "../components/ui/SubtitleSerif";
+import Card from "../components/ui/Card";
+import InputMaison from "../components/ui/InputMaison";
+import PrimaryButton from "../components/ui/PrimaryButton";
 
 interface Evento {
   id: string;
@@ -54,7 +66,7 @@ export default function MisEventos() {
   const [outfitsPorEvento, setOutfitsPorEvento] =
     useState<OutfitsPorEventoMap>({});
 
-  // ---------- INIT: eventos + outfits ----------
+  // ---------- INIT ----------
   useEffect(() => {
     inicializarPantalla();
   }, []);
@@ -72,34 +84,30 @@ export default function MisEventos() {
 
       const map: OutfitsPorEventoMap = {};
       (dataOutfits.outfits || []).forEach((o: any) => {
-        const eventoId = o.eventoId;
-        if (!eventoId) return;
-        const entry: OutfitEvento = {
+        if (!o.eventoId) return;
+        if (!map[o.eventoId]) map[o.eventoId] = [];
+        map[o.eventoId].push({
           id: o.id,
           nombre: o.nombre,
           imagen: o.imagen,
-          eventoId,
-        };
-        if (!map[eventoId]) map[eventoId] = [];
-        map[eventoId].push(entry);
+          eventoId: o.eventoId,
+        });
       });
 
       setOutfitsPorEvento(map);
     } catch (e: any) {
-      console.log("Error cargando eventos/outfits", e);
       Alert.alert("Error", "No se pudieron cargar los eventos.");
     } finally {
       hideLoader();
     }
   };
 
-  // ---------- Crear evento (API + opcional calendario nativo) ----------
+  // ---------- Crear evento ----------
   const crearEvento = async () => {
     if (!nuevoNombre.trim()) return;
 
     showLoader("Creando evento...");
     try {
-      // 1) Crear en tu API
       await apiRequest("/api/eventos", {
         method: "POST",
         body: JSON.stringify({
@@ -109,7 +117,6 @@ export default function MisEventos() {
         }),
       });
 
-      // 2) Opcional: crear también en calendario del móvil
       if (guardarEnCalendario) {
         await crearEventoNativo(
           nuevoNombre.trim(),
@@ -121,18 +128,16 @@ export default function MisEventos() {
       setModalCrear(false);
       setNuevoNombre("");
       setNuevaDescripcion("");
-
-      // Recargar eventos
       await inicializarPantalla();
-    } catch (e: any) {
+    } catch (e) {
       Alert.alert("Error", "No se pudo crear el evento.");
     } finally {
       hideLoader();
     }
   };
 
-  // ---------- Permisos / creación en calendario nativo ----------
-  const pedirPermisoCalendario = async (): Promise<boolean> => {
+  // ---------- Permisos calendario nativo ----------
+  const pedirPermisoCalendario = async () => {
     const { status } =
       await DeviceCalendar.requestCalendarPermissionsAsync();
 
@@ -140,19 +145,11 @@ export default function MisEventos() {
       setCalendarPermission(true);
       return true;
     }
-
-    Alert.alert(
-      "Permiso requerido",
-      "La app necesita permiso para guardar eventos en tu calendario."
-    );
+    Alert.alert("Permiso requerido");
     return false;
   };
 
-  const crearEventoNativo = async (
-    titulo: string,
-    descripcion: string,
-    fecha: string
-  ) => {
+  const crearEventoNativo = async (titulo: string, descripcion: string, fecha: string) => {
     if (!calendarPermission) {
       const ok = await pedirPermisoCalendario();
       if (!ok) return;
@@ -173,31 +170,34 @@ export default function MisEventos() {
     });
   };
 
-  // ---------- Eventos del día ----------
+  // ---------- Filtrar eventos del día ----------
   const eventosDelDia = useMemo(
     () => eventos.filter((e) => e.fecha === selectedDate),
     [eventos, selectedDate]
   );
 
-  // ---------- UI ----------
-  return (
-    <LinearGradient
-      colors={colors.gradient}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-      style={styles.gradient}
-    >
-      <Header title="Mis Eventos" />
+  // ============================================================
+  // RENDER
+  // ============================================================
 
-      {/* Scroll general: calendario + eventos + botón final */}
+  return (
+    <LinearGradient colors={colors.gradient} style={{ flex: 1 }}>
+      <HeaderMaison />
+
+      {/* TITLE */}
+      <View style={styles.titleBlock}>
+        <TitleSerif>Mis eventos</TitleSerif>
+        <SubtitleSerif>Organiza tus planes y crea tu outfit ideal</SubtitleSerif>
+      </View>
+
       <ScrollView
-        style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
       >
-        {/* Calendario en tarjeta blanca */}
-        <View style={styles.calendarCard}>
+        {/* ---------- CALENDARIO EN CARD MAISON ---------- */}
+        <Card style={styles.calendarCard}>
           <Calendar
-            onDayPress={(day: DateData) => setSelectedDate(day.dateString)}
+            onDayPress={(d: DateData) => setSelectedDate(d.dateString)}
             markedDates={{
               [selectedDate]: {
                 selected: true,
@@ -208,13 +208,13 @@ export default function MisEventos() {
                   ...acc,
                   [e.fecha]: { marked: true, dotColor: colors.primary },
                 }),
-                {} as any
+                {}
               ),
             }}
             theme={{
-              calendarBackground: "#FFF",
-              textSectionTitleColor: "#666",
-              dayTextColor: "#333",
+              calendarBackground: colors.card,
+              textSectionTitleColor: colors.textSecondary,
+              dayTextColor: colors.textPrimary,
               monthTextColor: colors.primary,
               selectedDayBackgroundColor: colors.primary,
               selectedDayTextColor: "#FFF",
@@ -223,56 +223,53 @@ export default function MisEventos() {
             }}
             style={styles.calendar}
           />
-        </View>
+        </Card>
 
-        {/* Eventos del día */}
-        <Text style={styles.sectionTitle}>
+        {/* ---------- EVENTOS DEL DÍA ---------- */}
+        <TitleSerif style={styles.sectionTitle}>
           Eventos del {selectedDate}
-        </Text>
+        </TitleSerif>
 
         {eventosDelDia.length === 0 ? (
           <Text style={styles.emptyText}>No hay eventos este día</Text>
         ) : (
-          eventosDelDia.map((item) => {
-            const outfitsDeEsteEvento =
-              outfitsPorEvento[item.id] || [];
+          eventosDelDia.map((evento) => {
+            const outfits = outfitsPorEvento[evento.id] || [];
 
             return (
-              <View key={item.id} style={styles.card}>
-                <Text style={styles.cardTitle}>{item.nombre}</Text>
-                {item.descripcion ? (
-                  <Text style={styles.cardDesc}>{item.descripcion}</Text>
-                ) : null}
+              <Card key={evento.id} style={styles.eventCard}>
+                <View style={styles.eventHeaderRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.eventTitle}>{evento.nombre}</Text>
+                    {evento.descripcion ? (
+                      <Text style={styles.eventDesc}>{evento.descripcion}</Text>
+                    ) : null}
+                  </View>
 
-                {/* Si hay outfit(s) asociado(s) al evento, se muestran aquí */}
-                {outfitsDeEsteEvento.length > 0 && (
-                  <View style={styles.outfitPreview}>
-                    <Text style={styles.outfitPreviewTitle}>
-                      Outfits para este evento
-                    </Text>
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                    >
-                      {outfitsDeEsteEvento.map((o) => (
+                  {/* Imagen del outfit generado por IA */}
+                  {outfits.length > 0 && (
+                    <Image
+                      source={{ uri: outfits[0].imagen }}
+                      style={styles.eventImage}
+                    />
+                  )}
+                </View>
+
+                {/* Lista horizontal de outfits del evento */}
+                {outfits.length > 0 && (
+                  <View style={{ marginTop: 12 }}>
+                    <SubtitleSerif>Outfits asignados</SubtitleSerif>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                      {outfits.map((o) => (
                         <TouchableOpacity
                           key={o.id}
                           style={styles.outfitItem}
                           onPress={() =>
-                            router.push({
-                              pathname: "/mis-outfits",
-                              params: { id: o.id },
-                            })
+                            router.push(`/mis-outfits?id=${o.id}`)
                           }
                         >
-                          <Image
-                            source={{ uri: o.imagen }}
-                            style={styles.outfitThumb}
-                          />
-                          <Text
-                            style={styles.outfitName}
-                            numberOfLines={1}
-                          >
+                          <Image source={{ uri: o.imagen }} style={styles.outfitThumb} />
+                          <Text numberOfLines={1} style={styles.outfitName}>
                             {o.nombre}
                           </Text>
                         </TouchableOpacity>
@@ -281,79 +278,66 @@ export default function MisEventos() {
                   </View>
                 )}
 
-                {/* Botones de acción para el evento */}
-                <View style={styles.row}>
-                  {/* IMPORTANTE:
-                      Este botón navega a /crear-outfit?eventoId=...
-                      y esa pantalla llama internamente a /api/outfits/por-evento
-                      tal como querías. */}
-                  <TouchableOpacity
-                    style={styles.optionBtn}
+                {/* Botones */}
+                <View style={styles.actionRow}>
+                  <PrimaryButton
+                    text="Outfit IA"
                     onPress={() =>
-                      router.push(`/crear-outfit?eventoId=${item.id}&eventoNombre=${encodeURIComponent(item.nombre)}`)
+                      router.push(
+                        `/crear-outfit?eventoId=${evento.id}&eventoNombre=${encodeURIComponent(
+                          evento.nombre
+                        )}`
+                      )
                     }
+                    style={{ flex: 1 }}
+                  />
 
-                  >
-                    <Ionicons
-                      name="sparkles-outline"
-                      size={20}
-                      color="#FFF"
-                    />
-                    <Text style={styles.optionText}>Outfit IA</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.optionBtn}
+                  <PrimaryButton
+                    text="Por prenda"
+                    variant="secondary"
                     onPress={() =>
                       router.push("/mi-armario?selectMode=prenda")
                     }
-                  >
-                    <Ionicons
-                      name="shirt-outline"
-                      size={20}
-                      color="#FFF"
-                    />
-                    <Text style={styles.optionText}>Por prenda</Text>
-                  </TouchableOpacity>
+                    style={{ flex: 1 }}
+                  />
                 </View>
-              </View>
+              </Card>
             );
           })
         )}
 
-        {/* Botón Crear Evento SIEMPRE al final del contenido */}
-        <TouchableOpacity
-          style={styles.btnCrear}
+        {/* ---------- BOTÓN CREAR EVENTO ---------- */}
+        <PrimaryButton
+          text="Crear evento"
           onPress={() => setModalCrear(true)}
-        >
-          <Ionicons name="add-circle-outline" size={22} color="#FFF" />
-          <Text style={styles.btnCrearText}>Crear Evento</Text>
-        </TouchableOpacity>
+          style={{ marginTop: 20 }}
+        />
       </ScrollView>
 
-      {/* Modal para crear evento */}
+      {/* ---------- MODAL CREAR EVENTO ---------- */}
       <Modal visible={modalCrear} transparent animationType="fade">
-        <View className="modalOverlay" style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>Nuevo evento</Text>
+        <View style={styles.modalOverlay}>
+          <Card style={styles.modalBox}>
+            <TitleSerif>Nuevo evento</TitleSerif>
 
-            <TextInput
-              placeholder="Nombre del evento"
-              style={styles.input}
+            <InputMaison
+              label="Nombre del evento"
               value={nuevoNombre}
               onChangeText={setNuevoNombre}
+              placeholder="Ej: Cena con amigos"
             />
 
-            <TextInput
-              placeholder="Descripción (opcional)"
-              style={[styles.input, { height: 80 }]}
+            <InputMaison
+              label="Descripción (opcional)"
               value={nuevaDescripcion}
               onChangeText={setNuevaDescripcion}
+              placeholder="Detalles del evento..."
               multiline
+              style={{ height: 80 }}
             />
 
             <View style={styles.switchRow}>
-              <Text style={{ flex: 1 }}>
+              <Text style={styles.switchLabel}>
                 Guardar también en tu calendario
               </Text>
               <Switch
@@ -362,191 +346,163 @@ export default function MisEventos() {
               />
             </View>
 
-            <View style={styles.modalRow}>
-              <TouchableOpacity
-                style={[styles.modalBtn, { backgroundColor: "#CCC" }]}
+            <View style={styles.modalActions}>
+              <PrimaryButton
+                text="Cancelar"
+                variant="secondary"
                 onPress={() => setModalCrear(false)}
-              >
-                <Text>Cancelar</Text>
-              </TouchableOpacity>
+                style={{ flex: 1 }}
+              />
 
-              <TouchableOpacity
-                style={[
-                  styles.modalBtn,
-                  { backgroundColor: colors.primary },
-                ]}
+              <PrimaryButton
+                text="Crear"
                 onPress={crearEvento}
-              >
-                <Text style={{ color: "#FFF" }}>Crear</Text>
-              </TouchableOpacity>
+                style={{ flex: 1 }}
+              />
             </View>
-          </View>
+          </Card>
         </View>
       </Modal>
     </LinearGradient>
   );
 }
 
+// ============================================================
+// ESTILOS MAISON
+// ============================================================
+
 const styles = StyleSheet.create({
-  gradient: { flex: 1 },
-  scroll: { flex: 1 },
+  titleBlock: {
+    width: "100%",
+    maxWidth: 650,
+    alignSelf: "center",
+    paddingHorizontal: 20,
+    marginTop: 8,
+    marginBottom: 6,
+  },
+
   scrollContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 32,
+    paddingHorizontal: 20,
+    paddingBottom: 40,
     paddingTop: 10,
   },
 
+  // ---- CALENDARIO ----
   calendarCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 12,
+    maxWidth: 650,
+    alignSelf: "center",
+    width: "100%",
     marginBottom: 20,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
   },
+
   calendar: {
     borderRadius: 16,
   },
 
   sectionTitle: {
-    color: "#FFF",
-    fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 8,
+    marginTop: 4,
+    marginBottom: 6,
+    maxWidth: 650,
+    alignSelf: "center",
   },
+
   emptyText: {
-    color: "#EEE",
+    textAlign: "left",
+    color: colors.textSecondary,
     marginBottom: 16,
-    fontSize: 13,
+    fontSize: 14,
+    maxWidth: 650,
+    alignSelf: "center",
   },
 
-  card: {
-    backgroundColor: "#FFF",
-    padding: 16,
-    borderRadius: 14,
-    marginBottom: 14,
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    marginBottom: 4,
-    color: "#222",
-  },
-  cardDesc: {
-    fontSize: 13,
-    color: "#666",
-    marginBottom: 8,
+  // ---- EVENTO ----
+  eventCard: {
+    width: "100%",
+    maxWidth: 650,
+    alignSelf: "center",
+    marginBottom: 16,
   },
 
-  row: {
+  eventHeaderRow: {
     flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
     gap: 10,
-    flexWrap: "wrap",
-    marginTop: 6,
   },
 
-  optionBtn: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+  eventTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: colors.textPrimary,
+  },
+
+  eventDesc: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+
+  eventImage: {
+    width: 80,
+    height: 100,
     borderRadius: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  optionText: {
-    color: "#FFF",
-    fontWeight: "600",
-    fontSize: 13,
+    backgroundColor: "#F3F3F3",
   },
 
-  /* Outfits dentro de la card del evento */
-  outfitPreview: {
-    marginTop: 8,
-    marginBottom: 4,
-  },
-  outfitPreviewTitle: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#444",
-    marginBottom: 4,
-  },
+  // ---- Outfit listado horizontal ----
   outfitItem: {
     width: 90,
-    marginRight: 8,
+    marginRight: 10,
     alignItems: "center",
   },
   outfitThumb: {
     width: 90,
     height: 90,
-    borderRadius: 10,
-    marginBottom: 4,
-    backgroundColor: "#F3F3F3",
+    borderRadius: 12,
+    backgroundColor: "#EEE",
+    marginBottom: 6,
   },
   outfitName: {
-    fontSize: 11,
-    color: "#333",
+    fontSize: 12,
+    color: colors.textPrimary,
     textAlign: "center",
   },
 
-  btnCrear: {
-    backgroundColor: colors.primary,
-    paddingVertical: 14,
-    borderRadius: 16,
+  actionRow: {
     flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 8,
-    marginTop: 10,
-  },
-  btnCrearText: {
-    color: "#FFF",
-    fontWeight: "700",
-    fontSize: 16,
+    gap: 12,
+    marginTop: 20,
   },
 
+  // ---- MODAL ----
   modalOverlay: {
     flex: 1,
-    backgroundColor: "#00000088",
+    backgroundColor: "#00000055",
     justifyContent: "center",
-    padding: 20,
+    padding: 22,
   },
+
   modalBox: {
-    backgroundColor: "#FFF",
-    padding: 20,
-    borderRadius: 16,
+    maxWidth: 480,
+    alignSelf: "center",
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    marginBottom: 10,
-  },
-  input: {
-    backgroundColor: "#EEE",
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 10,
-    fontSize: 14,
-  },
+
   switchRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginVertical: 8,
-    gap: 8,
+    marginTop: 14,
+    marginBottom: 10,
   },
-  modalRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 10,
-    marginTop: 8,
-  },
-  modalBtn: {
+  switchLabel: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: "center",
+    fontSize: 15,
+    color: colors.textPrimary,
+    marginRight: 10,
+  },
+
+  modalActions: {
+    flexDirection: "row",
+    gap: 14,
+    marginTop: 16,
   },
 });

@@ -9,30 +9,38 @@ import {
   Alert,
   TextInput,
 } from "react-native";
+
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, router, Stack } from "expo-router";
-import Header from "../components/Header";
+
+import HeaderMaison from "../components/Header";
+import TitleSerif from "components/ui/TitleSerif";
+
 import colors from "../constants/colors";
 import { apiRequest } from "../utils/apiClient";
 import { useLoader } from "../context/LoaderContext";
 
 export default function CrearOutfit() {
   const { prendaId, eventoId, eventoNombre } = useLocalSearchParams();
-
   const { showLoader, hideLoader } = useLoader();
 
   const [outfit, setOutfit] = useState<any>(null);
 
-  // Campos editables
   const [nombre, setNombre] = useState("");
   const [categoria, setCategoria] = useState("");
   const [estacion, setEstacion] = useState("");
   const [imagen, setImagen] = useState("");
 
+  // --- Chat with AI ---
+  const [chatVisible, setChatVisible] = useState(false);
+  const [chatMessages, setChatMessages] = useState<string[]>([]);
+  const [chatInput, setChatInput] = useState("");
+
   /** AUTO-GENERACIÓN al volver desde otra pantalla */
   useEffect(() => {
     if (prendaId) generarOutfitPorPrenda(prendaId as string);
+
     if (eventoId && eventoNombre) {
       generarOutfitPorEvento(eventoId as string, eventoNombre as string);
     }
@@ -47,11 +55,9 @@ export default function CrearOutfit() {
         body: JSON.stringify({ prendaId: id }),
       });
 
-      if (!data || !data.outfit) {
-        throw new Error(data?.message || "No se pudo generar el outfit");
-      }
+      if (!data?.outfit) throw new Error("No se pudo generar el outfit");
 
-      cargarOutfitEnFormulario(data.outfit);
+      cargarOutfit(data.outfit);
     } catch (err: any) {
       Alert.alert("Error", err.message || "Error generando outfit");
     } finally {
@@ -65,16 +71,12 @@ export default function CrearOutfit() {
     try {
       const data = await apiRequest("/api/outfits/por-evento", {
         method: "POST",
-        body: JSON.stringify({
-          evento: nombreEvento,   // <-- BACKEND LO EXIGE
-        }),
+        body: JSON.stringify({ eventoId: id }),
       });
 
-      if (!data || !data.outfit) {
-        throw new Error(data?.message || "No se pudo generar el outfit");
-      }
+      if (!data?.outfit) throw new Error("No se pudo generar el outfit");
 
-      cargarOutfitEnFormulario(data.outfit);
+      cargarOutfit(data.outfit);
     } catch (err: any) {
       Alert.alert("Error", err.message || "Error generando outfit");
     } finally {
@@ -82,29 +84,8 @@ export default function CrearOutfit() {
     }
   };
 
-
-  /** ----------- GENERAR OUTFIT POR CLIMA ------------ */
-  const generarOutfitPorClima = async () => {
-    showLoader("Generando outfit por clima…");
-    try {
-      const data = await apiRequest("/api/outfits/sugerir", {
-        method: "POST",
-      });
-
-      if (!data || !data.outfits || data.outfits.length === 0) {
-        throw new Error(data?.message || "No se pudo generar el outfit");
-      }
-
-      cargarOutfitEnFormulario(data.outfits[0]);
-    } catch (err: any) {
-      Alert.alert("Error", err.message || "Error generando outfit");
-    } finally {
-      hideLoader();
-    }
-  };
-
-  /** Cargar outfit en el formulario editable */
-  const cargarOutfitEnFormulario = (o: any) => {
+  /** Cargar outfit en formulario */
+  const cargarOutfit = (o: any) => {
     setOutfit(o);
     setNombre(o.nombre || "");
     setCategoria(o.categoria || "");
@@ -112,7 +93,7 @@ export default function CrearOutfit() {
     setImagen(o.imagen || "");
   };
 
-  /** ----------- GUARDAR OUTFIT FINAL ------------ */
+  /** ----------- GUARDAR OUTFIT ------------ */
   const guardarOutfit = async () => {
     if (!outfit) return;
 
@@ -124,6 +105,7 @@ export default function CrearOutfit() {
       estacion,
       imagen,
       prendasIds,
+      eventoId: eventoId || null,
     };
 
     try {
@@ -142,58 +124,69 @@ export default function CrearOutfit() {
     }
   };
 
+  /** ----------- Enviar mensaje del Chat ------------ */
+  const enviarMensajeChat = () => {
+    if (!chatInput.trim()) return;
+
+    setChatMessages([...chatMessages, chatInput]);
+
+    // futura integración IA:
+    // sendToAI(chatInput).then(response => setChatMessages([...messages, response]))
+
+    setChatInput("");
+  };
+
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
+      <LinearGradient colors={colors.gradient} style={{ flex: 1 }}>
+        
+        {/* HEADER */}
+        <HeaderMaison />
 
-      <LinearGradient
-        colors={colors.gradient as any}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.gradient}
-      >
-        <Header title="Crear Outfit" />
+        {/* TÍTULO AL ESTILO ADD-PRENDA */}
+        <View style={[styles.titleBlock]}>
+          <TitleSerif>Crear outfit</TitleSerif>
+        </View>
 
         <ScrollView
           contentContainerStyle={{
             paddingHorizontal: 20,
-            paddingBottom: 40,
-            paddingTop: 20,
+            paddingBottom: 50,
+            paddingTop: 10,
           }}
         >
-          <Text style={styles.subtitle}>Elige cómo quieres crear tu outfit</Text>
+          {/* ---------- BOTONES PRINCIPALES ---------- */}
+          <View style={[styles.mainCard, { width: "100%", maxWidth: 650, alignSelf: "center" }]}>
+            <TouchableOpacity
+              style={styles.optionBtn}
+              onPress={() => router.push("/mi-armario?selectMode=prenda")}
+            >
+              <Ionicons name="shirt-outline" size={22} color={colors.primary} />
+              <Text style={styles.optionText}>Por prenda</Text>
+            </TouchableOpacity>
 
-          {/* -------- BOTONES PRINCIPALES -------- */}
-          <TouchableOpacity
-            style={styles.optionBtn}
-            onPress={() => {
-              alert("Selecciona una prenda");
-              router.push("/mi-armario?selectMode=prenda");
-            }}
-          >
-            <Ionicons name="shirt-outline" size={24} color="#FFF" />
-            <Text style={styles.optionText}>Por prenda</Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.optionBtn}
+              onPress={() => router.push("/mis-eventos")}
+            >
+              <Ionicons name="calendar-outline" size={22} color={colors.primary} />
+              <Text style={styles.optionText}>Por evento</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.optionBtn}
-            onPress={() => router.push("/mis-eventos")}
-          >
-            <Ionicons name="calendar-outline" size={24} color="#FFF" />
-            <Text style={styles.optionText}>Por evento</Text>
-          </TouchableOpacity>
+            {/* 🔥 NUEVA OPCIÓN CHAT IA */}
+            <TouchableOpacity
+              style={styles.optionBtn}
+              onPress={() => setChatVisible(true)}
+            >
+              <Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.primary} />
+              <Text style={styles.optionText}>Chat con la IA</Text>
+            </TouchableOpacity>
+          </View>
 
-          <TouchableOpacity
-            style={styles.optionBtn}
-            onPress={generarOutfitPorClima}
-          >
-            <Ionicons name="cloud-outline" size={24} color="#FFF" />
-            <Text style={styles.optionText}>Por clima</Text>
-          </TouchableOpacity>
-
-          {/* -------- TARJETA DEL OUTFIT -------- */}
+          {/* ---------- TARJETA DEL OUTFIT ---------- */}
           {outfit && (
-            <View style={styles.card}>
+            <View style={[styles.card, { width: "100%", maxWidth: 650, alignSelf: "center" }]}>
               {imagen ? (
                 <Image source={{ uri: imagen }} style={styles.cardImage} />
               ) : null}
@@ -233,11 +226,7 @@ export default function CrearOutfit() {
               <Text style={styles.sectionLabel}>Prendas incluidas</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 {outfit.prendas?.map((p: any) => (
-                  <Image
-                    key={p.id}
-                    source={{ uri: p.imagen }}
-                    style={styles.prendaThumb}
-                  />
+                  <Image key={p.id} source={{ uri: p.imagen }} style={styles.prendaThumb} />
                 ))}
               </ScrollView>
 
@@ -253,45 +242,96 @@ export default function CrearOutfit() {
               </TouchableOpacity>
             </View>
           )}
+
+          {/* ---------- CHAT IA ---------- */}
+          {chatVisible && (
+            <View style={[styles.chatCard, { maxWidth: 650, alignSelf: "center" }]}>
+              <Text style={styles.chatTitle}>Asistente de outfit</Text>
+
+              <ScrollView style={styles.chatMessages}>
+                {chatMessages.map((m, i) => (
+                  <View key={i} style={styles.chatBubble}>
+                    <Text style={styles.chatBubbleText}>{m}</Text>
+                  </View>
+                ))}
+              </ScrollView>
+
+              <TextInput
+                style={styles.chatInput}
+                placeholder="Describe tu idea de outfit..."
+                value={chatInput}
+                onChangeText={setChatInput}
+              />
+
+              <TouchableOpacity style={styles.chatSendBtn} onPress={enviarMensajeChat}>
+                <Text style={styles.chatSendText}>Enviar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.chatCloseBtn}
+                onPress={() => setChatVisible(false)}
+              >
+                <Text style={styles.chatCloseText}>Cerrar chat</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
         </ScrollView>
       </LinearGradient>
     </>
   );
 }
 
-const styles = StyleSheet.create({
-  gradient: { flex: 1 },
+/* =====================================================
+   STYLES — estilo Maison como Add-Prenda
+===================================================== */
 
-  subtitle: {
-    color: "#FFF",
-    textAlign: "center",
-    fontWeight: "600",
-    fontSize: 16,
-    marginBottom: 20,
+const styles = StyleSheet.create({
+  titleBlock: {
+    width: "100%",
+    maxWidth: 650,
+    alignSelf: "center",
+    paddingHorizontal: 20,
+    marginBottom: 8,
+  },
+
+  mainCard: {
+    backgroundColor: colors.card,
+    borderRadius: 20,
+    padding: 18,
+    marginTop: 15,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
   },
 
   optionBtn: {
-    backgroundColor: colors.primary,
-    paddingVertical: 14,
+    backgroundColor: "#FFF",
+    borderWidth: 2,
+    borderColor: colors.primary,
     borderRadius: 16,
+    paddingVertical: 14,
     flexDirection: "row",
-    justifyContent: "center",
     alignItems: "center",
+    justifyContent: "center",
     gap: 10,
-    marginBottom: 18,
+    marginBottom: 12,
   },
 
-  optionText: { color: "#FFF", fontWeight: "700", fontSize: 15 },
+  optionText: {
+    color: colors.primary,
+    fontWeight: "700",
+    fontSize: 15,
+  },
 
   card: {
     backgroundColor: "#FFF",
-    borderRadius: 20,
-    marginTop: 30,
-    padding: 16,
+    borderRadius: 22,
+    padding: 18,
+    marginTop: 25,
     shadowColor: "#000",
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 8,
-    elevation: 3,
   },
 
   cardImage: {
@@ -304,24 +344,25 @@ const styles = StyleSheet.create({
 
   label: {
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "700",
     marginTop: 8,
     marginBottom: 4,
   },
 
   sectionLabel: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "700",
     marginTop: 16,
     marginBottom: 8,
   },
 
   input: {
-    backgroundColor: "#F5F5F5",
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
+    backgroundColor: "#FFF",
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderColor: colors.border,
+    borderWidth: 1,
     marginBottom: 8,
   },
 
@@ -334,7 +375,7 @@ const styles = StyleSheet.create({
 
   btnGuardar: {
     backgroundColor: colors.primary,
-    borderRadius: 16,
+    borderRadius: 18,
     paddingVertical: 14,
     alignItems: "center",
     marginTop: 16,
@@ -343,7 +384,6 @@ const styles = StyleSheet.create({
   btnGuardarText: {
     color: "#FFF",
     fontWeight: "700",
-    fontSize: 15,
   },
 
   btnCancelar: {
@@ -355,8 +395,75 @@ const styles = StyleSheet.create({
   },
 
   btnCancelarText: {
-    color: "#333",
+    color: "#444",
     fontWeight: "600",
-    fontSize: 14,
+  },
+
+  /* CHAT */
+  chatCard: {
+    backgroundColor: "#FFF",
+    borderRadius: 22,
+    padding: 18,
+    marginTop: 25,
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+  },
+
+  chatTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 10,
+  },
+
+  chatMessages: {
+    maxHeight: 200,
+    marginBottom: 14,
+  },
+
+  chatBubble: {
+    backgroundColor: colors.primarySoft,
+    padding: 10,
+    borderRadius: 14,
+    marginBottom: 8,
+  },
+
+  chatBubbleText: {
+    color: colors.textPrimary,
+  },
+
+  chatInput: {
+    backgroundColor: "#FFF",
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginBottom: 10,
+  },
+
+  chatSendBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+
+  chatSendText: {
+    color: "#FFF",
+    fontWeight: "700",
+  },
+
+  chatCloseBtn: {
+    backgroundColor: "#EEE",
+    paddingVertical: 10,
+    borderRadius: 14,
+    marginTop: 10,
+    alignItems: "center",
+  },
+
+  chatCloseText: {
+    fontWeight: "600",
+    color: "#333",
   },
 });

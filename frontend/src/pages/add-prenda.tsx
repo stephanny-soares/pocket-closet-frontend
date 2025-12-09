@@ -1,3 +1,9 @@
+// ===============================
+// ADD-PRENDA – ESTILO MAISON v2
+// Ajustado: texto negro, card tipo Mi-Armario,
+// layout web centrado y limpio
+// ===============================
+
 import React, { useState } from "react";
 import {
   View,
@@ -11,6 +17,7 @@ import {
   useWindowDimensions,
   Platform,
 } from "react-native";
+
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -19,7 +26,10 @@ import * as ImagePicker from "expo-image-picker";
 import { apiRequest } from "../utils/apiClient";
 import colors from "../constants/colors";
 import Header from "components/Header";
+import PrimaryButton from "components/ui/PrimaryButton";
 import { useLoader } from "../context/LoaderContext";
+import TitleSerif from "components/ui/TitleSerif";
+
 
 interface UploadResponse {
   ok: boolean;
@@ -53,7 +63,7 @@ export default function AddPrenda() {
   const [marca, setMarca] = useState("");
   const [seccion, setSeccion] = useState("");
 
-  /** =============== CÁMARA Y GALERÍA ================= */
+  /* -------------------- Cámara -------------------- */
 
   const abrirCamara = async () => {
     try {
@@ -62,10 +72,7 @@ export default function AddPrenda() {
       if (Platform.OS !== "web") {
         const permiso = await ImagePicker.requestCameraPermissionsAsync();
         if (!permiso.granted) {
-          Alert.alert(
-            "Permiso requerido",
-            "Activa el acceso a la cámara para hacer fotos."
-          );
+          Alert.alert("Permiso requerido", "Activa el acceso a la cámara.");
           return;
         }
       }
@@ -76,26 +83,22 @@ export default function AddPrenda() {
         quality: 0.85,
       });
 
-      if (!res.canceled) {
-        await procesarImagen(res.assets[0].uri);
-      }
+      if (!res.canceled) await procesarImagen(res.assets[0].uri);
     } catch (err: any) {
-      Alert.alert("Error", err.message || "No se pudo abrir la cámara");
+      Alert.alert("Error", err.message);
     }
   };
+
+  /* -------------------- Galería -------------------- */
 
   const abrirGaleria = async () => {
     try {
       setSourceType("gallery");
 
       if (Platform.OS !== "web") {
-        const permiso =
-          await ImagePicker.requestMediaLibraryPermissionsAsync();
+        const permiso = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (!permiso.granted) {
-          Alert.alert(
-            "Permiso requerido",
-            "Activa el acceso a tus fotos para seleccionar una imagen."
-          );
+          Alert.alert("Permiso requerido", "Activa el acceso a tus fotos.");
           return;
         }
       }
@@ -106,15 +109,13 @@ export default function AddPrenda() {
         quality: 0.85,
       });
 
-      if (!res.canceled) {
-        await procesarImagen(res.assets[0].uri);
-      }
+      if (!res.canceled) await procesarImagen(res.assets[0].uri);
     } catch (err: any) {
-      Alert.alert("Error", err.message || "No se pudo abrir la galería");
+      Alert.alert("Error", err.message);
     }
   };
 
-  /** =============== PROCESAR IMAGEN CON IA ================= */
+  /* -------------------- Procesar imagen con IA -------------------- */
 
   const procesarImagen = async (uri: string) => {
     try {
@@ -123,14 +124,11 @@ export default function AddPrenda() {
       const form = new FormData();
 
       if (Platform.OS === "web") {
-        // ----- WEB FIX -----
         const response = await fetch(uri);
         const blob = await response.blob();
-
         const file = new File([blob], "prenda.jpg", { type: blob.type });
         form.append("archivo", file);
       } else {
-        // ----- ANDROID / iOS -----
         form.append("archivo", {
           uri,
           name: "prenda.jpg",
@@ -143,17 +141,16 @@ export default function AddPrenda() {
         body: form,
       });
 
-      const { urlImagen, clasificacion } = data;
+      setImagen(data.urlImagen);
+      setClasificacion(data.clasificacion);
 
-      setImagen(urlImagen);
-      setClasificacion(clasificacion);
-
-      setNombre(clasificacion.nombre || "");
-      setTipo(clasificacion.tipo || "");
-      setColor(clasificacion.color || "");
-      setEstacion(clasificacion.estacion || "");
-      setOcasion(clasificacion.ocasion || "");
-      setSeccion(clasificacion.seccion || "");
+      // Autorrellenados
+      setNombre(data.clasificacion.nombre || "");
+      setTipo(data.clasificacion.tipo || "");
+      setColor(data.clasificacion.color || "");
+      setEstacion(data.clasificacion.estacion || "");
+      setOcasion(data.clasificacion.ocasion || "");
+      setSeccion(data.clasificacion.seccion || "");
     } catch (err: any) {
       Alert.alert("Error", err.message);
     } finally {
@@ -161,12 +158,11 @@ export default function AddPrenda() {
     }
   };
 
-
-  /** =============== GUARDAR PRENDA ================= */
+  /* -------------------- Guardar prenda -------------------- */
 
   const guardarPrenda = async () => {
     if (!imagen) {
-      Alert.alert("Falta la imagen", "Primero sube o haz una foto de la prenda.");
+      Alert.alert("Falta la imagen", "Sube o haz una foto de la prenda.");
       return;
     }
 
@@ -191,105 +187,56 @@ export default function AddPrenda() {
       router.replace("/mi-armario");
     } catch (err: any) {
       hideLoader();
-      Alert.alert("Error", err.message || "No se pudo guardar la prenda");
+      Alert.alert("Error", err.message);
     }
   };
 
-  /** =============== CAMPOS PARA EL FORM ================= */
+  /* -------------------- Campos del formulario -------------------- */
 
-  const fields: {
-    label: string;
-    placeholder: string;
-    value: string;
-    setter: React.Dispatch<React.SetStateAction<string>>;
-  }[] = [
-    {
-      label: "Nombre de la prenda",
-      placeholder: "Ej: Camiseta básica blanca",
-      value: nombre,
-      setter: setNombre,
-    },
-    {
-      label: "Tipo",
-      placeholder: "Tipo (camiseta, pantalón...)",
-      value: tipo,
-      setter: setTipo,
-    },
-    {
-      label: "Color",
-      placeholder: "Color",
-      value: color,
-      setter: setColor,
-    },
-    {
-      label: "Categoría / ocasión",
-      placeholder: "casual, trabajo, fiesta...",
-      value: ocasion,
-      setter: setOcasion,
-    },
-    {
-      label: "Estación",
-      placeholder: "verano, invierno, todas...",
-      value: estacion,
-      setter: setEstacion,
-    },
-    {
-      label: "Sección",
-      placeholder: "superior, inferior, calzado...",
-      value: seccion,
-      setter: setSeccion,
-    },
-    {
-      label: "Marca (opcional)",
-      placeholder: "marca, si quieres guardarla",
-      value: marca,
-      setter: setMarca,
-    },
+  const fields = [
+    { label: "Nombre de la prenda", value: nombre, setter: setNombre, placeholder: "Ej: Camiseta blanca" },
+    { label: "Tipo", value: tipo, setter: setTipo, placeholder: "camiseta, pantalón..." },
+    { label: "Color", value: color, setter: setColor, placeholder: "beige, negro..." },
+    { label: "Categoría / ocasión", value: ocasion, setter: setOcasion, placeholder: "casual, fiesta..." },
+    { label: "Estación", value: estacion, setter: setEstacion, placeholder: "verano, invierno..." },
+    { label: "Sección", value: seccion, setter: setSeccion, placeholder: "superior, inferior..." },
+    { label: "Marca (opcional)", value: marca, setter: setMarca, placeholder: "marca..." },
   ];
 
   const cameraActive = sourceType === "camera";
   const galleryActive = sourceType === "gallery";
 
-  /** =================== RENDER =================== */
+  /* ============================================================
+   *   RENDER UI MAISON
+   * ============================================================ */
 
   return (
     <>
       <Stack.Screen options={{ headerShown: false }} />
 
-      <LinearGradient
-        colors={colors.gradient as any}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={{ flex: 1 }}
-      >
-        <Header title="Agregar Prenda" />
+      <LinearGradient colors={colors.gradient} style={{ flex: 1 }}>
+        
+        <Header />
+        <View style={[styles.titleBlock, isWeb && { width: 650, alignSelf: "center" }]}>
+          <TitleSerif style={{ textAlign: "left" }}>Agregar prenda</TitleSerif>
+        </View>
 
-        <ScrollView
-          contentContainerStyle={[
-            styles.scrollContent,
-            isWeb && { alignItems: "center" },
-          ]}
-        >
-          <View style={[styles.mainCard, isWeb && { width: 650 }]}>
-            {/* Banner IA */}
+        {/* ========= CONTENIDO ========= */}
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <View style={[styles.mainCard, isWeb && { width: 650, alignSelf: "center" }]}>
+
+            {/* Banner IA (texto negro) */}
             <View style={styles.infoBanner}>
-              <Ionicons
-                name="sparkles-outline"
-                size={18}
-                color="#17803E"
-              />
+              <Ionicons name="sparkles-outline" size={18} color={colors.textPrimary} />
               <Text style={styles.infoBannerText}>
-                La IA clasificará tu prenda automáticamente
+                La IA analizará y completará tus datos automáticamente.
               </Text>
             </View>
 
             {/* Botones cámara / galería */}
             <View style={styles.buttonsRow}>
               <TouchableOpacity
-                style={[
-                  styles.uploadBtn,
-                  cameraActive && styles.uploadBtnActive,
-                ]}
+                style={[styles.uploadBtn, cameraActive && styles.uploadBtnActive]}
                 onPress={abrirCamara}
               >
                 <Ionicons
@@ -308,10 +255,7 @@ export default function AddPrenda() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[
-                  styles.uploadBtn,
-                  galleryActive && styles.uploadBtnActive,
-                ]}
+                style={[styles.uploadBtn, galleryActive && styles.uploadBtnActive]}
                 onPress={abrirGaleria}
               >
                 <Ionicons
@@ -330,146 +274,232 @@ export default function AddPrenda() {
               </TouchableOpacity>
             </View>
 
-            {/* Vista previa de la imagen */}
-            {imagen ? (
+            {/* Imagen */}
+            {imagen && (
               <View style={styles.imageWrapper}>
-                <Image
-                  source={{ uri: imagen }}
-                  style={styles.previewImage}
-                  resizeMode="contain"
-                />
+                <Image source={{ uri: imagen }} style={styles.previewImage} resizeMode="contain" />
               </View>
-            ) : null}
+            )}
 
-
-            {/* Formulario */}
+            {/* FORM */}
             {fields.map((f, i) => (
               <View key={i} style={styles.fieldBlock}>
                 <Text style={styles.label}>{f.label}</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder={f.placeholder}
-                  placeholderTextColor="#B0B0B0"
                   value={f.value}
                   onChangeText={f.setter}
+                  placeholder={f.placeholder}
+                  placeholderTextColor={colors.textMuted}
                 />
               </View>
             ))}
 
-            {/* Botón guardar */}
-            <TouchableOpacity style={styles.saveBtn} onPress={guardarPrenda}>
-              <Text style={styles.saveBtnText}>Guardar Prenda</Text>
-            </TouchableOpacity>
+            {/* BOTONES FINALES */}
+            <View style={styles.bottomButtonsRow}>
+              {/* BOTÓN AGREGAR */}
+              <PrimaryButton
+                text="Agregar prenda"
+                onPress={guardarPrenda}
+                style={styles.btnLeft}
+              />
+
+              {/* BOTÓN CANCELAR */}
+              <PrimaryButton
+                text="Cancelar"
+                onPress={() => router.back()}
+                variant="secondary"
+                style={styles.btnRight}
+              />
+            </View>
+
           </View>
+
+          <View style={{ height: 60 }} />
         </ScrollView>
       </LinearGradient>
     </>
   );
 }
 
+/* ================= STYLES ================= */
+
 const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
-    paddingBottom: 40,
-    paddingTop: 20,
+    paddingBottom: 60,
+    paddingTop: 10,
   },
-  mainCard: {
-    backgroundColor: "rgba(255,255,255,0.9)",
-    borderRadius: 24,
-    padding: 20,
+
+  /* CONTENEDOR HEADER EN WEB PARA CENTRAR */
+  headerWrapper: {
+    width: "100%",
+    alignItems: "center",
+  },
+
+  headerTopRow: {
+    width: "100%",
+    maxWidth: 650,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingTop: 26,
+    paddingHorizontal: 20,
+    marginBottom: 10,
+  },
+
+  backButton: {
+    backgroundColor: colors.card,
+    padding: 8,
+    borderRadius: 12,
     shadowColor: "#000",
     shadowOpacity: 0.08,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 8,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
   },
+
+  profileButton: {
+    padding: 4,
+  },
+
+  titleBlock: {
+    width: "100%",
+    maxWidth: 650,
+    paddingHorizontal: 20,
+    marginBottom: 6,
+  },
+
+  subtitle: {
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+
+  /* CARD → estilo Mi-Armario */
+  mainCard: {
+    backgroundColor: colors.card,
+    borderRadius: 26,
+    padding: 22,
+    shadowColor: colors.shadowColor,
+    shadowOffset: colors.shadowOffset,
+    shadowOpacity: colors.shadowOpacity,
+    shadowRadius: colors.shadowRadius,
+    elevation: colors.elevation,
+  },
+
+  /* Banner IA negro */
   infoBanner: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#E4F7E8",
-    borderRadius: 16,
+    backgroundColor: colors.primarySoft,
     paddingVertical: 10,
     paddingHorizontal: 12,
+    borderRadius: 16,
     marginBottom: 18,
   },
+
   infoBannerText: {
     marginLeft: 8,
-    color: "#17803E",
-    fontWeight: "600",
     fontSize: 13,
+    color: colors.textPrimary,
+    fontWeight: "600",
   },
+
+  /* Buttons */
   buttonsRow: {
     flexDirection: "row",
-    gap: 10,
+    gap: 12,
     marginBottom: 18,
   },
+
   uploadBtn: {
     flex: 1,
-    borderRadius: 16,
     borderWidth: 2,
+    borderRadius: 18,
     borderColor: colors.primary,
-    backgroundColor: "#FFF",
     paddingVertical: 12,
+    backgroundColor: colors.card,
+    flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    flexDirection: "row",
     gap: 6,
   },
+
   uploadBtnActive: {
     backgroundColor: colors.primary,
   },
+
   uploadBtnText: {
     color: colors.primary,
     fontWeight: "700",
-    fontSize: 14,
   },
+
   uploadBtnTextActive: {
     color: "#FFF",
   },
+
+  /* Imagen */
   imageWrapper: {
     width: "100%",
-    backgroundColor: "#F5F5F5",
-    borderRadius: 18,
+    backgroundColor: colors.backgroundAlt,
+    borderRadius: 20,
     padding: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 18,
-    overflow: "hidden",
+    marginBottom: 20,
   },
 
   previewImage: {
     width: "100%",
-    height: 260,        // Ajusta según lo que prefieras: 220 / 260 / 300
-    borderRadius: 12,
+    height: 260,
+    borderRadius: 14,
   },
 
+  /* Form */
   fieldBlock: {
-    marginBottom: 10,
+    marginBottom: 14,
   },
+
   label: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#444",
-    marginBottom: 4,
+    color: colors.textPrimary,
+    marginBottom: 5,
   },
+
   input: {
     backgroundColor: "#FFF",
     borderRadius: 999,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
     borderWidth: 1,
-    borderColor: "#E0E0E0",
+    borderColor: colors.border,
     fontSize: 14,
   },
+
+  /* Save */
   saveBtn: {
-    marginTop: 20,
+    marginTop: 10,
     backgroundColor: colors.primary,
     borderRadius: 999,
-    paddingVertical: 14,
+    paddingVertical: 16,
     alignItems: "center",
   },
+
   saveBtnText: {
     color: "#FFF",
     fontWeight: "700",
-    fontSize: 15,
+    fontSize: 16,
   },
+  bottomButtonsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 12,
+    marginTop: 20,
+  },
+
+  btnLeft: {
+    flex: 1,
+  },
+
+  btnRight: {
+    flex: 1,
+  },
+
 });

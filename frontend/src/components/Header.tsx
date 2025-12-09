@@ -1,138 +1,91 @@
-import React from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Platform,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { usePathname, router } from 'expo-router';
-import colors from '../constants/colors';
-import { useAuth } from '../hooks/useAuth';
-import { SafeAreaView } from 'react-native-safe-area-context'; // 👈 añadido
+import React from "react";
+import { View, TouchableOpacity, StyleSheet } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { router } from "expo-router";
+import colors from "../constants/colors";
 
-interface HeaderProps {
-  title?: string;
-}
-
-const Header: React.FC<HeaderProps> = ({ title }) => {
-  const pathname = usePathname();
-  const { auth } = useAuth();
-  const isHome = pathname === '/home';
-
-  const handleBack = () => router.back();
-  const handleNotifications = () => router.push('/notificaciones' as any);
-  const handleProfile = () => router.push('/perfil' as any);
-
-  const displayTitle = isHome
-    ? `¡Hola ${auth.userName || 'Usuario'}! 👋`
-    : title || '';
+export default function HeaderMaison({
+  onBack,
+  onProfilePress,
+}: {
+  onBack?: () => void;
+  onProfilePress?: () => void;
+}) {
+  const insets = useSafeAreaInsets();
 
   return (
-    <SafeAreaView
-      edges={['top']} // 👈 asegura que respeta la barra superior
-      style={styles.safeArea}
+    <View
+      style={[
+        styles.headerWrapper,
+        { paddingTop: insets.top + 6 }, // safe area always respected
+      ]}
     >
-      <View style={styles.container}>
-        {/* IZQUIERDA: botón atrás o hueco */}
-        <View style={styles.side}>
-          {!isHome && (
-            <TouchableOpacity
-              onPress={handleBack}
-              activeOpacity={0.7}
-              style={styles.backButton}
-            >
-              <Ionicons name="chevron-back" size={22} color={colors.primary} />
-            </TouchableOpacity>
-          )}
-        </View>
+      <View style={styles.innerRow}>
 
-        {/* CENTRO: título */}
-        <View style={styles.center}>
-          <Text numberOfLines={1} style={styles.title}>
-            {displayTitle}
-          </Text>
-        </View>
+        {/* BOTÓN ATRÁS */}
+        <TouchableOpacity
+          style={styles.roundButton}
+          onPress={onBack || (() => router.back())}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons
+            name="chevron-back-outline"
+            size={26}
+            color={colors.iconActive}
+          />
+        </TouchableOpacity>
 
-        {/* DERECHA: notificaciones + perfil */}
-        <View style={[styles.side, styles.rightSide]}>
-          <TouchableOpacity
-            onPress={handleNotifications}
-            style={styles.iconButton}
-            activeOpacity={0.7}
-          >
-            <Ionicons
-              name="notifications-outline"
-              size={22}
-              color={colors.primary}
-            />
-          </TouchableOpacity>
+        {/* BOTÓN PERFIL */}
+        <TouchableOpacity
+          style={styles.profileButton}
+          onPress={onProfilePress || (() => router.push("/perfil"))}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons
+            name="person-circle-outline"
+            size={32}
+            color={colors.iconActive}
+          />
+        </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={handleProfile}
-            style={[
-              styles.iconButton,
-              pathname === '/perfil' && styles.profileSelected,
-            ]}
-            activeOpacity={0.7}
-          >
-            <Ionicons
-              name="person-circle-outline"
-              size={24}
-              color={colors.primary}
-            />
-          </TouchableOpacity>
-        </View>
       </View>
-    </SafeAreaView>
+    </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  safeArea: {
-    backgroundColor: 'transparent',
+  /* FULL WIDTH SIEMPRE */
+  headerWrapper: {
+    width: "100%",
+    backgroundColor: "transparent",
+    alignItems: "center",
+    marginBottom: 10,
   },
-  container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: Platform.OS === 'android' ? 8 : 10,
+
+  /* CONTENIDO CENTRADO */
+  innerRow: {
+    width: "100%",
+    maxWidth: 650,
+    paddingHorizontal: 20,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
-  side: {
-    width: 64,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
+
+  /* BOTÓN ATRÁS / PERFIL — estilo Maison */
+  roundButton: {
+    backgroundColor: colors.card,
+    padding: 8,
+    borderRadius: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
-  rightSide: {
-    justifyContent: 'flex-end',
-  },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1E1E1E',
-    textAlign: 'center',
-  },
-  backButton: {
-    padding: 6,
-    borderRadius: 999,
-    backgroundColor: '#FFFFFFCC',
-  },
-  iconButton: {
+
+  profileButton: {
     padding: 4,
-    marginLeft: 4,
-  },
-  profileSelected: {
-    borderRadius: 999,
-    borderWidth: 2,
-    borderColor: colors.primary,
   },
 });
-
-export default Header;

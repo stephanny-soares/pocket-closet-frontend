@@ -66,7 +66,7 @@ export default function MisViajes() {
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
     >
-      <Header title="Mis Viajes" />
+      <Header />
 
       <ScrollView
         style={styles.scroll}
