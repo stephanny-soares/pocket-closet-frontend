@@ -41,8 +41,6 @@ export default function Perfil() {
   const { auth, logout } = useAuth();
   const router = useRouter();
 
-  const defaultAvatar = "https://i.pravatar.cc/200?img=1";
-
   const [usuario, setUsuario] = useState({
     nombre: "",
     email: "",
@@ -277,10 +275,17 @@ export default function Perfil() {
             <View style={styles.profileCardWrapper}>
               <Card style={styles.profileCard}>
                 <View style={{ position: "relative" }}>
-                  <Image
-                    source={{ uri: usuario.avatar || defaultAvatar }}
-                    style={styles.avatar}
-                  />
+                  {usuario.avatar ? (
+                    <Image
+                      source={{ uri: usuario.avatar }}
+                      style={styles.avatar}
+                    />
+                  ) : (
+                    <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                      <Ionicons name="person-circle-outline" size={90} color="#888" />
+                    </View>
+                  )}
+
 
                   <TouchableOpacity
                     onPress={cambiarAvatar}
@@ -607,6 +612,12 @@ const styles = StyleSheet.create({
     borderRadius: 60,
     marginBottom: 12,
   },
+  avatarPlaceholder: {
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.05)", // opcional
+  },
+
 
   editAvatarBtn: {
     position: "absolute",
