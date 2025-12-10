@@ -95,6 +95,9 @@ export default function MisEventos() {
       });
 
       setOutfitsPorEvento(map);
+      console.log("🔥 MAP OUTFITS POR EVENTO:", map);
+      console.log("🧵 OUTFITS COMPLETOS DEVUELTOS POR EL BACKEND:", dataOutfits.outfits);
+
     } catch (e: any) {
       Alert.alert("Error", "No se pudieron cargar los eventos.");
     } finally {
@@ -245,14 +248,6 @@ export default function MisEventos() {
                       <Text style={styles.eventDesc}>{evento.descripcion}</Text>
                     ) : null}
                   </View>
-
-                  {/* Imagen del outfit generado por IA */}
-                  {outfits.length > 0 && (
-                    <Image
-                      source={{ uri: outfits[0].imagen }}
-                      style={styles.eventImage}
-                    />
-                  )}
                 </View>
 
                 {/* Lista horizontal de outfits del evento */}
@@ -440,13 +435,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.textSecondary,
     marginTop: 2,
-  },
-
-  eventImage: {
-    width: 80,
-    height: 100,
-    borderRadius: 12,
-    backgroundColor: "#F3F3F3",
   },
 
   // ---- Outfit listado horizontal ----

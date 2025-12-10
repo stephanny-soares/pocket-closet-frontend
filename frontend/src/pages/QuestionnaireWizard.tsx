@@ -9,11 +9,11 @@ import {
   Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import Toast from "react-native-toast-message";
 import PrimaryButton from "../components/ui/PrimaryButton";
 import colors from "../constants/colors";
+import { apiRequest } from "../utils/apiClient";
 
 export default function QuestionnaireWizard() {
   const router = useRouter();
@@ -24,7 +24,6 @@ export default function QuestionnaireWizard() {
   const [index, setIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
 
-  // 🔹 Estructura del cuestionario
   const steps = [
     {
       key: "intro",
@@ -68,14 +67,16 @@ export default function QuestionnaireWizard() {
     if (step.type === "multiple") {
       const current = (answers[step.key] as string[]) || [];
       const exists = current.includes(value);
-      const updated = exists ? current.filter((v) => v !== value) : [...current, value];
+      const updated = exists
+        ? current.filter((v) => v !== value)
+        : [...current, value];
+
       setAnswers({ ...answers, [step.key]: updated });
     } else {
       setAnswers({ ...answers, [step.key]: value });
     }
   };
 
-  // 🔸 Validación mínima por paso
   const validateStep = () => {
     if (!step.required) return true;
 
@@ -103,7 +104,8 @@ export default function QuestionnaireWizard() {
 
     if (
       step.type === "multiple" &&
-      (!Array.isArray(answers[step.key]) || (answers[step.key] as string[]).length === 0)
+      (!Array.isArray(answers[step.key]) ||
+        (answers[step.key] as string[]).length === 0)
     ) {
       Toast.show({
         type: "error",
@@ -118,23 +120,56 @@ export default function QuestionnaireWizard() {
     return true;
   };
 
+  // 🚀 Enviar al backend
+  const finalizarCuestionario = async () => {
+    try {
+      const payload = {
+        ciudad: answers.ciudad,
+        entorno: answers.entorno,
+        estilo: answers.estilo,
+        colores: answers.colores,
+      };
+
+      const res = await apiRequest("/api/users/preferences", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+
+      if (res.ok) {
+        Toast.show({
+          type: "success",
+          text1: "Preferencias guardadas",
+          text2: "Tu experiencia se personalizará desde ahora.",
+        });
+
+        return router.replace("/(protected)/home");
+      } else {
+        Toast.show({
+          type: "error",
+          text1: "No se pudieron guardar",
+          text2: res.message || "Intenta nuevamente",
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      Toast.show({
+        type: "error",
+        text1: "Error de conexión",
+      });
+    }
+  };
+
   const handleNext = async () => {
     if (step.type !== "intro" && !validateStep()) return;
 
     if (index < steps.length - 1) {
       setIndex(index + 1);
     } else {
-      await AsyncStorage.setItem("user_preferences", JSON.stringify(answers));
-      Toast.show({
-        type: "success",
-        text1: "✅ Preferencias guardadas",
-        text2: "Tus respuestas se han registrado correctamente.",
-        position: "bottom",
-        bottomOffset: 70,
-      });
-      setTimeout(() => {
-        router.replace("/(protected)/home");
-      }, 1200);
+      await finalizarCuestionario();
     }
   };
 
@@ -171,14 +206,12 @@ export default function QuestionnaireWizard() {
             elevation: 5,
           }}
         >
-          {/* Paso */}
           {step.type !== "intro" && (
             <Text style={{ textAlign: "center", color: "#666", marginBottom: 10 }}>
               Paso {index} de {steps.length - 1}
             </Text>
           )}
 
-          {/* Título */}
           <Text
             style={{
               fontSize: 22,
@@ -204,7 +237,6 @@ export default function QuestionnaireWizard() {
             </Text>
           )}
 
-          {/* Campo de texto */}
           {step.type === "text" && (
             <TextInput
               placeholder={step.placeholder}
@@ -223,7 +255,6 @@ export default function QuestionnaireWizard() {
             />
           )}
 
-          {/* Opciones */}
           {(step.type === "single" || step.type === "multiple") && (
             <View
               style={{
@@ -268,7 +299,6 @@ export default function QuestionnaireWizard() {
             </View>
           )}
 
-          {/* Botones navegación */}
           <View
             style={{
               flexDirection: "row",
@@ -314,7 +344,6 @@ export default function QuestionnaireWizard() {
             </TouchableOpacity>
           </View>
 
-          {/* Saltar cuestionario */}
           <TouchableOpacity
             style={{ marginTop: 20 }}
             onPress={() => {

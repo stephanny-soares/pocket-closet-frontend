@@ -36,7 +36,7 @@ interface Outfit {
   prendas: { id: string; imagen: string }[];
   categoria?: string;
   estacion?: string;
-  evento?: string;
+  evento?: any;
   clima?: string;
   createdAt?: string;
 }
@@ -489,7 +489,7 @@ export default function MisOutfits() {
                     )}
                     {outfitSeleccionado.evento && (
                       <Text style={styles.modalTag}>
-                        {outfitSeleccionado.evento}
+                        {outfitSeleccionado.evento.nombre}
                       </Text>
                     )}
                     {outfitSeleccionado.clima && (
