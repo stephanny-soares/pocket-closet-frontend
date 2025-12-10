@@ -15,6 +15,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, router } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import TitleSerif from "../components/ui/TitleSerif";
 import SubtitleSerif from "../components/ui/SubtitleSerif";
@@ -100,7 +101,15 @@ export default function MisOutfits() {
       const data = await apiRequest<{ outfits: Outfit[] }>("/api/outfits", {
         method: "GET",
       });
-      setOutfits(data.outfits || []);
+      const normalizados = (data.outfits || []).map((o) => ({
+        ...o,
+        evento:
+          typeof o.evento === "string"
+            ? { tipo: o.evento }       // si viene como string → convierto a objeto
+            : o.evento || null,        // si ya es objeto → lo dejo igual
+      }));
+
+      setOutfits(normalizados);
     } catch (err: any) {
       Alert.alert("Error", err.message);
     } finally {
@@ -135,7 +144,7 @@ export default function MisOutfits() {
     outfits.forEach((o) => {
       if (o.categoria) setCategorias.add(o.categoria);
       if (o.estacion) setEstaciones.add(o.estacion);
-      if (o.evento) setEventos.add(o.evento);
+      if (o.evento?.tipo) setEventos.add(o.evento.tipo);
       if (o.clima) setClimas.add(o.clima);
       o.prendas?.forEach((p) => p.id && setPrendas.add(p.id));
     });
@@ -196,7 +205,7 @@ export default function MisOutfits() {
         filtros.estacion === VALOR_TODOS || o.estacion === filtros.estacion;
 
       const matchEvento =
-        filtros.evento === VALOR_TODOS || o.evento === filtros.evento;
+        filtros.evento === VALOR_TODOS || o.evento?.tipo === filtros.evento;
 
       const matchClima =
         filtros.clima === VALOR_TODOS || o.clima === filtros.clima;
@@ -280,237 +289,244 @@ export default function MisOutfits() {
 
   return (
     <LinearGradient colors={colors.gradient} style={{ flex: 1 }}>
-      <View style={styles.headerArea}>
-        {/* ---------- TOP ROW ----------- */}
-        <View style={styles.headerTopRow}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.backButton}
-          >
-            <Ionicons
-              name="chevron-back-outline"
-              size={26}
-              color={colors.iconActive}
-            />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => router.push("/perfil")}
-            style={styles.profileButton}
-          >
-            <Ionicons
-              name="person-circle-outline"
-              size={32}
-              color={colors.iconActive}
-            />
-          </TouchableOpacity>
-        </View>
-
-        {/* ---------- TITLE + SUBTITLE ----------- */}
-        <View style={styles.titleBlock}>
-          <TitleSerif style={styles.title}>Tus outfits</TitleSerif>
-          <SubtitleSerif>
-            {outfits.length} outfits creados con IA para ti
-          </SubtitleSerif>
-        </View>
-
-        {/* ---------- CHIPS RÁPIDAS ----------- */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingRight: 20 }}
-        >
-          {categoriasRapidas.map((cat) => (
+      <SafeAreaView style={{ flex: 1 }} edges={["top", "bottom"]}>
+        <View style={styles.headerArea}>
+          {/* ---------- TOP ROW ----------- */}
+          <View style={styles.headerTopRow}>
             <TouchableOpacity
-              key={cat}
-              style={[
-                styles.categoryChip,
-                filtroCategoriaRapida === cat && styles.categoryChipActive,
-              ]}
+              onPress={() => router.back()}
+              style={styles.backButton}
+            >
+              <Ionicons
+                name="chevron-back-outline"
+                size={26}
+                color={colors.iconActive}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => router.push("/perfil")}
+              style={styles.profileButton}
+            >
+              <Ionicons
+                name="person-circle-outline"
+                size={32}
+                color={colors.iconActive}
+              />
+            </TouchableOpacity>
+          </View>
+
+          {/* ---------- TITLE + SUBTITLE ----------- */}
+          <View style={styles.titleBlock}>
+            <TitleSerif style={styles.title}>Tus outfits</TitleSerif>
+            <SubtitleSerif>
+              {outfits.length} outfits creados con IA para ti
+            </SubtitleSerif>
+          </View>
+
+          {/* ---------- CHIPS RÁPIDAS ----------- */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingRight: 20 }}
+          >
+            {categoriasRapidas.map((cat) => (
+              <TouchableOpacity
+                key={cat}
+                style={[
+                  styles.categoryChip,
+                  filtroCategoriaRapida === cat && styles.categoryChipActive,
+                ]}
+                onPress={() => {
+                  setFiltroCategoriaRapida(cat);
+                  setFiltros((prev) => ({
+                    ...prev,
+                    categoria: cat === QUICK_ALL ? VALOR_TODOS : cat,
+                  }));
+                }}
+              >
+                <Text
+                  style={[
+                    styles.categoryText,
+                    filtroCategoriaRapida === cat && styles.categoryTextActive,
+                  ]}
+                >
+                  {cat}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {/* ---------- ACTION BUTTONS (TU ORDEN) ----------- */}
+          <View style={styles.topActions}>
+            {/* CREAR OUTFIT */}
+            <TouchableOpacity
+              style={styles.btnAgregar}
+              onPress={() => router.push("/crear-outfit")}
+            >
+              <Ionicons
+                name="add-circle-outline"
+                size={20}
+                color={colors.textOnPrimary}
+              />
+              <Text style={styles.btnAgregarText}>Crear outfit</Text>
+            </TouchableOpacity>
+
+            {/* ORDENAR */}
+            <TouchableOpacity
+              style={styles.btnOrdenar}
               onPress={() => {
-                setFiltroCategoriaRapida(cat);
-                setFiltros((prev) => ({
-                  ...prev,
-                  categoria: cat === QUICK_ALL ? VALOR_TODOS : cat,
-                }));
+                const next: any = {
+                  fecha: "nombre",
+                  nombre: "categoria",
+                  categoria: "fecha",
+                };
+                setOrden(next[orden]);
               }}
             >
-              <Text
-                style={[
-                  styles.categoryText,
-                  filtroCategoriaRapida === cat && styles.categoryTextActive,
-                ]}
-              >
-                {cat}
+              <Ionicons
+                name="swap-vertical-outline"
+                size={20}
+                color={colors.iconActive}
+              />
+              <Text style={styles.ordenarText}>
+                {orden === "fecha"
+                  ? "Fecha"
+                  : orden === "nombre"
+                  ? "Nombre"
+                  : "Categoría"}
               </Text>
             </TouchableOpacity>
-          ))}
-        </ScrollView>
 
-        {/* ---------- ACTION BUTTONS (TU ORDEN) ----------- */}
-        <View style={styles.topActions}>
-          {/* CREAR OUTFIT */}
-          <TouchableOpacity
-            style={styles.btnAgregar}
-            onPress={() => router.push("/crear-outfit")}
-          >
-            <Ionicons
-              name="add-circle-outline"
-              size={20}
-              color={colors.textOnPrimary}
-            />
-            <Text style={styles.btnAgregarText}>Crear outfit</Text>
-          </TouchableOpacity>
-
-          {/* ORDENAR */}
-          <TouchableOpacity
-            style={styles.btnOrdenar}
-            onPress={() => {
-              const next: any = {
-                fecha: "nombre",
-                nombre: "categoria",
-                categoria: "fecha",
-              };
-              setOrden(next[orden]);
-            }}
-          >
-            <Ionicons
-              name="swap-vertical-outline"
-              size={20}
-              color={colors.iconActive}
-            />
-            <Text style={styles.ordenarText}>
-              {orden === "fecha"
-                ? "Fecha"
-                : orden === "nombre"
-                ? "Nombre"
-                : "Categoría"}
-            </Text>
-          </TouchableOpacity>
-
-          {/* FILTROS */}
-          <TouchableOpacity
-            style={styles.btnFiltros}
-            onPress={() => setMostrarFiltros((prev) => !prev)}
-          >
-            <Ionicons name="options-outline" size={20} color={colors.iconActive} />
-          </TouchableOpacity>
-        </View>
-
-        {/* ---------- PANEL DE FILTROS ----------- */}
-        {mostrarFiltros && (
-          <View style={styles.filtrosContainer}>
-            <View style={styles.filtrosHeader}>
-              <Text style={styles.filtrosTitulo}>Filtros</Text>
-              <TouchableOpacity onPress={limpiarFiltros}>
-                <Text style={styles.limpiarFiltros}>Limpiar</Text>
-              </TouchableOpacity>
-            </View>
-
-            {Object.entries(opcionesFiltros).map(([campo, lista]) => (
-              <View key={campo} style={styles.filtroGroup}>
-                <Text style={styles.filtroLabel}>
-                  {campo.charAt(0).toUpperCase() + campo.slice(1)}
-                </Text>
-
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  {lista.map((v) => (
-                    <TouchableOpacity
-                      key={`${campo}-${v}`}
-                      style={[
-                        styles.filtroChip,
-                        filtros[campo as keyof FiltrosOutfit] === v &&
-                          styles.filtroChipActive,
-                      ]}
-                      onPress={() =>
-                        setFiltros((prev) => ({ ...prev, [campo]: v }))
-                      }
-                    >
-                      <Text
-                        style={[
-                          styles.filtroChipText,
-                          filtros[campo as keyof FiltrosOutfit] === v &&
-                            styles.filtroChipTextActive,
-                        ]}
-                      >
-                        {v === VALOR_TODOS ? "Todos" : v}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            ))}
+            {/* FILTROS */}
+            <TouchableOpacity
+              style={styles.btnFiltros}
+              onPress={() => setMostrarFiltros((prev) => !prev)}
+            >
+              <Ionicons name="options-outline" size={20} color={colors.iconActive} />
+            </TouchableOpacity>
           </View>
-        )}
-      </View>
 
-      {/* ---------- GRID ----------- */}
-      <View style={{ flex: 1, minHeight: 0 }}>
-        <FlatList
-          data={outfitsFiltrados}
-          renderItem={renderOutfit}
-          keyExtractor={(i) => i.id}
-          numColumns={columnas}
-          contentContainerStyle={styles.gridContainer}
-          showsVerticalScrollIndicator={false}
-        />
-      </View>
+          {/* ---------- PANEL DE FILTROS ----------- */}
+          {mostrarFiltros && (
+            <View style={styles.filtrosContainer}>
+              <View style={styles.filtrosHeader}>
+                <Text style={styles.filtrosTitulo}>Filtros</Text>
+                <TouchableOpacity onPress={limpiarFiltros}>
+                  <Text style={styles.limpiarFiltros}>Limpiar</Text>
+                </TouchableOpacity>
+              </View>
 
-      <FloatingActionButton onPress={() => router.push("/crear-outfit")} />
-
-      {/* ---------- MODAL DETALLE ----------- */}
-      <Modal visible={modalVisible} animationType="fade" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            {outfitSeleccionado && (
-              <>
-                <View style={styles.modalImageWrapper}>
-                  <Image
-                    source={{ uri: outfitSeleccionado.imagen }}
-                    style={styles.modalImage}
-                  />
-                </View>
-
-                <View style={styles.modalContent}>
-                  <Text style={styles.modalTitle}>
-                    {outfitSeleccionado.nombre}
+              {Object.entries(opcionesFiltros).map(([campo, lista]) => (
+                <View key={campo} style={styles.filtroGroup}>
+                  <Text style={styles.filtroLabel}>
+                    {campo.charAt(0).toUpperCase() + campo.slice(1)}
                   </Text>
 
-                  <View style={styles.modalTagsRow}>
-                    {outfitSeleccionado.categoria && (
-                      <Text style={styles.modalTag}>
-                        {outfitSeleccionado.categoria}
-                      </Text>
-                    )}
-                    {outfitSeleccionado.estacion && (
-                      <Text style={styles.modalTag}>
-                        {outfitSeleccionado.estacion}
-                      </Text>
-                    )}
-                    {outfitSeleccionado.evento && (
-                      <Text style={styles.modalTag}>
-                        {outfitSeleccionado.evento.nombre}
-                      </Text>
-                    )}
-                    {outfitSeleccionado.clima && (
-                      <Text style={styles.modalTag}>
-                        {outfitSeleccionado.clima}
-                      </Text>
-                    )}
-                  </View>
-
                   <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    {outfitSeleccionado.prendas.map((p) => (
-                      <Image
-                        key={p.id}
-                        source={{ uri: p.imagen }}
-                        style={styles.miniPrenda}
-                      />
+                    {lista.map((v) => (
+                      <TouchableOpacity
+                        key={`${campo}-${v}`}
+                        style={[
+                          styles.filtroChip,
+                          filtros[campo as keyof FiltrosOutfit] === v &&
+                            styles.filtroChipActive,
+                        ]}
+                        onPress={() =>
+                          setFiltros((prev) => ({ ...prev, [campo]: v }))
+                        }
+                      >
+                        <Text
+                          style={[
+                            styles.filtroChipText,
+                            filtros[campo as keyof FiltrosOutfit] === v &&
+                              styles.filtroChipTextActive,
+                          ]}
+                        >
+                          {v === VALOR_TODOS ? "Todos" : v}
+                        </Text>
+                      </TouchableOpacity>
                     ))}
                   </ScrollView>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
 
+        {/* ---------- GRID ----------- */}
+        <View style={{ flex: 1, minHeight: 0 }}>
+          <FlatList
+            data={outfitsFiltrados}
+            renderItem={renderOutfit}
+            keyExtractor={(i) => i.id}
+            numColumns={columnas}
+            contentContainerStyle={styles.gridContainer}
+            showsVerticalScrollIndicator={false}
+          />
+        </View>
+
+        <FloatingActionButton onPress={() => router.push("/crear-outfit")} />
+
+        {/* ---------- MODAL DETALLE ----------- */}
+        {/* ---------- MODAL DETALLE ----------- */}
+        <Modal visible={modalVisible} animationType="fade" transparent>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              {outfitSeleccionado && (
+                <>
+                  {/* Imagen principal */}
+                  <View style={styles.modalImageWrapper}>
+                    <Image
+                      source={{ uri: outfitSeleccionado.imagen }}
+                      style={styles.modalImage}
+                      resizeMode="contain"
+                    />
+                  </View>
+
+                  {/* Contenido */}
+                  <View style={styles.modalContent}>
+                    <Text style={styles.modalTitle}>{outfitSeleccionado.nombre}</Text>
+
+                    {/* Tags */}
+                    {/** igual que modal de prenda pero múltiples */}
+                    <View style={{ marginBottom: 10 }}>
+                      {outfitSeleccionado.categoria && (
+                        <Text style={styles.modalTag}>
+                          Categoría: {outfitSeleccionado.categoria}
+                        </Text>
+                      )}
+                      {outfitSeleccionado.estacion && (
+                        <Text style={styles.modalTag}>
+                          Estación: {outfitSeleccionado.estacion}
+                        </Text>
+                      )}
+                      {outfitSeleccionado.evento && (
+                        <Text style={styles.modalTag}>
+                          Evento: {outfitSeleccionado.evento.tipo}
+                        </Text>
+                      )}
+                      {outfitSeleccionado.clima && (
+                        <Text style={styles.modalTag}>
+                          Clima: {outfitSeleccionado.clima}
+                        </Text>
+                      )}
+                    </View>
+
+                    {/* Prendas dentro del outfit */}
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                      {outfitSeleccionado.prendas.map((p) => (
+                        <Image
+                          key={p.id}
+                          source={{ uri: p.imagen }}
+                          style={styles.miniPrenda}
+                        />
+                      ))}
+                    </ScrollView>
+                  </View>
+
+                  {/* Acciones */}
                   <View style={styles.modalActions}>
-                    {/* EDITAR */}
                     <TouchableOpacity
                       style={styles.modalBtnSecondary}
                       onPress={() => {
@@ -521,15 +537,10 @@ export default function MisOutfits() {
                         });
                       }}
                     >
-                      <Ionicons
-                        name="create-outline"
-                        size={18}
-                        color={colors.textPrimary}
-                      />
+                      <Ionicons name="create-outline" size={18} color={colors.textPrimary} />
                       <Text style={styles.modalBtnSecondaryText}>Editar</Text>
                     </TouchableOpacity>
 
-                    {/* ELIMINAR */}
                     <TouchableOpacity
                       style={styles.modalBtnDanger}
                       onPress={() => {
@@ -549,53 +560,53 @@ export default function MisOutfits() {
                   >
                     <Ionicons name="close" size={20} color={colors.textPrimary} />
                   </TouchableOpacity>
-                </View>
-              </>
-            )}
-          </View>
-        </View>
-      </Modal>
-
-      {/* ---------- MODAL CONFIRMACIÓN ----------- */}
-      <Modal visible={confirmVisible} transparent animationType="fade">
-        <View style={styles.confirmOverlay}>
-          <View style={styles.confirmBox}>
-            <Text style={styles.confirmText}>
-              ¿Seguro que quieres eliminar este outfit?
-            </Text>
-
-            <View style={styles.confirmActions}>
-              <TouchableOpacity
-                style={[styles.confirmBtn, { backgroundColor: colors.primarySoft }]}
-                onPress={() => setConfirmVisible(false)}
-              >
-                <Text style={{ color: colors.textPrimary }}>Cancelar</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.confirmBtn, { backgroundColor: colors.danger }]}
-                onPress={async () => {
-                  if (!outfitAEliminar) return;
-                  showLoader("Eliminando...");
-                  try {
-                    await apiRequest(`/api/outfits/${outfitAEliminar.id}`, {
-                      method: "DELETE",
-                    });
-                    setOutfits((prev) =>
-                      prev.filter((o) => o.id !== outfitAEliminar.id)
-                    );
-                  } finally {
-                    hideLoader();
-                    setConfirmVisible(false);
-                  }
-                }}
-              >
-                <Text style={{ color: "#FFF" }}>Eliminar</Text>
-              </TouchableOpacity>
+                </>
+              )}
             </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+
+        {/* ---------- MODAL CONFIRMACIÓN ----------- */}
+        <Modal visible={confirmVisible} transparent animationType="fade">
+          <View style={styles.confirmOverlay}>
+            <View style={styles.confirmBox}>
+              <Text style={styles.confirmText}>
+                ¿Seguro que quieres eliminar este outfit?
+              </Text>
+
+              <View style={styles.confirmActions}>
+                <TouchableOpacity
+                  style={[styles.confirmBtn, { backgroundColor: colors.primarySoft }]}
+                  onPress={() => setConfirmVisible(false)}
+                >
+                  <Text style={{ color: colors.textPrimary }}>Cancelar</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.confirmBtn, { backgroundColor: colors.danger }]}
+                  onPress={async () => {
+                    if (!outfitAEliminar) return;
+                    showLoader("Eliminando...");
+                    try {
+                      await apiRequest(`/api/outfits/${outfitAEliminar.id}`, {
+                        method: "DELETE",
+                      });
+                      setOutfits((prev) =>
+                        prev.filter((o) => o.id !== outfitAEliminar.id)
+                      );
+                    } finally {
+                      hideLoader();
+                      setConfirmVisible(false);
+                    }
+                  }}
+                >
+                  <Text style={{ color: "#FFF" }}>Eliminar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      </SafeAreaView>
     </LinearGradient>
   );
 }
@@ -608,8 +619,8 @@ const styles = StyleSheet.create({
   headerArea: {
     flexShrink: 0,
     paddingHorizontal: 20,
-    paddingTop: 28,
-    paddingBottom: 10,
+    paddingTop: 10,
+    paddingBottom: 30,
   },
 
   headerTopRow: {
@@ -850,7 +861,8 @@ const styles = StyleSheet.create({
 
   modalImage: {
     width: "100%",
-    height: 250,
+    height: 300,
+    maxHeight: 350,
   },
 
   modalContent: {

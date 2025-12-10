@@ -8,11 +8,13 @@ import {
   ScrollView,
   Alert,
   TextInput,
+  Platform,
 } from "react-native";
 
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, router, Stack } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import HeaderMaison from "../components/Header";
 import TitleSerif from "components/ui/TitleSerif";
@@ -140,143 +142,144 @@ export default function CrearOutfit() {
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <LinearGradient colors={colors.gradient} style={{ flex: 1 }}>
-        
-        {/* HEADER */}
-        <HeaderMaison />
+        <SafeAreaView style={{ flex: 1 }} edges={["top", "bottom"]}>
+          {/* HEADER */}
+          <HeaderMaison />
 
-        {/* TÍTULO AL ESTILO ADD-PRENDA */}
-        <View style={[styles.titleBlock]}>
-          <TitleSerif>Crear outfit</TitleSerif>
-        </View>
-
-        <ScrollView
-          contentContainerStyle={{
-            paddingHorizontal: 20,
-            paddingBottom: 50,
-            paddingTop: 10,
-          }}
-        >
-          {/* ---------- BOTONES PRINCIPALES ---------- */}
-          <View style={[styles.mainCard, { width: "100%", maxWidth: 650, alignSelf: "center" }]}>
-            <TouchableOpacity
-              style={styles.optionBtn}
-              onPress={() => router.push("/mi-armario?selectMode=prenda")}
-            >
-              <Ionicons name="shirt-outline" size={22} color={colors.primary} />
-              <Text style={styles.optionText}>Por prenda</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.optionBtn}
-              onPress={() => router.push("/mis-eventos")}
-            >
-              <Ionicons name="calendar-outline" size={22} color={colors.primary} />
-              <Text style={styles.optionText}>Por evento</Text>
-            </TouchableOpacity>
-
-            {/* 🔥 NUEVA OPCIÓN CHAT IA */}
-            <TouchableOpacity
-              style={styles.optionBtn}
-              onPress={() => setChatVisible(true)}
-            >
-              <Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.primary} />
-              <Text style={styles.optionText}>Chat con la IA</Text>
-            </TouchableOpacity>
+          {/* TÍTULO AL ESTILO ADD-PRENDA */}
+          <View style={[styles.titleBlock]}>
+            <TitleSerif>Crear outfit</TitleSerif>
           </View>
 
-          {/* ---------- TARJETA DEL OUTFIT ---------- */}
-          {outfit && (
-            <View style={[styles.card, { width: "100%", maxWidth: 650, alignSelf: "center" }]}>
-              {imagen ? (
-                <Image source={{ uri: imagen }} style={styles.cardImage} />
-              ) : null}
-
-              <Text style={styles.label}>Nombre del outfit</Text>
-              <TextInput
-                style={styles.input}
-                value={nombre}
-                onChangeText={setNombre}
-                placeholder="Nombre del outfit"
-              />
-
-              <Text style={styles.label}>Categoría</Text>
-              <TextInput
-                style={styles.input}
-                value={categoria}
-                onChangeText={setCategoria}
-                placeholder="casual, formal…"
-              />
-
-              <Text style={styles.label}>Estación</Text>
-              <TextInput
-                style={styles.input}
-                value={estacion}
-                onChangeText={setEstacion}
-                placeholder="verano, invierno…"
-              />
-
-              <Text style={styles.label}>URL de la imagen</Text>
-              <TextInput
-                style={styles.input}
-                value={imagen}
-                onChangeText={setImagen}
-                placeholder="https://…"
-              />
-
-              <Text style={styles.sectionLabel}>Prendas incluidas</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {outfit.prendas?.map((p: any) => (
-                  <Image key={p.id} source={{ uri: p.imagen }} style={styles.prendaThumb} />
-                ))}
-              </ScrollView>
-
-              <TouchableOpacity style={styles.btnGuardar} onPress={guardarOutfit}>
-                <Text style={styles.btnGuardarText}>Guardar outfit</Text>
+          <ScrollView
+            contentContainerStyle={{
+              paddingHorizontal: 20,
+              paddingBottom: 50,
+              paddingTop: 10,
+            }}
+          >
+            {/* ---------- BOTONES PRINCIPALES ---------- */}
+            <View style={[styles.mainCard, { width: "100%", maxWidth: 650, alignSelf: "center" }]}>
+              <TouchableOpacity
+                style={styles.optionBtn}
+                onPress={() => router.push("/mi-armario?selectMode=prenda")}
+              >
+                <Ionicons name="shirt-outline" size={22} color={colors.primary} />
+                <Text style={styles.optionText}>Por prenda</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.btnCancelar}
-                onPress={() => setOutfit(null)}
+                style={styles.optionBtn}
+                onPress={() => router.push("/mis-eventos")}
               >
-                <Text style={styles.btnCancelarText}>Cancelar</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-
-          {/* ---------- CHAT IA ---------- */}
-          {chatVisible && (
-            <View style={[styles.chatCard, { maxWidth: 650, alignSelf: "center" }]}>
-              <Text style={styles.chatTitle}>Asistente de outfit</Text>
-
-              <ScrollView style={styles.chatMessages}>
-                {chatMessages.map((m, i) => (
-                  <View key={i} style={styles.chatBubble}>
-                    <Text style={styles.chatBubbleText}>{m}</Text>
-                  </View>
-                ))}
-              </ScrollView>
-
-              <TextInput
-                style={styles.chatInput}
-                placeholder="Describe tu idea de outfit..."
-                value={chatInput}
-                onChangeText={setChatInput}
-              />
-
-              <TouchableOpacity style={styles.chatSendBtn} onPress={enviarMensajeChat}>
-                <Text style={styles.chatSendText}>Enviar</Text>
+                <Ionicons name="calendar-outline" size={22} color={colors.primary} />
+                <Text style={styles.optionText}>Por evento</Text>
               </TouchableOpacity>
 
+              {/* 🔥 NUEVA OPCIÓN CHAT IA */}
               <TouchableOpacity
-                style={styles.chatCloseBtn}
-                onPress={() => setChatVisible(false)}
+                style={styles.optionBtn}
+                onPress={() => setChatVisible(true)}
               >
-                <Text style={styles.chatCloseText}>Cerrar chat</Text>
+                <Ionicons name="chatbubble-ellipses-outline" size={22} color={colors.primary} />
+                <Text style={styles.optionText}>Chat con la IA</Text>
               </TouchableOpacity>
             </View>
-          )}
 
-        </ScrollView>
+            {/* ---------- TARJETA DEL OUTFIT ---------- */}
+            {outfit && (
+              <View style={[styles.card, { width: "100%", maxWidth: 650, alignSelf: "center" }]}>
+                {imagen ? (
+                  <Image source={{ uri: imagen }} style={styles.cardImage} resizeMode="contain" />
+                ) : null}
+
+                <Text style={styles.label}>Nombre del outfit</Text>
+                <TextInput
+                  style={styles.input}
+                  value={nombre}
+                  onChangeText={setNombre}
+                  placeholder="Nombre del outfit"
+                />
+
+                <Text style={styles.label}>Categoría</Text>
+                <TextInput
+                  style={styles.input}
+                  value={categoria}
+                  onChangeText={setCategoria}
+                  placeholder="casual, formal…"
+                />
+
+                <Text style={styles.label}>Estación</Text>
+                <TextInput
+                  style={styles.input}
+                  value={estacion}
+                  onChangeText={setEstacion}
+                  placeholder="verano, invierno…"
+                />
+
+                <Text style={styles.label}>URL de la imagen</Text>
+                <TextInput
+                  style={styles.input}
+                  value={imagen}
+                  onChangeText={setImagen}
+                  placeholder="https://…"
+                />
+
+                <Text style={styles.sectionLabel}>Prendas incluidas</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  {outfit.prendas?.map((p: any) => (
+                    <Image key={p.id} source={{ uri: p.imagen }} style={styles.prendaThumb} />
+                  ))}
+                </ScrollView>
+
+                <TouchableOpacity style={styles.btnGuardar} onPress={guardarOutfit}>
+                  <Text style={styles.btnGuardarText}>Guardar outfit</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.btnCancelar}
+                  onPress={() => setOutfit(null)}
+                >
+                  <Text style={styles.btnCancelarText}>Cancelar</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* ---------- CHAT IA ---------- */}
+            {chatVisible && (
+              <View style={[styles.chatCard, { maxWidth: 650, alignSelf: "center" }]}>
+                <Text style={styles.chatTitle}>Asistente de outfit</Text>
+
+                <ScrollView style={styles.chatMessages}>
+                  {chatMessages.map((m, i) => (
+                    <View key={i} style={styles.chatBubble}>
+                      <Text style={styles.chatBubbleText}>{m}</Text>
+                    </View>
+                  ))}
+                </ScrollView>
+
+                <TextInput
+                  style={styles.chatInput}
+                  placeholder="Describe tu idea de outfit..."
+                  value={chatInput}
+                  onChangeText={setChatInput}
+                />
+
+                <TouchableOpacity style={styles.chatSendBtn} onPress={enviarMensajeChat}>
+                  <Text style={styles.chatSendText}>Enviar</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.chatCloseBtn}
+                  onPress={() => setChatVisible(false)}
+                >
+                  <Text style={styles.chatCloseText}>Cerrar chat</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+          </ScrollView>
+        </SafeAreaView>
       </LinearGradient>
     </>
   );
@@ -292,7 +295,7 @@ const styles = StyleSheet.create({
     maxWidth: 650,
     alignSelf: "center",
     paddingHorizontal: 20,
-    marginBottom: 8,
+    marginBottom: 10,
   },
 
   mainCard: {
@@ -336,11 +339,13 @@ const styles = StyleSheet.create({
 
   cardImage: {
     width: "100%",
-    height: 220,
+    height: 260,            
     borderRadius: 16,
     marginBottom: 16,
-    resizeMode: "cover",
+    backgroundColor: "#F3F3F3",
+    ...(Platform.OS === "web" && { objectFit: "contain" }),
   },
+
 
   label: {
     fontSize: 14,

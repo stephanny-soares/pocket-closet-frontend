@@ -22,6 +22,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Stack, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { apiRequest } from "../utils/apiClient";
 import colors from "../constants/colors";
@@ -215,108 +216,109 @@ export default function AddPrenda() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <LinearGradient colors={colors.gradient} style={{ flex: 1 }}>
-        
-        <Header />
-        <View style={[styles.titleBlock, isWeb && { width: 650, alignSelf: "center" }]}>
-          <TitleSerif style={{ textAlign: "left" }}>Agregar prenda</TitleSerif>
-        </View>
-
-        {/* ========= CONTENIDO ========= */}
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          <View style={[styles.mainCard, isWeb && { width: 650, alignSelf: "center" }]}>
-
-            {/* Banner IA (texto negro) */}
-            <View style={styles.infoBanner}>
-              <Ionicons name="sparkles-outline" size={18} color={colors.textPrimary} />
-              <Text style={styles.infoBannerText}>
-                La IA analizará y completará tus datos automáticamente.
-              </Text>
-            </View>
-
-            {/* Botones cámara / galería */}
-            <View style={styles.buttonsRow}>
-              <TouchableOpacity
-                style={[styles.uploadBtn, cameraActive && styles.uploadBtnActive]}
-                onPress={abrirCamara}
-              >
-                <Ionicons
-                  name="camera-outline"
-                  size={20}
-                  color={cameraActive ? "#FFF" : colors.primary}
-                />
-                <Text
-                  style={[
-                    styles.uploadBtnText,
-                    cameraActive && styles.uploadBtnTextActive,
-                  ]}
-                >
-                  Cámara
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.uploadBtn, galleryActive && styles.uploadBtnActive]}
-                onPress={abrirGaleria}
-              >
-                <Ionicons
-                  name="image-outline"
-                  size={20}
-                  color={galleryActive ? "#FFF" : colors.primary}
-                />
-                <Text
-                  style={[
-                    styles.uploadBtnText,
-                    galleryActive && styles.uploadBtnTextActive,
-                  ]}
-                >
-                  Galería
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Imagen */}
-            {imagen && (
-              <View style={styles.imageWrapper}>
-                <Image source={{ uri: imagen }} style={styles.previewImage} resizeMode="contain" />
-              </View>
-            )}
-
-            {/* FORM */}
-            {fields.map((f, i) => (
-              <View key={i} style={styles.fieldBlock}>
-                <Text style={styles.label}>{f.label}</Text>
-                <TextInput
-                  style={styles.input}
-                  value={f.value}
-                  onChangeText={f.setter}
-                  placeholder={f.placeholder}
-                  placeholderTextColor={colors.textMuted}
-                />
-              </View>
-            ))}
-
-            {/* BOTONES FINALES */}
-            <View style={styles.bottomButtonsRow}>
-              {/* BOTÓN AGREGAR */}
-              <PrimaryButton
-                text="Agregar prenda"
-                onPress={guardarPrenda}
-                style={styles.btnLeft}
-              />
-
-              {/* BOTÓN CANCELAR */}
-              <PrimaryButton
-                text="Cancelar"
-                onPress={() => router.back()}
-                variant="secondary"
-                style={styles.btnRight}
-              />
-            </View>
-
+        <SafeAreaView style={{ flex: 1 }} edges={["top", "bottom"]}>
+          <Header />
+          <View style={[styles.titleBlock, isWeb && { width: 650, alignSelf: "center" }]}>
+            <TitleSerif style={{ textAlign: "left" }}>Agregar prenda</TitleSerif>
           </View>
 
-          <View style={{ height: 60 }} />
-        </ScrollView>
+          {/* ========= CONTENIDO ========= */}
+          <ScrollView contentContainerStyle={styles.scrollContent}>
+            <View style={[styles.mainCard, isWeb && { width: 650, alignSelf: "center" }]}>
+
+              {/* Banner IA (texto negro) */}
+              <View style={styles.infoBanner}>
+                <Ionicons name="sparkles-outline" size={18} color={colors.textPrimary} />
+                <Text style={styles.infoBannerText}>
+                  La IA analizará y completará tus datos automáticamente.
+                </Text>
+              </View>
+
+              {/* Botones cámara / galería */}
+              <View style={styles.buttonsRow}>
+                <TouchableOpacity
+                  style={[styles.uploadBtn, cameraActive && styles.uploadBtnActive]}
+                  onPress={abrirCamara}
+                >
+                  <Ionicons
+                    name="camera-outline"
+                    size={20}
+                    color={cameraActive ? "#FFF" : colors.primary}
+                  />
+                  <Text
+                    style={[
+                      styles.uploadBtnText,
+                      cameraActive && styles.uploadBtnTextActive,
+                    ]}
+                  >
+                    Cámara
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.uploadBtn, galleryActive && styles.uploadBtnActive]}
+                  onPress={abrirGaleria}
+                >
+                  <Ionicons
+                    name="image-outline"
+                    size={20}
+                    color={galleryActive ? "#FFF" : colors.primary}
+                  />
+                  <Text
+                    style={[
+                      styles.uploadBtnText,
+                      galleryActive && styles.uploadBtnTextActive,
+                    ]}
+                  >
+                    Galería
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Imagen */}
+              {imagen && (
+                <View style={styles.imageWrapper}>
+                  <Image source={{ uri: imagen }} style={styles.previewImage} resizeMode="contain" />
+                </View>
+              )}
+
+              {/* FORM */}
+              {fields.map((f, i) => (
+                <View key={i} style={styles.fieldBlock}>
+                  <Text style={styles.label}>{f.label}</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={f.value}
+                    onChangeText={f.setter}
+                    placeholder={f.placeholder}
+                    placeholderTextColor={colors.textMuted}
+                  />
+                </View>
+              ))}
+
+              {/* BOTONES FINALES */}
+              <View style={styles.bottomButtonsRow}>
+                {/* BOTÓN AGREGAR */}
+                <PrimaryButton
+                  text="Agregar prenda"
+                  onPress={guardarPrenda}
+                  style={styles.btnLeft}
+                />
+
+                {/* BOTÓN CANCELAR */}
+                <PrimaryButton
+                  text="Cancelar"
+                  onPress={() => router.back()}
+                  variant="secondary"
+                  style={styles.btnRight}
+                />
+              </View>
+
+            </View>
+
+            <View style={{ height: 60 }} />
+          </ScrollView>
+        </SafeAreaView>
       </LinearGradient>
     </>
   );
@@ -327,7 +329,7 @@ export default function AddPrenda() {
 const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
-    paddingBottom: 60,
+    paddingBottom: 30,
     paddingTop: 10,
   },
 

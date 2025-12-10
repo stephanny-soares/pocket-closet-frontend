@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack } from "expo-router";
 import Header from "../components/Header";
 import colors from "../constants/colors";
@@ -17,15 +18,16 @@ export default function ListaEquipaje() {
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       >
-        <Header title="Lista de Equipaje" />
+        <SafeAreaView style={{ flex: 1 }} edges={["top", "bottom"]}>
 
-        <View style={styles.center}>
-          <View style={styles.card}>
-            <Text style={styles.cardText}>
-              La funcionalidad de IA para ayudarte a hacer la maleta estará muy pronto disponible.
-            </Text>
+          <View style={styles.center}>
+            <View style={styles.card}>
+              <Text style={styles.cardText}>
+                La funcionalidad de IA para ayudarte a hacer la maleta estará muy pronto disponible.
+              </Text>
+            </View>
           </View>
-        </View>
+        </SafeAreaView>
       </LinearGradient>
     </>
   );

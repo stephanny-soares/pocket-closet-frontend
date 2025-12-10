@@ -20,6 +20,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import TitleSerif from "../components/ui/TitleSerif";
 import SubtitleSerif from "../components/ui/SubtitleSerif";
@@ -74,6 +75,7 @@ export default function MiArmario() {
   const [orden, setOrden] = useState<"fecha" | "tipo" | "color">("fecha");
 
   const params = useLocalSearchParams();
+  const eventoId = params.eventoId as string | undefined;
   const selectMode = params.selectMode;
 
   const [prendaSeleccionada, setPrendaSeleccionada] =
@@ -203,9 +205,14 @@ export default function MiArmario() {
   /* -------------------- Navigation / Modal -------------------- */
   const abrirDetalle = (prenda: Prenda) => {
     if (selectMode === "prenda") {
-      router.push(`/crear-outfit?prendaId=${prenda.id}`);
+      if (eventoId) {
+        router.push(`/crear-outfit?prendaId=${prenda.id}&eventoId=${eventoId}`);
+      } else {
+        router.push(`/crear-outfit?prendaId=${prenda.id}`);
+      }
       return;
     }
+
     setPrendaSeleccionada(prenda);
     setModalVisible(true);
   };
@@ -247,290 +254,290 @@ export default function MiArmario() {
   /* -------------------- RENDER -------------------- */
   return (
     <LinearGradient colors={colors.gradient} style={{ flex: 1, minHeight: 0 }}>
-      
-      {/* ░░░ CABECERA FIJA SIN SCROLL ░░░ */}
-      <View style={styles.headerArea}>
+      <SafeAreaView style={{ flex: 1 }} edges={["top", "bottom"]}>
+        {/* ░░░ CABECERA FIJA SIN SCROLL ░░░ */}
+        <View style={styles.headerArea}>
 
-        {/* Top row: botón atrás + perfil */}
-        <View style={styles.headerTopRow}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.backButton}
-          >
-            <Ionicons
-              name="chevron-back-outline"
-              size={26}
-              color={colors.iconActive}
-            />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => router.push("/perfil")}
-            style={styles.profileButton}
-          >
-            <Ionicons
-              name="person-circle-outline"
-              size={32}
-              color={colors.iconActive}
-            />
-          </TouchableOpacity>
-        </View>
-
-        {/* Título “Tu armario” más abajo */}
-        <View style={styles.titleBlock}>
-          <TitleSerif style={styles.title}>Tu armario</TitleSerif>
-          <SubtitleSerif>{prendas.length} prendas organizadas</SubtitleSerif>
-        </View>
-
-        {/* Chips rápidas */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingRight: 20 }}
-          style={{ overflow: "visible" }}
-        >
-          {categoriasRapidas.map((cat) => (
+          {/* Top row: botón atrás + perfil */}
+          <View style={styles.headerTopRow}>
             <TouchableOpacity
-              key={cat}
-              style={[
-                styles.categoryChip,
-                filtroCategoria === cat && styles.categoryChipActive,
-              ]}
-              onPress={() => {
-                setFiltroCategoria(cat);
-                setFiltros((prev) => ({
-                  ...prev,
-                  tipo: cat === QUICK_ALL ? VALOR_TODOS : cat,
-                }));
-              }}
+              onPress={() => router.back()}
+              style={styles.backButton}
             >
-              <Text
-                style={[
-                  styles.categoryText,
-                  filtroCategoria === cat && styles.categoryTextActive,
-                ]}
-              >
-                {cat}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        {/* Top buttons */}
-        <View style={styles.topActions}>
-          <TouchableOpacity
-            style={styles.btnAgregar}
-            onPress={() => router.push("/add-prenda")}
-          >
-            <Ionicons
-              name="add-circle-outline"
-              size={20}
-              color={colors.textOnPrimary}
-            />
-            <Text style={styles.btnAgregarText}>Agregar</Text>
-          </TouchableOpacity>
-
-          <View style={styles.rightActions}>
-            <TouchableOpacity
-              style={styles.btnOrdenar}
-              onPress={() => {
-                const ordenes: any = { fecha: "tipo", tipo: "color", color: "fecha" };
-                setOrden(ordenes[orden]);
-              }}
-            >
-              <Ionicons name="swap-vertical-outline" size={20} color={colors.iconActive} />
-              <Text style={styles.ordenarText}>
-                {orden === "fecha" ? "Fecha" : orden}
-              </Text>
+              <Ionicons
+                name="chevron-back-outline"
+                size={26}
+                color={colors.iconActive}
+              />
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={styles.btnFiltros}
-              onPress={() => setMostrarFiltros(!mostrarFiltros)}
+              onPress={() => router.push("/perfil")}
+              style={styles.profileButton}
             >
-              <Ionicons name="options-outline" size={20} color={colors.iconActive} />
+              <Ionicons
+                name="person-circle-outline"
+                size={32}
+                color={colors.iconActive}
+              />
             </TouchableOpacity>
           </View>
-        </View>
 
-        {/* Filtros */}
-        {mostrarFiltros && (
-          <View style={styles.filtrosContainer}>
-            <View style={styles.filtrosHeader}>
-              <Text style={styles.filtrosTitulo}>Filtros</Text>
-              <TouchableOpacity onPress={limpiarFiltros}>
-                <Text style={styles.limpiarFiltros}>Limpiar</Text>
+          {/* Título “Tu armario” más abajo */}
+          <View style={styles.titleBlock}>
+            <TitleSerif style={styles.title}>Tu armario</TitleSerif>
+            <SubtitleSerif>{prendas.length} prendas organizadas</SubtitleSerif>
+          </View>
+
+          {/* Chips rápidas */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingRight: 20 }}
+            style={{ overflow: "visible" }}
+          >
+            {categoriasRapidas.map((cat) => (
+              <TouchableOpacity
+                key={cat}
+                style={[
+                  styles.categoryChip,
+                  filtroCategoria === cat && styles.categoryChipActive,
+                ]}
+                onPress={() => {
+                  setFiltroCategoria(cat);
+                  setFiltros((prev) => ({
+                    ...prev,
+                    tipo: cat === QUICK_ALL ? VALOR_TODOS : cat,
+                  }));
+                }}
+              >
+                <Text
+                  style={[
+                    styles.categoryText,
+                    filtroCategoria === cat && styles.categoryTextActive,
+                  ]}
+                >
+                  {cat}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {/* Top buttons */}
+          <View style={styles.topActions}>
+            <TouchableOpacity
+              style={styles.btnAgregar}
+              onPress={() => router.push("/add-prenda")}
+            >
+              <Ionicons
+                name="add-circle-outline"
+                size={20}
+                color={colors.textOnPrimary}
+              />
+              <Text style={styles.btnAgregarText}>Agregar</Text>
+            </TouchableOpacity>
+
+            <View style={styles.rightActions}>
+              <TouchableOpacity
+                style={styles.btnOrdenar}
+                onPress={() => {
+                  const ordenes: any = { fecha: "tipo", tipo: "color", color: "fecha" };
+                  setOrden(ordenes[orden]);
+                }}
+              >
+                <Ionicons name="swap-vertical-outline" size={20} color={colors.iconActive} />
+                <Text style={styles.ordenarText}>
+                  {orden === "fecha" ? "Fecha" : orden}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.btnFiltros}
+                onPress={() => setMostrarFiltros(!mostrarFiltros)}
+              >
+                <Ionicons name="options-outline" size={20} color={colors.iconActive} />
               </TouchableOpacity>
             </View>
-
-            {Object.entries(opcionesFiltros).map(([campo, valores]) => (
-              <View key={campo} style={styles.filtroGroup}>
-                <Text style={styles.filtroLabel}>
-                  {campo.charAt(0).toUpperCase() + campo.slice(1)}
-                </Text>
-
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={{ paddingRight: 20 }}
-                >
-                  {valores.map((v) => (
-                    <TouchableOpacity
-                      key={`${campo}-${v}`}
-                      style={[
-                        styles.filtroChip,
-                        filtros[campo as keyof FiltrosState] === v &&
-                          styles.filtroChipActive,
-                      ]}
-                      onPress={() => actualizarFiltro(campo as keyof FiltrosState, v)}
-                    >
-                      <Text
-                        style={[
-                          styles.filtroChipText,
-                          filtros[campo as keyof FiltrosState] === v &&
-                            styles.filtroChipTextActive,
-                        ]}
-                      >
-                        {v === VALOR_TODOS ? "Todos" : v}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-            ))}
           </View>
-        )}
 
-      </View>
+          {/* Filtros */}
+          {mostrarFiltros && (
+            <View style={styles.filtrosContainer}>
+              <View style={styles.filtrosHeader}>
+                <Text style={styles.filtrosTitulo}>Filtros</Text>
+                <TouchableOpacity onPress={limpiarFiltros}>
+                  <Text style={styles.limpiarFiltros}>Limpiar</Text>
+                </TouchableOpacity>
+              </View>
 
-      {/* ░░░ GRID CON SCROLL ░░░ */}
-      <View style={{ flex: 1, minHeight: 0 }}>
-        <FlatList
-          data={prendasFiltradas}
-          renderItem={renderPrenda}
-          keyExtractor={(item) => item.id}
-          numColumns={columnas}
-          showsVerticalScrollIndicator={true}
-          contentContainerStyle={styles.gridContainer}
-        />
-      </View>
-
-      {/* FAB */}
-      <FloatingActionButton onPress={() => router.push("/add-prenda")} />
-
-      {/* MODAL DETALLE */}
-      <Modal visible={modalVisible} animationType="fade" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            {prendaSeleccionada && (
-              <>
-                <View style={styles.modalImageWrapper}>
-                  <Image
-                    source={{ uri: prendaSeleccionada.imagen }}
-                    style={styles.modalImage}
-                    resizeMode="contain"
-                  />
-                </View>
-
-                <View style={styles.modalContent}>
-                  <Text style={styles.modalTitle}>{prendaSeleccionada.nombre}</Text>
-
-                  <Text style={styles.modalDetailText}>
-                    Tipo: {prendaSeleccionada.tipo}
+              {Object.entries(opcionesFiltros).map(([campo, valores]) => (
+                <View key={campo} style={styles.filtroGroup}>
+                  <Text style={styles.filtroLabel}>
+                    {campo.charAt(0).toUpperCase() + campo.slice(1)}
                   </Text>
 
-                  <Text style={styles.modalDetailText}>
-                    Color: {prendaSeleccionada.color}
-                  </Text>
-
-                  {prendaSeleccionada.ocasion && (
-                    <Text style={styles.modalDetailText}>
-                      Ocasión: {prendaSeleccionada.ocasion}
-                    </Text>
-                  )}
-
-                  {prendaSeleccionada.estacion && (
-                    <Text style={styles.modalDetailText}>
-                      Estación: {prendaSeleccionada.estacion}
-                    </Text>
-                  )}
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{ paddingRight: 20 }}
+                  >
+                    {valores.map((v) => (
+                      <TouchableOpacity
+                        key={`${campo}-${v}`}
+                        style={[
+                          styles.filtroChip,
+                          filtros[campo as keyof FiltrosState] === v &&
+                            styles.filtroChipActive,
+                        ]}
+                        onPress={() => actualizarFiltro(campo as keyof FiltrosState, v)}
+                      >
+                        <Text
+                          style={[
+                            styles.filtroChipText,
+                            filtros[campo as keyof FiltrosState] === v &&
+                              styles.filtroChipTextActive,
+                          ]}
+                        >
+                          {v === VALOR_TODOS ? "Todos" : v}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
                 </View>
+              ))}
+            </View>
+          )}
 
-                <View style={styles.modalActions}>
-                  <TouchableOpacity
-                    style={styles.modalBtnSecondary}
-                    onPress={() => {
-                      setModalVisible(false);
-                      router.push(`/editar-prenda?id=${prendaSeleccionada.id}`);
-                    }}
-                  >
-                    <Ionicons name="create-outline" size={18} color={colors.textPrimary} />
-                    <Text style={styles.modalBtnSecondaryText}>Editar</Text>
-                  </TouchableOpacity>
+        </View>
+
+        {/* ░░░ GRID CON SCROLL ░░░ */}
+        <View style={{ flex: 1, minHeight: 0 }}>
+          <FlatList
+            data={prendasFiltradas}
+            renderItem={renderPrenda}
+            keyExtractor={(item) => item.id}
+            numColumns={columnas}
+            showsVerticalScrollIndicator={true}
+            contentContainerStyle={styles.gridContainer}
+          />
+        </View>
+
+        {/* FAB */}
+        <FloatingActionButton onPress={() => router.push("/add-prenda")} />
+
+        {/* MODAL DETALLE */}
+        <Modal visible={modalVisible} animationType="fade" transparent>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalCard}>
+              {prendaSeleccionada && (
+                <>
+                  <View style={styles.modalImageWrapper}>
+                    <Image
+                      source={{ uri: prendaSeleccionada.imagen }}
+                      style={styles.modalImage}
+                      resizeMode="contain"
+                    />
+                  </View>
+
+                  <View style={styles.modalContent}>
+                    <Text style={styles.modalTitle}>{prendaSeleccionada.nombre}</Text>
+
+                    <Text style={styles.modalDetailText}>
+                      Tipo: {prendaSeleccionada.tipo}
+                    </Text>
+
+                    <Text style={styles.modalDetailText}>
+                      Color: {prendaSeleccionada.color}
+                    </Text>
+
+                    {prendaSeleccionada.ocasion && (
+                      <Text style={styles.modalDetailText}>
+                        Ocasión: {prendaSeleccionada.ocasion}
+                      </Text>
+                    )}
+
+                    {prendaSeleccionada.estacion && (
+                      <Text style={styles.modalDetailText}>
+                        Estación: {prendaSeleccionada.estacion}
+                      </Text>
+                    )}
+                  </View>
+
+                  <View style={styles.modalActions}>
+                    <TouchableOpacity
+                      style={styles.modalBtnSecondary}
+                      onPress={() => {
+                        setModalVisible(false);
+                        router.push(`/editar-prenda?id=${prendaSeleccionada.id}`);
+                      }}
+                    >
+                      <Ionicons name="create-outline" size={18} color={colors.textPrimary} />
+                      <Text style={styles.modalBtnSecondaryText}>Editar</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.modalBtnPrimary}
+                      onPress={() => {
+                        setModalVisible(false);
+                        router.push(`/crear-outfit?prendaId=${prendaSeleccionada.id}`);
+                      }}
+                    >
+                      <Ionicons name="sparkles-outline" size={18} color="#FFF" />
+                      <Text style={styles.modalBtnPrimaryText}>Crear outfit</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={styles.modalBtnDanger}
+                      onPress={() => {
+                        setPrendaAEliminar(prendaSeleccionada);
+                        setModalVisible(false);
+                        setTimeout(() => setConfirmVisible(true), 60);
+                      }}
+                    >
+                      <Ionicons name="trash-outline" size={18} color="#FFF" />
+                      <Text style={styles.modalBtnPrimaryText}>Eliminar</Text>
+                    </TouchableOpacity>
+                  </View>
 
                   <TouchableOpacity
-                    style={styles.modalBtnPrimary}
-                    onPress={() => {
-                      setModalVisible(false);
-                      router.push(`/crear-outfit?prendaId=${prendaSeleccionada.id}`);
-                    }}
+                    style={styles.modalClose}
+                    onPress={() => setModalVisible(false)}
                   >
-                    <Ionicons name="sparkles-outline" size={18} color="#FFF" />
-                    <Text style={styles.modalBtnPrimaryText}>Crear outfit</Text>
+                    <Ionicons name="close" size={20} color={colors.textPrimary} />
                   </TouchableOpacity>
+                </>
+              )}
+            </View>
+          </View>
+        </Modal>
 
-                  <TouchableOpacity
-                    style={styles.modalBtnDanger}
-                    onPress={() => {
-                      setPrendaAEliminar(prendaSeleccionada);
-                      setModalVisible(false);
-                      setTimeout(() => setConfirmVisible(true), 60);
-                    }}
-                  >
-                    <Ionicons name="trash-outline" size={18} color="#FFF" />
-                    <Text style={styles.modalBtnPrimaryText}>Eliminar</Text>
-                  </TouchableOpacity>
-                </View>
+        {/* CONFIRM DELETE */}
+        <Modal visible={confirmVisible} transparent animationType="fade">
+          <View style={styles.confirmOverlay}>
+            <View style={styles.confirmBox}>
+              <Text style={styles.confirmText}>
+                ¿Seguro que quieres eliminar esta prenda?
+              </Text>
+
+              <View style={styles.confirmActions}>
+                <TouchableOpacity
+                  style={[styles.confirmBtn, { backgroundColor: colors.primarySoft }]}
+                  onPress={() => setConfirmVisible(false)}
+                >
+                  <Text style={{ color: colors.textPrimary }}>Cancelar</Text>
+                </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={styles.modalClose}
-                  onPress={() => setModalVisible(false)}
+                  style={[styles.confirmBtn, { backgroundColor: colors.danger }]}
+                  onPress={eliminarAhora}
                 >
-                  <Ionicons name="close" size={20} color={colors.textPrimary} />
+                  <Text style={{ color: "#FFF" }}>Eliminar</Text>
                 </TouchableOpacity>
-              </>
-            )}
-          </View>
-        </View>
-      </Modal>
-
-      {/* CONFIRM DELETE */}
-      <Modal visible={confirmVisible} transparent animationType="fade">
-        <View style={styles.confirmOverlay}>
-          <View style={styles.confirmBox}>
-            <Text style={styles.confirmText}>
-              ¿Seguro que quieres eliminar esta prenda?
-            </Text>
-
-            <View style={styles.confirmActions}>
-              <TouchableOpacity
-                style={[styles.confirmBtn, { backgroundColor: colors.primarySoft }]}
-                onPress={() => setConfirmVisible(false)}
-              >
-                <Text style={{ color: colors.textPrimary }}>Cancelar</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.confirmBtn, { backgroundColor: colors.danger }]}
-                onPress={eliminarAhora}
-              >
-                <Text style={{ color: "#FFF" }}>Eliminar</Text>
-              </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
-      </Modal>
-
+        </Modal>
+      </SafeAreaView>
     </LinearGradient>
   );
 }
@@ -542,8 +549,8 @@ const styles = StyleSheet.create({
   headerArea: {
     flexShrink: 0,
     paddingHorizontal: 20,
-    paddingTop: 28,       // título más abajo → estilo Home
-    paddingBottom: 10,
+    paddingTop: 10,       // título más abajo → estilo Home
+    paddingBottom: 30,
   },
 
   headerTopRow: {

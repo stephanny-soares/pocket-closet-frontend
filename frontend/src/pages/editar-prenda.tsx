@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, useLocalSearchParams, router } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import colors from "../constants/colors";
 import HeaderMaison from "../components/Header";
@@ -95,35 +96,36 @@ export default function EditarPrenda() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <LinearGradient colors={colors.gradient} style={{ flex: 1 }}>
-        
-        {/* HEADER */}
-        <HeaderMaison />
+        <SafeAreaView style={{ flex: 1 }} edges={["top", "bottom"]}>
+          {/* HEADER */}
+          <HeaderMaison />
 
-        {/* TÍTULO */}
-        <View style={styles.titleBlock}>
-          <TitleSerif>Editar prenda</TitleSerif>
-        </View>
+          {/* TÍTULO */}
+          <View style={styles.titleBlock}>
+            <TitleSerif>Editar prenda</TitleSerif>
+          </View>
 
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          
-          {/* CARD */}
-          <Card style={styles.card}>
-            {imagen ? (
-              <Image source={{ uri: imagen }} style={styles.img} />
-            ) : null}
+          <ScrollView contentContainerStyle={styles.scrollContent}>
+            
+            {/* CARD */}
+            <Card style={styles.card}>
+              {imagen ? (
+                <Image source={{ uri: imagen }} style={styles.img} />
+              ) : null}
 
-            <InputMaison label="Nombre" value={nombre} onChangeText={setNombre} />
-            <InputMaison label="Tipo" value={tipo} onChangeText={setTipo} />
-            <InputMaison label="Color" value={color} onChangeText={setColor} />
-            <InputMaison label="Categoría / ocasión" value={ocasion} onChangeText={setOcasion} />
-            <InputMaison label="Estación" value={estacion} onChangeText={setEstacion} />
-            <InputMaison label="Sección" value={seccion} onChangeText={setSeccion} />
-            <InputMaison label="Marca (opcional)" value={marca} onChangeText={setMarca} />
+              <InputMaison label="Nombre" value={nombre} onChangeText={setNombre} />
+              <InputMaison label="Tipo" value={tipo} onChangeText={setTipo} />
+              <InputMaison label="Color" value={color} onChangeText={setColor} />
+              <InputMaison label="Categoría / ocasión" value={ocasion} onChangeText={setOcasion} />
+              <InputMaison label="Estación" value={estacion} onChangeText={setEstacion} />
+              <InputMaison label="Sección" value={seccion} onChangeText={setSeccion} />
+              <InputMaison label="Marca (opcional)" value={marca} onChangeText={setMarca} />
 
-            <PrimaryButton text="Guardar cambios" onPress={guardarCambios} style={{ marginTop: 20 }} />
-          </Card>
+              <PrimaryButton text="Guardar cambios" onPress={guardarCambios} style={{ marginTop: 20 }} />
+            </Card>
 
-        </ScrollView>
+          </ScrollView>
+        </SafeAreaView>
       </LinearGradient>
     </>
   );

@@ -13,6 +13,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import TitleSerif from "../components/ui/TitleSerif";
 import SubtitleSerif from "../components/ui/SubtitleSerif";
@@ -151,421 +152,423 @@ export default function MisViajes() {
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
     >
-      {/* ░░ CABECERA TIPO MI ARMARIO ░░ */}
-      <View style={styles.headerArea}>
-        {/* Top row: botón atrás + perfil */}
-        <View style={styles.headerTopRow}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.backButton}
-          >
-            <Ionicons
-              name="chevron-back-outline"
-              size={26}
-              color={colors.iconActive}
-            />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => router.push("/perfil")}
-            style={styles.profileButton}
-          >
-            <Ionicons
-              name="person-circle-outline"
-              size={32}
-              color={colors.iconActive}
-            />
-          </TouchableOpacity>
-        </View>
-
-        {/* Título */}
-        <View style={styles.titleBlock}>
-          <TitleSerif style={styles.title}>Mis viajes</TitleSerif>
-          <SubtitleSerif>
-            {maletas.length === 0
-              ? "Aún no tienes maletas creadas"
-              : `${maletas.length} viajes planificados`}
-          </SubtitleSerif>
-        </View>
-
-        {/* Chips rápidas (transporte) */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingRight: 20 }}
-          style={{ overflow: "visible" }}
-        >
-          {categoriasRapidasTransporte.map((cat) => (
+      <SafeAreaView style={{ flex: 1 }} edges={["top", "bottom"]}>
+        {/* ░░ CABECERA TIPO MI ARMARIO ░░ */}
+        <View style={styles.headerArea}>
+          {/* Top row: botón atrás + perfil */}
+          <View style={styles.headerTopRow}>
             <TouchableOpacity
-              key={cat}
-              style={[
-                styles.categoryChip,
-                filtroRapidoTransporte === cat && styles.categoryChipActive,
-              ]}
-              onPress={() => {
-                setFiltroRapidoTransporte(cat);
-                setFiltroTransporte(
-                  cat === QUICK_ALL ? VALOR_TODOS : cat
-                );
-              }}
-            >
-              <Text
-                style={[
-                  styles.categoryText,
-                  filtroRapidoTransporte === cat &&
-                    styles.categoryTextActive,
-                ]}
-              >
-                {cat}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-
-        {/* NUEVO VIAJE */}
-        <View style={styles.nuevoViajeBlock}>
-          <Text style={styles.sectionTitle}>Nuevo viaje</Text>
-
-          <View style={styles.formChipContainer}>
-            {renderChipFormulario(destino || "Destino", () =>
-              setModalDestino(true)
-            )}
-            {renderChipFormulario(
-              desde ? formatDate(desde) : "Desde",
-              () => setModalCalendario("desde")
-            )}
-            {renderChipFormulario(
-              hasta ? formatDate(hasta) : "Hasta",
-              () => setModalCalendario("hasta")
-            )}
-            {renderChipFormulario(
-              transporte || "Método de transporte",
-              () => setModalTransporte(true)
-            )}
-            {renderChipFormulario(
-              actividades.length
-                ? actividades.join(", ")
-                : "Actividades",
-              () => setModalActividades(true)
-            )}
-          </View>
-
-          <TouchableOpacity
-            style={styles.btnHacerMaleta}
-            onPress={handleHacerMaleta}
-          >
-            <Ionicons
-              name="briefcase-outline"
-              size={20}
-              color={colors.textOnPrimary}
-            />
-            <Text style={styles.btnHacerMaletaText}>Hacer maleta</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* TOP ACTIONS MIS MALETAS */}
-        <View style={styles.topActions}>
-          <Text style={styles.sectionTitleMisMaletas}>Mis maletas</Text>
-          <View style={styles.rightActions}>
-            {/* Solo botón filtros por ahora */}
-            <TouchableOpacity
-              style={styles.btnFiltros}
-              onPress={() => setMostrarFiltros((v) => !v)}
+              onPress={() => router.back()}
+              style={styles.backButton}
             >
               <Ionicons
-                name="options-outline"
-                size={20}
+                name="chevron-back-outline"
+                size={26}
+                color={colors.iconActive}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => router.push("/perfil")}
+              style={styles.profileButton}
+            >
+              <Ionicons
+                name="person-circle-outline"
+                size={32}
                 color={colors.iconActive}
               />
             </TouchableOpacity>
           </View>
-        </View>
 
-        {/* FILTROS DETALLADOS */}
-        {mostrarFiltros && (
-          <View style={styles.filtrosContainer}>
-            <View style={styles.filtrosHeaderRow}>
-              <Text style={styles.filtrosTitulo}>Filtros</Text>
-              <TouchableOpacity onPress={limpiarFiltros}>
-                <Text style={styles.limpiarFiltros}>Limpiar</Text>
+          {/* Título */}
+          <View style={styles.titleBlock}>
+            <TitleSerif style={styles.title}>Mis viajes</TitleSerif>
+            <SubtitleSerif>
+              {maletas.length === 0
+                ? "Aún no tienes maletas creadas"
+                : `${maletas.length} viajes planificados`}
+            </SubtitleSerif>
+          </View>
+
+          {/* Chips rápidas (transporte) */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingRight: 20 }}
+            style={{ overflow: "visible" }}
+          >
+            {categoriasRapidasTransporte.map((cat) => (
+              <TouchableOpacity
+                key={cat}
+                style={[
+                  styles.categoryChip,
+                  filtroRapidoTransporte === cat && styles.categoryChipActive,
+                ]}
+                onPress={() => {
+                  setFiltroRapidoTransporte(cat);
+                  setFiltroTransporte(
+                    cat === QUICK_ALL ? VALOR_TODOS : cat
+                  );
+                }}
+              >
+                <Text
+                  style={[
+                    styles.categoryText,
+                    filtroRapidoTransporte === cat &&
+                      styles.categoryTextActive,
+                  ]}
+                >
+                  {cat}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {/* NUEVO VIAJE */}
+          <View style={styles.nuevoViajeBlock}>
+            <Text style={styles.sectionTitle}>Nuevo viaje</Text>
+
+            <View style={styles.formChipContainer}>
+              {renderChipFormulario(destino || "Destino", () =>
+                setModalDestino(true)
+              )}
+              {renderChipFormulario(
+                desde ? formatDate(desde) : "Desde",
+                () => setModalCalendario("desde")
+              )}
+              {renderChipFormulario(
+                hasta ? formatDate(hasta) : "Hasta",
+                () => setModalCalendario("hasta")
+              )}
+              {renderChipFormulario(
+                transporte || "Método de transporte",
+                () => setModalTransporte(true)
+              )}
+              {renderChipFormulario(
+                actividades.length
+                  ? actividades.join(", ")
+                  : "Actividades",
+                () => setModalActividades(true)
+              )}
+            </View>
+
+            <TouchableOpacity
+              style={styles.btnHacerMaleta}
+              onPress={handleHacerMaleta}
+            >
+              <Ionicons
+                name="briefcase-outline"
+                size={20}
+                color={colors.textOnPrimary}
+              />
+              <Text style={styles.btnHacerMaletaText}>Hacer maleta</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* TOP ACTIONS MIS MALETAS */}
+          <View style={styles.topActions}>
+            <Text style={styles.sectionTitleMisMaletas}>Mis maletas</Text>
+            <View style={styles.rightActions}>
+              {/* Solo botón filtros por ahora */}
+              <TouchableOpacity
+                style={styles.btnFiltros}
+                onPress={() => setMostrarFiltros((v) => !v)}
+              >
+                <Ionicons
+                  name="options-outline"
+                  size={20}
+                  color={colors.iconActive}
+                />
               </TouchableOpacity>
             </View>
+          </View>
 
-            {/* Destino */}
-            <View style={styles.filtroGroup}>
-              <Text style={styles.filtroLabel}>Destino</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-              >
-                {[VALOR_TODOS, destino].map((d) => (
-                  <TouchableOpacity
-                    key={d || "destino-empty"}
-                    style={[
-                      styles.filtroChip,
-                      filtroDestino === d && styles.filtroChipActive,
-                    ]}
-                    onPress={() =>
-                      setFiltroDestino(d || VALOR_TODOS)
-                    }
-                  >
-                    <Text
+          {/* FILTROS DETALLADOS */}
+          {mostrarFiltros && (
+            <View style={styles.filtrosContainer}>
+              <View style={styles.filtrosHeaderRow}>
+                <Text style={styles.filtrosTitulo}>Filtros</Text>
+                <TouchableOpacity onPress={limpiarFiltros}>
+                  <Text style={styles.limpiarFiltros}>Limpiar</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Destino */}
+              <View style={styles.filtroGroup}>
+                <Text style={styles.filtroLabel}>Destino</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                >
+                  {[VALOR_TODOS, destino].map((d) => (
+                    <TouchableOpacity
+                      key={d || "destino-empty"}
                       style={[
-                        styles.filtroChipText,
-                        filtroDestino === d &&
-                          styles.filtroChipTextActive,
+                        styles.filtroChip,
+                        filtroDestino === d && styles.filtroChipActive,
                       ]}
+                      onPress={() =>
+                        setFiltroDestino(d || VALOR_TODOS)
+                      }
                     >
-                      {d === VALOR_TODOS || !d ? "Todos" : d}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
+                      <Text
+                        style={[
+                          styles.filtroChipText,
+                          filtroDestino === d &&
+                            styles.filtroChipTextActive,
+                        ]}
+                      >
+                        {d === VALOR_TODOS || !d ? "Todos" : d}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
 
-            {/* Transporte */}
-            <View style={styles.filtroGroup}>
-              <Text style={styles.filtroLabel}>Transporte</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-              >
-                {[VALOR_TODOS, ...TRANSPORTES].map((t) => (
-                  <TouchableOpacity
-                    key={t}
-                    style={[
-                      styles.filtroChip,
-                      filtroTransporte === t &&
-                        styles.filtroChipActive,
-                    ]}
-                    onPress={() => setFiltroTransporte(t)}
-                  >
-                    <Text
+              {/* Transporte */}
+              <View style={styles.filtroGroup}>
+                <Text style={styles.filtroLabel}>Transporte</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                >
+                  {[VALOR_TODOS, ...TRANSPORTES].map((t) => (
+                    <TouchableOpacity
+                      key={t}
                       style={[
-                        styles.filtroChipText,
+                        styles.filtroChip,
                         filtroTransporte === t &&
-                          styles.filtroChipTextActive,
+                          styles.filtroChipActive,
                       ]}
+                      onPress={() => setFiltroTransporte(t)}
                     >
-                      {t === VALOR_TODOS ? "Todos" : t}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
+                      <Text
+                        style={[
+                          styles.filtroChipText,
+                          filtroTransporte === t &&
+                            styles.filtroChipTextActive,
+                        ]}
+                      >
+                        {t === VALOR_TODOS ? "Todos" : t}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
 
-            {/* Actividades */}
-            <View style={styles.filtroGroup}>
-              <Text style={styles.filtroLabel}>Actividades</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
+              {/* Actividades */}
+              <View style={styles.filtroGroup}>
+                <Text style={styles.filtroLabel}>Actividades</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                >
+                  {[VALOR_TODOS, ...ACTIVIDADES].map((a) => (
+                    <TouchableOpacity
+                      key={a}
+                      style={[
+                        styles.filtroChip,
+                        filtroActividad === a &&
+                          styles.filtroChipActive,
+                      ]}
+                      onPress={() => setFiltroActividad(a)}
+                    >
+                      <Text
+                        style={[
+                          styles.filtroChipText,
+                          filtroActividad === a &&
+                            styles.filtroChipTextActive,
+                        ]}
+                      >
+                        {a === VALOR_TODOS ? "Todos" : a}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            </View>
+          )}
+        </View>
+
+        {/* ░░ GRID DE MALETAS CON SCROLL ░░ */}
+        <View style={{ flex: 1, minHeight: 0 }}>
+          {filteredMaletas.length === 0 ? (
+            <View style={styles.emptyBox}>
+              <Ionicons
+                name="briefcase-outline"
+                size={40}
+                color={colors.primary}
+              />
+              <Text style={styles.emptyText}>
+                Aún no tienes maletas creadas
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              data={filteredMaletas}
+              renderItem={renderMaleta}
+              keyExtractor={(item) => item.id}
+              numColumns={columnas}
+              showsVerticalScrollIndicator={true}
+              contentContainerStyle={styles.gridContainer}
+            />
+          )}
+        </View>
+
+        {/* FAB para crear/hacer maleta rápido */}
+        <FloatingActionButton onPress={handleHacerMaleta} />
+
+        {/* --------------------------------------------- */}
+        {/* MODAL DESTINO */}
+        {/* --------------------------------------------- */}
+        <Modal visible={modalDestino} transparent animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalBox}>
+              <Text style={styles.modalTitle}>Destino</Text>
+
+              <TextInput
+                placeholder="Introduce el destino"
+                style={styles.input}
+                value={destino}
+                onChangeText={setDestino}
+              />
+
+              <TouchableOpacity
+                style={styles.modalBtn}
+                onPress={() => setModalDestino(false)}
               >
-                {[VALOR_TODOS, ...ACTIVIDADES].map((a) => (
+                <Text style={styles.modalBtnText}>Aceptar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
+        {/* --------------------------------------------- */}
+        {/* MODAL TRANSPORTE */}
+        {/* --------------------------------------------- */}
+        <Modal
+          visible={modalTransporte}
+          transparent
+          animationType="fade"
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalBox}>
+              <Text style={styles.modalTitle}>Método de transporte</Text>
+
+              {TRANSPORTES.map((t) => (
+                <TouchableOpacity
+                  key={t}
+                  style={styles.optionItem}
+                  onPress={() => {
+                    setTransporte(t);
+                    setModalTransporte(false);
+                  }}
+                >
+                  <Text style={styles.optionText}>{t}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </Modal>
+
+        {/* --------------------------------------------- */}
+        {/* MODAL ACTIVIDADES (MULTI SELECT) */}
+        {/* --------------------------------------------- */}
+        <Modal
+          visible={modalActividades}
+          transparent
+          animationType="fade"
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalBox}>
+              <Text style={styles.modalTitle}>Actividades</Text>
+
+              {ACTIVIDADES.map((a) => {
+                const active = actividades.includes(a);
+                return (
                   <TouchableOpacity
                     key={a}
                     style={[
-                      styles.filtroChip,
-                      filtroActividad === a &&
-                        styles.filtroChipActive,
+                      styles.optionItemMulti,
+                      active && styles.optionActive,
                     ]}
-                    onPress={() => setFiltroActividad(a)}
+                    onPress={() => {
+                      setActividades((prev) =>
+                        active
+                          ? prev.filter((x) => x !== a)
+                          : [...prev, a]
+                      );
+                    }}
                   >
                     <Text
                       style={[
-                        styles.filtroChipText,
-                        filtroActividad === a &&
-                          styles.filtroChipTextActive,
+                        styles.optionText,
+                        active && styles.optionTextActive,
                       ]}
                     >
-                      {a === VALOR_TODOS ? "Todos" : a}
+                      {a}
                     </Text>
                   </TouchableOpacity>
-                ))}
-              </ScrollView>
+                );
+              })}
+
+              <TouchableOpacity
+                style={[styles.modalBtn, { marginTop: 10 }]}
+                onPress={() => setModalActividades(false)}
+              >
+                <Text style={styles.modalBtnText}>Aceptar</Text>
+              </TouchableOpacity>
             </View>
           </View>
-        )}
-      </View>
+        </Modal>
 
-      {/* ░░ GRID DE MALETAS CON SCROLL ░░ */}
-      <View style={{ flex: 1, minHeight: 0 }}>
-        {filteredMaletas.length === 0 ? (
-          <View style={styles.emptyBox}>
-            <Ionicons
-              name="briefcase-outline"
-              size={40}
-              color={colors.primary}
-            />
-            <Text style={styles.emptyText}>
-              Aún no tienes maletas creadas
-            </Text>
-          </View>
-        ) : (
-          <FlatList
-            data={filteredMaletas}
-            renderItem={renderMaleta}
-            keyExtractor={(item) => item.id}
-            numColumns={columnas}
-            showsVerticalScrollIndicator={true}
-            contentContainerStyle={styles.gridContainer}
-          />
-        )}
-      </View>
+        {/* --------------------------------------------- */}
+        {/* MODAL CALENDARIO (DESDE / HASTA) */}
+        {/* --------------------------------------------- */}
+        <Modal
+          visible={modalCalendario !== null}
+          transparent
+          animationType="fade"
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.calendarModal}>
+              <Text style={styles.modalTitle}>
+                {modalCalendario === "desde"
+                  ? "Seleccionar fecha de inicio"
+                  : "Seleccionar fecha de fin"}
+              </Text>
 
-      {/* FAB para crear/hacer maleta rápido */}
-      <FloatingActionButton onPress={handleHacerMaleta} />
-
-      {/* --------------------------------------------- */}
-      {/* MODAL DESTINO */}
-      {/* --------------------------------------------- */}
-      <Modal visible={modalDestino} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>Destino</Text>
-
-            <TextInput
-              placeholder="Introduce el destino"
-              style={styles.input}
-              value={destino}
-              onChangeText={setDestino}
-            />
-
-            <TouchableOpacity
-              style={styles.modalBtn}
-              onPress={() => setModalDestino(false)}
-            >
-              <Text style={styles.modalBtnText}>Aceptar</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* --------------------------------------------- */}
-      {/* MODAL TRANSPORTE */}
-      {/* --------------------------------------------- */}
-      <Modal
-        visible={modalTransporte}
-        transparent
-        animationType="fade"
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>Método de transporte</Text>
-
-            {TRANSPORTES.map((t) => (
-              <TouchableOpacity
-                key={t}
-                style={styles.optionItem}
-                onPress={() => {
-                  setTransporte(t);
-                  setModalTransporte(false);
+              <Calendar
+                onDayPress={(day: DateData) => {
+                  if (modalCalendario === "desde")
+                    setDesde(new Date(day.dateString));
+                  if (modalCalendario === "hasta")
+                    setHasta(new Date(day.dateString));
+                  setModalCalendario(null);
                 }}
+                theme={{
+                  calendarBackground: "#FFF",
+                  textSectionTitleColor: "#666",
+                  dayTextColor: "#333",
+                  monthTextColor: colors.primary,
+                  selectedDayBackgroundColor: colors.primary,
+                  selectedDayTextColor: "#FFF",
+                  todayTextColor: colors.primary,
+                  arrowColor: colors.primary,
+                }}
+                style={{ borderRadius: 12 }}
+              />
+
+              <TouchableOpacity
+                style={[styles.modalBtn, { marginTop: 14 }]}
+                onPress={() => setModalCalendario(null)}
               >
-                <Text style={styles.optionText}>{t}</Text>
+                <Text style={styles.modalBtnText}>Cerrar</Text>
               </TouchableOpacity>
-            ))}
+            </View>
           </View>
-        </View>
-      </Modal>
-
-      {/* --------------------------------------------- */}
-      {/* MODAL ACTIVIDADES (MULTI SELECT) */}
-      {/* --------------------------------------------- */}
-      <Modal
-        visible={modalActividades}
-        transparent
-        animationType="fade"
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <Text style={styles.modalTitle}>Actividades</Text>
-
-            {ACTIVIDADES.map((a) => {
-              const active = actividades.includes(a);
-              return (
-                <TouchableOpacity
-                  key={a}
-                  style={[
-                    styles.optionItemMulti,
-                    active && styles.optionActive,
-                  ]}
-                  onPress={() => {
-                    setActividades((prev) =>
-                      active
-                        ? prev.filter((x) => x !== a)
-                        : [...prev, a]
-                    );
-                  }}
-                >
-                  <Text
-                    style={[
-                      styles.optionText,
-                      active && styles.optionTextActive,
-                    ]}
-                  >
-                    {a}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-
-            <TouchableOpacity
-              style={[styles.modalBtn, { marginTop: 10 }]}
-              onPress={() => setModalActividades(false)}
-            >
-              <Text style={styles.modalBtnText}>Aceptar</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      {/* --------------------------------------------- */}
-      {/* MODAL CALENDARIO (DESDE / HASTA) */}
-      {/* --------------------------------------------- */}
-      <Modal
-        visible={modalCalendario !== null}
-        transparent
-        animationType="fade"
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.calendarModal}>
-            <Text style={styles.modalTitle}>
-              {modalCalendario === "desde"
-                ? "Seleccionar fecha de inicio"
-                : "Seleccionar fecha de fin"}
-            </Text>
-
-            <Calendar
-              onDayPress={(day: DateData) => {
-                if (modalCalendario === "desde")
-                  setDesde(new Date(day.dateString));
-                if (modalCalendario === "hasta")
-                  setHasta(new Date(day.dateString));
-                setModalCalendario(null);
-              }}
-              theme={{
-                calendarBackground: "#FFF",
-                textSectionTitleColor: "#666",
-                dayTextColor: "#333",
-                monthTextColor: colors.primary,
-                selectedDayBackgroundColor: colors.primary,
-                selectedDayTextColor: "#FFF",
-                todayTextColor: colors.primary,
-                arrowColor: colors.primary,
-              }}
-              style={{ borderRadius: 12 }}
-            />
-
-            <TouchableOpacity
-              style={[styles.modalBtn, { marginTop: 14 }]}
-              onPress={() => setModalCalendario(null)}
-            >
-              <Text style={styles.modalBtnText}>Cerrar</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+        </Modal>
+      </SafeAreaView>
     </LinearGradient>
   );
 }
@@ -578,8 +581,8 @@ const styles = StyleSheet.create({
   headerArea: {
     flexShrink: 0,
     paddingHorizontal: 20,
-    paddingTop: 28,
-    paddingBottom: 10,
+    paddingTop: 10,
+    paddingBottom: 30,
   },
 
   headerTopRow: {

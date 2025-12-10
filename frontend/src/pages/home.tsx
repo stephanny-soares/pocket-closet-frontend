@@ -15,6 +15,7 @@ import * as Location from "expo-location";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import TitleSerif from "../components/ui/TitleSerif";
 import BodyText from "../components/ui/BodyText";
@@ -441,213 +442,215 @@ export default function Home() {
 
   return (
     <LinearGradient colors={colors.gradient} style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={styles.container}>
-        {/* Header: saludo + icono perfil */}
-        <View style={styles.headerRow}>
-          <TitleSerif style={styles.greeting}>{greeting}</TitleSerif>
+      <SafeAreaView style={{ flex: 1 }} edges={["top", "bottom"]}>
+        <ScrollView contentContainerStyle={styles.container}>
+          {/* Header: saludo + icono perfil */}
+          <View style={styles.headerRow}>
+            <TitleSerif style={styles.greeting}>{greeting}</TitleSerif>
 
-          <TouchableOpacity
-            onPress={() => router.push("/perfil" as any)}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons
-              name="person-circle-outline"
-              size={32}
-              color={colors.iconActive}
-            />
-          </TouchableOpacity>
-        </View>
-
-        {/* ----- CLIMA ----- */}
-        {weather && (
-          <Card style={styles.weatherCard}>
-            <View style={styles.weatherRow}>
+            <TouchableOpacity
+              onPress={() => router.push("/perfil" as any)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
               <Ionicons
-                name="location-outline"
-                size={16}
-                color={colors.textSecondary}
-              />
-              <Text style={styles.weatherCity}>{weather.city}</Text>
-            </View>
-
-            <View style={styles.weatherMain}>
-              <MaterialCommunityIcons
-                name={weather.icon as any}
-                size={26}
+                name="person-circle-outline"
+                size={32}
                 color={colors.iconActive}
               />
-              <BodyText style={styles.weatherDesc}>
-                {weather.condition}
-                {weather.temperature !== null
-                  ? ` · ${weather.temperature}°`
-                  : ""}
-              </BodyText>
+            </TouchableOpacity>
+          </View>
+
+          {/* ----- CLIMA ----- */}
+          {weather && (
+            <Card style={styles.weatherCard}>
+              <View style={styles.weatherRow}>
+                <Ionicons
+                  name="location-outline"
+                  size={16}
+                  color={colors.textSecondary}
+                />
+                <Text style={styles.weatherCity}>{weather.city}</Text>
+              </View>
+
+              <View style={styles.weatherMain}>
+                <MaterialCommunityIcons
+                  name={weather.icon as any}
+                  size={26}
+                  color={colors.iconActive}
+                />
+                <BodyText style={styles.weatherDesc}>
+                  {weather.condition}
+                  {weather.temperature !== null
+                    ? ` · ${weather.temperature}°`
+                    : ""}
+                </BodyText>
+              </View>
+            </Card>
+          )}
+
+          {/* ----- OUTFITS DEL DÍA (SEMANA REAL) ----- */}
+          <TitleSerif style={styles.sectionTitle}>Outfits del día</TitleSerif>
+
+          {/* Tabs de la semana */}
+          <View style={styles.weekTabsRow}>
+            {semana.map((d) => (
+              <TouchableOpacity
+                key={d.fechaISO}
+                style={[
+                  styles.weekTab,
+                  selectedDay === d.fechaISO && styles.weekTabActive,
+                ]}
+                onPress={() => setSelectedDay(d.fechaISO)}
+              >
+                <Text
+                  style={[
+                    styles.weekTabText,
+                    selectedDay === d.fechaISO && styles.weekTabTextActive,
+                  ]}
+                >
+                  {d.etiqueta}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* ----- OUTFITS DE EVENTO + IA (SOLO HOY) — CARRUSEL ----- */}
+          {(() => {
+            const hoyISO = semana[0].fechaISO;
+            const evento = eventos.find((e) => {
+              const fechaEvento = new Date(e.fecha).toISOString().split("T")[0];
+              return fechaEvento === selectedDay;
+            });
+            const outfitsEvento = evento ? outfitsPorEvento[evento.id] || [] : [];
+            const esHoy = selectedDay === hoyISO;
+
+            let outfitsMostrar: any[] = [];
+
+            if (esHoy) {
+              outfitsMostrar = [...outfitsEvento, ...outfits]; // evento -> IA
+            } else {
+              outfitsMostrar = [...outfitsEvento];
+            }
+
+            if (outfitsMostrar.length === 0) {
+              return (
+                <Text style={{ color: "#777", marginBottom: 10 }}>
+                  No hay outfit asignado para este día
+                </Text>
+              );
+            }
+
+            return (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ paddingVertical: 10 }}
+              >
+                {outfitsMostrar.map((o) => (
+                  <Card
+                    key={o.id}
+                    style={{
+                      width: 220,           // tamaño ideal Maison
+                      marginRight: 16,
+                    }}
+                  >
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      onPress={() => router.push(`/mis-outfits?id=${o.id}`)}
+                    >
+                      <Image
+                        source={{ uri: o.imagen || o.prendas?.[0]?.imagen }}
+                        style={styles.outfitCarouselImage}
+                      />
+
+                      <Text style={styles.outfitName}>{o.nombre}</Text>
+                      <Text style={styles.outfitCat}>
+                        {o.eventoId ? "Evento" : "Sugerido por IA"}
+                      </Text>
+                    </TouchableOpacity>
+                  </Card>
+                ))}
+              </ScrollView>
+            );
+          })()}
+
+
+          {/* ----- ACCIONES RÁPIDAS ----- */}
+          <TitleSerif style={styles.sectionTitle}>Acciones rápidas</TitleSerif>
+
+          <View style={styles.actionsGrid}>
+            <QuickAction label="Try-on" icon="camera-outline" route="/add-prenda" />
+            <QuickAction
+              label="Crear outfit"
+              icon="plus-circle-outline"
+              route="/crear-outfit"
+            />
+            <QuickAction label="Estilista IA" icon="wand" route="/mis-outfits" />
+            <QuickAction
+              label="Moodboard"
+              icon="image-multiple-outline"
+              route="/mi-armario"
+            />
+          </View>
+
+          {/* ----- PRÓXIMO VIAJE ----- */}
+          <TitleSerif style={styles.sectionTitle}>Próximo viaje</TitleSerif>
+          <Card style={styles.tripCard}>
+            <View style={styles.tripRow}>
+              <Ionicons
+                name="airplane-outline"
+                size={20}
+                color={colors.iconActive}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.tripTitle}>Aún no tienes viajes guardados</Text>
+                <Text style={styles.tripSubtitle}>
+                  Crea tu próximo viaje para planificar la maleta y los outfits.
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => router.push("/mis-viajes" as any)}>
+                <Text style={styles.tripCTA}>Abrir viajes</Text>
+              </TouchableOpacity>
             </View>
           </Card>
-        )}
 
-        {/* ----- OUTFITS DEL DÍA (SEMANA REAL) ----- */}
-        <TitleSerif style={styles.sectionTitle}>Outfits del día</TitleSerif>
+          {/* ----- FAVORITOS ----- */}
+          <TitleSerif style={styles.sectionTitle}>Favoritos</TitleSerif>
 
-        {/* Tabs de la semana */}
-        <View style={styles.weekTabsRow}>
-          {semana.map((d) => (
-            <TouchableOpacity
-              key={d.fechaISO}
-              style={[
-                styles.weekTab,
-                selectedDay === d.fechaISO && styles.weekTabActive,
-              ]}
-              onPress={() => setSelectedDay(d.fechaISO)}
-            >
-              <Text
-                style={[
-                  styles.weekTabText,
-                  selectedDay === d.fechaISO && styles.weekTabTextActive,
-                ]}
-              >
-                {d.etiqueta}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* ----- OUTFITS DE EVENTO + IA (SOLO HOY) — CARRUSEL ----- */}
-        {(() => {
-          const hoyISO = semana[0].fechaISO;
-          const evento = eventos.find((e) => {
-            const fechaEvento = new Date(e.fecha).toISOString().split("T")[0];
-            return fechaEvento === selectedDay;
-          });
-          const outfitsEvento = evento ? outfitsPorEvento[evento.id] || [] : [];
-          const esHoy = selectedDay === hoyISO;
-
-          let outfitsMostrar: any[] = [];
-
-          if (esHoy) {
-            outfitsMostrar = [...outfitsEvento, ...outfits]; // evento -> IA
-          } else {
-            outfitsMostrar = [...outfitsEvento];
-          }
-
-          if (outfitsMostrar.length === 0) {
-            return (
-              <Text style={{ color: "#777", marginBottom: 10 }}>
-                No hay outfit asignado para este día
-              </Text>
-            );
-          }
-
-          return (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ paddingVertical: 10 }}
-            >
-              {outfitsMostrar.map((o) => (
-                <Card
-                  key={o.id}
-                  style={{
-                    width: 220,           // tamaño ideal Maison
-                    marginRight: 16,
-                  }}
-                >
+          {loadingFavorites ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : favoriteOutfits.length === 0 ? (
+            <BodyText style={{ marginBottom: 12 }}>
+              Aún no tienes outfits favoritos. Crea o reutiliza algunos en Mis
+              Outfits.
+            </BodyText>
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {favoriteOutfits.map((o) => (
+                <Card key={o.id} style={styles.favoriteCard}>
                   <TouchableOpacity
                     activeOpacity={0.8}
                     onPress={() => router.push(`/mis-outfits?id=${o.id}`)}
                   >
                     <Image
-                      source={{ uri: o.imagen || o.prendas?.[0]?.imagen }}
-                      style={styles.outfitCarouselImage}
+                      source={{ uri: o.imagen }}
+                      style={styles.favoriteImage}
                     />
-
-                    <Text style={styles.outfitName}>{o.nombre}</Text>
-                    <Text style={styles.outfitCat}>
-                      {o.eventoId ? "Evento" : "Sugerido por IA"}
+                    <Text style={styles.favoriteName} numberOfLines={1}>
+                      {o.nombre}
                     </Text>
+                    {o.categoria ? (
+                      <Text style={styles.favoriteCat}>{o.categoria}</Text>
+                    ) : null}
                   </TouchableOpacity>
                 </Card>
               ))}
             </ScrollView>
-          );
-        })()}
+          )}
 
-
-        {/* ----- ACCIONES RÁPIDAS ----- */}
-        <TitleSerif style={styles.sectionTitle}>Acciones rápidas</TitleSerif>
-
-        <View style={styles.actionsGrid}>
-          <QuickAction label="Try-on" icon="camera-outline" route="/add-prenda" />
-          <QuickAction
-            label="Crear outfit"
-            icon="plus-circle-outline"
-            route="/crear-outfit"
-          />
-          <QuickAction label="Estilista IA" icon="wand" route="/mis-outfits" />
-          <QuickAction
-            label="Moodboard"
-            icon="image-multiple-outline"
-            route="/mi-armario"
-          />
-        </View>
-
-        {/* ----- PRÓXIMO VIAJE ----- */}
-        <TitleSerif style={styles.sectionTitle}>Próximo viaje</TitleSerif>
-        <Card style={styles.tripCard}>
-          <View style={styles.tripRow}>
-            <Ionicons
-              name="airplane-outline"
-              size={20}
-              color={colors.iconActive}
-            />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.tripTitle}>Aún no tienes viajes guardados</Text>
-              <Text style={styles.tripSubtitle}>
-                Crea tu próximo viaje para planificar la maleta y los outfits.
-              </Text>
-            </View>
-            <TouchableOpacity onPress={() => router.push("/mis-viajes" as any)}>
-              <Text style={styles.tripCTA}>Abrir viajes</Text>
-            </TouchableOpacity>
-          </View>
-        </Card>
-
-        {/* ----- FAVORITOS ----- */}
-        <TitleSerif style={styles.sectionTitle}>Favoritos</TitleSerif>
-
-        {loadingFavorites ? (
-          <ActivityIndicator size="small" color={colors.primary} />
-        ) : favoriteOutfits.length === 0 ? (
-          <BodyText style={{ marginBottom: 12 }}>
-            Aún no tienes outfits favoritos. Crea o reutiliza algunos en Mis
-            Outfits.
-          </BodyText>
-        ) : (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {favoriteOutfits.map((o) => (
-              <Card key={o.id} style={styles.favoriteCard}>
-                <TouchableOpacity
-                  activeOpacity={0.8}
-                  onPress={() => router.push(`/mis-outfits?id=${o.id}`)}
-                >
-                  <Image
-                    source={{ uri: o.imagen }}
-                    style={styles.favoriteImage}
-                  />
-                  <Text style={styles.favoriteName} numberOfLines={1}>
-                    {o.nombre}
-                  </Text>
-                  {o.categoria ? (
-                    <Text style={styles.favoriteCat}>{o.categoria}</Text>
-                  ) : null}
-                </TouchableOpacity>
-              </Card>
-            ))}
-          </ScrollView>
-        )}
-
-        <View style={{ height: 40 }} />
-      </ScrollView>
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      </SafeAreaView>
     </LinearGradient>
   );
 }
@@ -681,8 +684,8 @@ function QuickAction({ label, icon, route }: any) {
 const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 20,
-    paddingBottom: 50,
-    paddingTop: 28, // saludo un poco más abajo
+    paddingBottom: 30,
+    paddingTop: 10, // saludo un poco más abajo
   },
 
   headerRow: {

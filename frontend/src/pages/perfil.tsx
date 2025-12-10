@@ -13,6 +13,7 @@ import { Stack, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import Toast from "react-native-toast-message";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import colors from "../constants/colors";
 import HeaderMaison from "../components/Header";
@@ -184,311 +185,313 @@ export default function Perfil() {
     <>
       <Stack.Screen options={{ headerShown: false }} />
       <LinearGradient colors={colors.gradient} style={{ flex: 1 }}>
-        <HeaderMaison />
+        <SafeAreaView style={{ flex: 1 }} edges={["top", "bottom"]}>
+          <HeaderMaison />
 
-        {/* TÍTULO */}
-        <View style={styles.titleBlock}>
-          <TitleSerif>Perfil</TitleSerif>
-          <SubtitleSerif>Tu espacio personal y estilo</SubtitleSerif>
-        </View>
-
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          {/* CARD DE PERFIL */}
-          <View style={styles.profileCardWrapper}>
-            <Card style={styles.profileCard}>
-              <View style={{ position: "relative" }}>
-                <Image
-                  source={{ uri: usuario.avatar || defaultAvatar }}
-                  style={styles.avatar}
-                />
-
-                <TouchableOpacity
-                  onPress={cambiarAvatar}
-                  style={styles.editAvatarBtn}
-                >
-                  <Ionicons name="camera" size={16} color="#fff" />
-                </TouchableOpacity>
-              </View>
-
-              {/* Nombre + lápiz */}
-              <View style={styles.nameRow}>
-                <Text style={styles.name}>{usuario.nombre}</Text>
-
-                <TouchableOpacity
-                  onPress={() => {
-                    setModalType("nombre");
-                    setModalTitle("Editar nombre");
-                    setModalVisible(true);
-                  }}
-                >
-                  <Ionicons
-                    name="pencil-outline"
-                    size={20}
-                    color={colors.primary}
-                  />
-                </TouchableOpacity>
-              </View>
-
-              <Text style={styles.email}>{usuario.email}</Text>
-            </Card>
+          {/* TÍTULO */}
+          <View style={styles.titleBlock}>
+            <TitleSerif>Perfil</TitleSerif>
+            <SubtitleSerif>Tu espacio personal y estilo</SubtitleSerif>
           </View>
 
-          {/* AJUSTES GRUPO 1 */}
-          <Card style={styles.settingsCard}>
-            <TouchableOpacity
-              style={styles.settingsRow}
-              onPress={() => abrirModalGenerico("Suscripción")}
-            >
-              <View style={styles.iconWrapper}>
-                <Ionicons name="star-outline" size={22} color={colors.primary} />
-              </View>
-              <Text style={styles.settingsText}>Suscripción</Text>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={colors.textSecondary}
-              />
-            </TouchableOpacity>
+          <ScrollView contentContainerStyle={styles.scrollContent}>
+            {/* CARD DE PERFIL */}
+            <View style={styles.profileCardWrapper}>
+              <Card style={styles.profileCard}>
+                <View style={{ position: "relative" }}>
+                  <Image
+                    source={{ uri: usuario.avatar || defaultAvatar }}
+                    style={styles.avatar}
+                  />
 
-            <TouchableOpacity style={styles.settingsRow} onPress={handleOpenPreferencias}>
-              <View style={styles.iconWrapper}>
-                <Ionicons
-                  name="color-palette-outline"
-                  size={22}
-                  color={colors.primary}
-                />
-              </View>
-              <Text style={styles.settingsText}>Preferencias de estilo</Text>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={colors.textSecondary}
-              />
-            </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={cambiarAvatar}
+                    style={styles.editAvatarBtn}
+                  >
+                    <Ionicons name="camera" size={16} color="#fff" />
+                  </TouchableOpacity>
+                </View>
 
-            <TouchableOpacity
-              style={styles.settingsRow}
-              onPress={() => abrirModalGenerico("Favoritos")}
-            >
-              <View style={styles.iconWrapper}>
-                <Ionicons name="heart-outline" size={22} color={colors.primary} />
-              </View>
-              <Text style={styles.settingsText}>Favoritos</Text>
-              <Ionicons
-                name="chevron-forward"
-                size={20}
-                color={colors.textSecondary}
-              />
-            </TouchableOpacity>
-          </Card>
+                {/* Nombre + lápiz */}
+                <View style={styles.nameRow}>
+                  <Text style={styles.name}>{usuario.nombre}</Text>
 
-          {/* AJUSTES GRUPO 2 */}
-          <Card style={styles.settingsCard}>
-            <TouchableOpacity
-              style={styles.settingsRow}
-              onPress={() => abrirModalGenerico("Notificaciones")}
-            >
-              <View style={styles.iconWrapper}>
-                <Ionicons
-                  name="notifications-outline"
-                  size={22}
-                  color={colors.primary}
-                />
-              </View>
-              <Text style={styles.settingsText}>Notificaciones</Text>
-              <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-            </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setModalType("nombre");
+                      setModalTitle("Editar nombre");
+                      setModalVisible(true);
+                    }}
+                  >
+                    <Ionicons
+                      name="pencil-outline"
+                      size={20}
+                      color={colors.primary}
+                    />
+                  </TouchableOpacity>
+                </View>
 
-            <TouchableOpacity
-              style={styles.settingsRow}
-              onPress={() => abrirModalGenerico("Privacidad y seguridad")}
-            >
-              <View style={styles.iconWrapper}>
-                <Ionicons
-                  name="lock-closed-outline"
-                  size={22}
-                  color={colors.primary}
-                />
-              </View>
-              <Text style={styles.settingsText}>Privacidad y seguridad</Text>
-              <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.settingsRow}
-              onPress={() => abrirModalGenerico("Soporte")}
-            >
-              <View style={styles.iconWrapper}>
-                <Ionicons
-                  name="help-circle-outline"
-                  size={22}
-                  color={colors.primary}
-                />
-              </View>
-              <Text style={styles.settingsText}>Soporte</Text>
-              <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
-            </TouchableOpacity>
-          </Card>
-
-          {/* LOGOUT */}
-          <PrimaryButton
-            text="Cerrar sesión"
-            variant="secondary"
-            style={styles.signOut}
-            onPress={logout}
-          />
-
-          {/* -----------------------------------------------------------
-              MODALES
-          ----------------------------------------------------------- */}
-
-          {/* Modal EN CONSTRUCCIÓN */}
-          {modalVisible && modalType === "generic" && (
-            <View style={styles.modalOverlay}>
-              <Card style={styles.modalBox}>
-                <TitleSerif>{modalTitle}</TitleSerif>
-                <SubtitleSerif>Esta sección está en construcción.</SubtitleSerif>
-
-                <PrimaryButton
-                  text="Cerrar"
-                  variant="secondary"
-                  onPress={() => setModalVisible(false)}
-                  style={{ marginTop: 20 }}
-                />
+                <Text style={styles.email}>{usuario.email}</Text>
               </Card>
             </View>
-          )}
 
-          {/* Modal EDITAR NOMBRE */}
-          {modalVisible && modalType === "nombre" && (
-            <View style={styles.modalOverlay}>
-              <Card style={styles.modalBox}>
-                <TitleSerif>Editar nombre</TitleSerif>
-
-                <Text>Nombre</Text>
-                <TextInput
-                  value={usuario.nombre}
-                  onChangeText={(val) =>
-                    setUsuario((prev) => ({ ...prev, nombre: val }))
-                  }
-                  style={styles.input}
+            {/* AJUSTES GRUPO 1 */}
+            <Card style={styles.settingsCard}>
+              <TouchableOpacity
+                style={styles.settingsRow}
+                onPress={() => abrirModalGenerico("Suscripción")}
+              >
+                <View style={styles.iconWrapper}>
+                  <Ionicons name="star-outline" size={22} color={colors.primary} />
+                </View>
+                <Text style={styles.settingsText}>Suscripción</Text>
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={colors.textSecondary}
                 />
+              </TouchableOpacity>
 
-                <PrimaryButton text="Guardar" onPress={guardarNombre} />
-                <PrimaryButton
-                  text="Cancelar"
-                  variant="secondary"
-                  onPress={() => setModalVisible(false)}
-                  style={{ marginTop: 10 }}
+              <TouchableOpacity style={styles.settingsRow} onPress={handleOpenPreferencias}>
+                <View style={styles.iconWrapper}>
+                  <Ionicons
+                    name="color-palette-outline"
+                    size={22}
+                    color={colors.primary}
+                  />
+                </View>
+                <Text style={styles.settingsText}>Preferencias de estilo</Text>
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={colors.textSecondary}
                 />
-              </Card>
-            </View>
-          )}
+              </TouchableOpacity>
 
-          {/* Modal: SIN preferencias todavía */}
-          {modalVisible && modalType === "preferencesEmpty" && (
-            <View style={styles.modalOverlay}>
-              <Card style={styles.modalBox}>
-                <TitleSerif>Preferencias de estilo</TitleSerif>
-                <SubtitleSerif>
-                  Aún no has completado tu cuestionario de estilo. ¿Quieres hacerlo ahora?
-                </SubtitleSerif>
-
-                <PrimaryButton
-                  text="Completar cuestionario"
-                  onPress={() => {
-                    setModalVisible(false);
-                    router.push("/questionnaire");
-                  }}
-                  style={{ marginTop: 20 }}
+              <TouchableOpacity
+                style={styles.settingsRow}
+                onPress={() => abrirModalGenerico("Favoritos")}
+              >
+                <View style={styles.iconWrapper}>
+                  <Ionicons name="heart-outline" size={22} color={colors.primary} />
+                </View>
+                <Text style={styles.settingsText}>Favoritos</Text>
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={colors.textSecondary}
                 />
+              </TouchableOpacity>
+            </Card>
 
-                <PrimaryButton
-                  text="Ahora no"
-                  variant="secondary"
-                  onPress={() => setModalVisible(false)}
-                  style={{ marginTop: 10 }}
-                />
-              </Card>
-            </View>
-          )}
+            {/* AJUSTES GRUPO 2 */}
+            <Card style={styles.settingsCard}>
+              <TouchableOpacity
+                style={styles.settingsRow}
+                onPress={() => abrirModalGenerico("Notificaciones")}
+              >
+                <View style={styles.iconWrapper}>
+                  <Ionicons
+                    name="notifications-outline"
+                    size={22}
+                    color={colors.primary}
+                  />
+                </View>
+                <Text style={styles.settingsText}>Notificaciones</Text>
+                <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
 
-          {/* Modal: EDITAR preferencias existentes */}
-          {modalVisible && modalType === "preferences" && preferences && (
-            <View style={styles.modalOverlay}>
-              <Card style={styles.modalBox}>
-                <TitleSerif>Editar preferencias</TitleSerif>
+              <TouchableOpacity
+                style={styles.settingsRow}
+                onPress={() => abrirModalGenerico("Privacidad y seguridad")}
+              >
+                <View style={styles.iconWrapper}>
+                  <Ionicons
+                    name="lock-closed-outline"
+                    size={22}
+                    color={colors.primary}
+                  />
+                </View>
+                <Text style={styles.settingsText}>Privacidad y seguridad</Text>
+                <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
 
-                <Text>Ciudad</Text>
-                <TextInput
-                  value={preferences.ciudad}
-                  onChangeText={(val) =>
-                    setPreferences((prev) =>
-                      prev ? { ...prev, ciudad: val } : prev
-                    )
-                  }
-                  style={styles.input}
-                />
+              <TouchableOpacity
+                style={styles.settingsRow}
+                onPress={() => abrirModalGenerico("Soporte")}
+              >
+                <View style={styles.iconWrapper}>
+                  <Ionicons
+                    name="help-circle-outline"
+                    size={22}
+                    color={colors.primary}
+                  />
+                </View>
+                <Text style={styles.settingsText}>Soporte</Text>
+                <Ionicons name="chevron-forward" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </Card>
 
-                <Text>Entorno</Text>
-                <TextInput
-                  value={preferences.entorno}
-                  onChangeText={(val) =>
-                    setPreferences((prev) =>
-                      prev ? { ...prev, entorno: val } : prev
-                    )
-                  }
-                  style={styles.input}
-                />
+            {/* LOGOUT */}
+            <PrimaryButton
+              text="Cerrar sesión"
+              variant="secondary"
+              style={styles.signOut}
+              onPress={logout}
+            />
 
-                <Text>Estilo (separado por comas)</Text>
-                <TextInput
-                  value={preferences.estilo.join(", ")}
-                  onChangeText={(val) =>
-                    setPreferences((prev) =>
-                      prev
-                        ? {
-                            ...prev,
-                            estilo: val.split(",").map((v) => v.trim()),
-                          }
-                        : prev
-                    )
-                  }
-                  style={styles.input}
-                />
+            {/* -----------------------------------------------------------
+                MODALES
+            ----------------------------------------------------------- */}
 
-                <Text>Colores (separado por comas)</Text>
-                <TextInput
-                  value={preferences.colores.join(", ")}
-                  onChangeText={(val) =>
-                    setPreferences((prev) =>
-                      prev
-                        ? {
-                            ...prev,
-                            colores: val.split(",").map((v) => v.trim()),
-                          }
-                        : prev
-                    )
-                  }
-                  style={styles.input}
-                />
+            {/* Modal EN CONSTRUCCIÓN */}
+            {modalVisible && modalType === "generic" && (
+              <View style={styles.modalOverlay}>
+                <Card style={styles.modalBox}>
+                  <TitleSerif>{modalTitle}</TitleSerif>
+                  <SubtitleSerif>Esta sección está en construcción.</SubtitleSerif>
 
-                <PrimaryButton
-                  text="Guardar preferencias"
-                  onPress={guardarPreferencias}
-                  style={{ marginTop: 10 }}
-                />
+                  <PrimaryButton
+                    text="Cerrar"
+                    variant="secondary"
+                    onPress={() => setModalVisible(false)}
+                    style={{ marginTop: 20 }}
+                  />
+                </Card>
+              </View>
+            )}
 
-                <PrimaryButton
-                  text="Cancelar"
-                  variant="secondary"
-                  onPress={() => setModalVisible(false)}
-                  style={{ marginTop: 10 }}
-                />
-              </Card>
-            </View>
-          )}
-        </ScrollView>
+            {/* Modal EDITAR NOMBRE */}
+            {modalVisible && modalType === "nombre" && (
+              <View style={styles.modalOverlay}>
+                <Card style={styles.modalBox}>
+                  <TitleSerif>Editar nombre</TitleSerif>
+
+                  <Text>Nombre</Text>
+                  <TextInput
+                    value={usuario.nombre}
+                    onChangeText={(val) =>
+                      setUsuario((prev) => ({ ...prev, nombre: val }))
+                    }
+                    style={styles.input}
+                  />
+
+                  <PrimaryButton text="Guardar" onPress={guardarNombre} />
+                  <PrimaryButton
+                    text="Cancelar"
+                    variant="secondary"
+                    onPress={() => setModalVisible(false)}
+                    style={{ marginTop: 10 }}
+                  />
+                </Card>
+              </View>
+            )}
+
+            {/* Modal: SIN preferencias todavía */}
+            {modalVisible && modalType === "preferencesEmpty" && (
+              <View style={styles.modalOverlay}>
+                <Card style={styles.modalBox}>
+                  <TitleSerif>Preferencias de estilo</TitleSerif>
+                  <SubtitleSerif>
+                    Aún no has completado tu cuestionario de estilo. ¿Quieres hacerlo ahora?
+                  </SubtitleSerif>
+
+                  <PrimaryButton
+                    text="Completar cuestionario"
+                    onPress={() => {
+                      setModalVisible(false);
+                      router.push("/questionnaire");
+                    }}
+                    style={{ marginTop: 20 }}
+                  />
+
+                  <PrimaryButton
+                    text="Ahora no"
+                    variant="secondary"
+                    onPress={() => setModalVisible(false)}
+                    style={{ marginTop: 10 }}
+                  />
+                </Card>
+              </View>
+            )}
+
+            {/* Modal: EDITAR preferencias existentes */}
+            {modalVisible && modalType === "preferences" && preferences && (
+              <View style={styles.modalOverlay}>
+                <Card style={styles.modalBox}>
+                  <TitleSerif>Editar preferencias</TitleSerif>
+
+                  <Text>Ciudad</Text>
+                  <TextInput
+                    value={preferences.ciudad}
+                    onChangeText={(val) =>
+                      setPreferences((prev) =>
+                        prev ? { ...prev, ciudad: val } : prev
+                      )
+                    }
+                    style={styles.input}
+                  />
+
+                  <Text>Entorno</Text>
+                  <TextInput
+                    value={preferences.entorno}
+                    onChangeText={(val) =>
+                      setPreferences((prev) =>
+                        prev ? { ...prev, entorno: val } : prev
+                      )
+                    }
+                    style={styles.input}
+                  />
+
+                  <Text>Estilo (separado por comas)</Text>
+                  <TextInput
+                    value={preferences.estilo.join(", ")}
+                    onChangeText={(val) =>
+                      setPreferences((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              estilo: val.split(",").map((v) => v.trim()),
+                            }
+                          : prev
+                      )
+                    }
+                    style={styles.input}
+                  />
+
+                  <Text>Colores (separado por comas)</Text>
+                  <TextInput
+                    value={preferences.colores.join(", ")}
+                    onChangeText={(val) =>
+                      setPreferences((prev) =>
+                        prev
+                          ? {
+                              ...prev,
+                              colores: val.split(",").map((v) => v.trim()),
+                            }
+                          : prev
+                      )
+                    }
+                    style={styles.input}
+                  />
+
+                  <PrimaryButton
+                    text="Guardar preferencias"
+                    onPress={guardarPreferencias}
+                    style={{ marginTop: 10 }}
+                  />
+
+                  <PrimaryButton
+                    text="Cancelar"
+                    variant="secondary"
+                    onPress={() => setModalVisible(false)}
+                    style={{ marginTop: 10 }}
+                  />
+                </Card>
+              </View>
+            )}
+          </ScrollView>
+        </SafeAreaView>
       </LinearGradient>
     </>
   );

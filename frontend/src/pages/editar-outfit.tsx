@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, useLocalSearchParams, router } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import colors from "../constants/colors";
 import HeaderMaison from "../components/Header";
@@ -85,40 +86,42 @@ export default function EditarOutfit() {
       <Stack.Screen options={{ headerShown: false }} />
 
       <LinearGradient colors={colors.gradient} style={{ flex: 1 }}>
+        <SafeAreaView style={{ flex: 1 }} edges={["top", "bottom"]}>
         
-        {/* HEADER */}
-        <HeaderMaison />
+          {/* HEADER */}
+          <HeaderMaison />
 
-        {/* TÍTULO */}
-        <View style={styles.titleBlock}>
-          <TitleSerif>Editar outfit</TitleSerif>
-        </View>
+          {/* TÍTULO */}
+          <View style={styles.titleBlock}>
+            <TitleSerif>Editar outfit</TitleSerif>
+          </View>
 
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          
-          <Card style={styles.card}>
+          <ScrollView contentContainerStyle={styles.scrollContent}>
+            
+            <Card style={styles.card}>
 
-            {/* Imagen principal o de la prenda 1 (fallback tipo Home) */}
-            {imagen || outfit?.prendas?.[0]?.imagen ? (
-              <Image
-                source={{ uri: imagen || outfit.prendas[0].imagen }}
-                style={styles.img}
+              {/* Imagen principal o de la prenda 1 (fallback tipo Home) */}
+              {imagen || outfit?.prendas?.[0]?.imagen ? (
+                <Image
+                  source={{ uri: imagen || outfit.prendas[0].imagen }}
+                  style={styles.img}
+                />
+              ) : null}
+
+              <InputMaison label="Nombre del outfit" value={nombre} onChangeText={setNombre} />
+              <InputMaison label="Categoría" value={categoria} onChangeText={setCategoria} />
+              <InputMaison label="Estación" value={estacion} onChangeText={setEstacion} />
+              <InputMaison label="URL imagen" value={imagen} onChangeText={setImagen} />
+
+              <PrimaryButton
+                text="Guardar cambios"
+                onPress={guardarCambios}
+                style={{ marginTop: 20 }}
               />
-            ) : null}
+            </Card>
 
-            <InputMaison label="Nombre del outfit" value={nombre} onChangeText={setNombre} />
-            <InputMaison label="Categoría" value={categoria} onChangeText={setCategoria} />
-            <InputMaison label="Estación" value={estacion} onChangeText={setEstacion} />
-            <InputMaison label="URL imagen" value={imagen} onChangeText={setImagen} />
-
-            <PrimaryButton
-              text="Guardar cambios"
-              onPress={guardarCambios}
-              style={{ marginTop: 20 }}
-            />
-          </Card>
-
-        </ScrollView>
+          </ScrollView>
+        </SafeAreaView>
       </LinearGradient>
     </>
   );
@@ -136,7 +139,7 @@ const styles = StyleSheet.create({
 
   scrollContent: {
     paddingHorizontal: 20,
-    paddingBottom: 60,
+    paddingBottom: 30,
   },
 
   card: {
