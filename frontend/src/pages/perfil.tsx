@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   TextInput,
+  Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, useRouter } from "expo-router";
@@ -77,20 +78,97 @@ export default function Perfil() {
     if (auth?.userId) cargarUsuario();
   }, [auth?.userId]);
 
-  // ------------------------------------------------------------
-  // Cambiar avatar (solo cliente por ahora)
-  // ------------------------------------------------------------
-  const cambiarAvatar = async () => {
-    const res = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.8,
-    });
+  // 🔹 Función auxiliar SOLO para Web
+  const abrirSelectorWeb = () => {
+    return new Promise<File | null>((resolve) => {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*";
 
-    if (!res.canceled) {
-      setUsuario((prev) => ({ ...prev, avatar: res.assets[0].uri }));
+      input.onchange = () => {
+        const file = input.files?.[0] || null;
+        resolve(file);
+      };
+
+      input.click();
+    });
+  };
+
+  const cambiarAvatar = async () => {
+    let file: any = null;
+
+    if (Platform.OS === "web") {
+      // ----------------------------
+      // 🌐 WEB → FileInput nativo
+      // ----------------------------
+      file = await abrirSelectorWeb();
+      if (!file) return;
+
+    } else {
+      // ----------------------------
+      // 📱 ANDROID / iOS → ImagePicker
+      // ----------------------------
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (res.canceled) return;
+
+      const asset = res.assets[0];
+
+      file = {
+        uri: asset.uri,
+        name: "avatar.jpg",
+        type: "image/jpeg",
+      };
+    }
+
+    // Crear FormData para enviar archivo al backend
+    const formData = new FormData();
+    formData.append("avatar", file);
+
+    try {
+      const response = await fetch(
+        `${process.env.EXPO_PUBLIC_API_URL}/api/users/perfil`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${auth?.token}`, 
+            // ⚠ NO pongas Content-Type → fetch lo genera automáticamente
+          },
+          body: formData,
+        }
+      );
+
+      const data = await response.json();
+
+      if (!data.ok) {
+        Toast.show({
+          type: "error",
+          text1: "Error al subir el avatar",
+        });
+        return;
+      }
+
+      // Actualizar avatar en UI
+      setUsuario((prev) => ({
+        ...prev,
+        avatar: data.usuario.avatar, // URL GCS generada por backend
+      }));
+
       Toast.show({
-        type: "info",
-        text1: "Avatar actualizado localmente",
+        type: "success",
+        text1: "Avatar actualizado",
+      });
+
+    } catch (error) {
+      console.error(error);
+      Toast.show({
+        type: "error",
+        text1: "Error al subir avatar",
       });
     }
   };
