@@ -1,4 +1,8 @@
-import React, { useState, useMemo } from "react";
+import React, {
+  useState,
+  useMemo,
+  useEffect,
+} from "react";
 import {
   View,
   Text,
@@ -9,6 +13,7 @@ import {
   TextInput,
   FlatList,
   useWindowDimensions,
+  Alert,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -22,25 +27,38 @@ import FloatingActionButton from "../components/ui/FloatingActionButton";
 
 import colors from "../constants/colors";
 import { Calendar, DateData } from "react-native-calendars";
+import { apiRequest } from "../utils/apiClient"; // ⭐ usamos el mismo helper que en el resto
 
 // Listas cerradas
 const TRANSPORTES = ["Avión", "Tren", "Coche", "Bus", "Barco"];
-const ACTIVIDADES = ["Playa", "Montaña", "Trabajo", "Ciudad", "Deporte", "Compras"];
+const ACTIVIDADES = [
+  "Playa",
+  "Montaña",
+  "Trabajo",
+  "Ciudad",
+  "Deporte",
+  "Compras",
+];
 
 const VALOR_TODOS = "todos";
 const QUICK_ALL = "Todos";
 
-interface Maleta {
+interface Viaje {
   id: string;
   destino: string;
-  desde: string;
-  hasta: string;
+  ciudad: string;
+  fechaInicio: string; // YYYY-MM-DD o ISO
+  fechaFin: string;
   transporte: string;
   actividades?: string[];
   createdAt?: string;
 }
 
 export default function MisViajes() {
+  // 📌 Viajes reales del backend
+  const [viajes, setViajes] = useState<Viaje[]>([]);
+  const [loadingViajes, setLoadingViajes] = useState(false);
+
   // 📌 Campos del viaje (formulario nuevo viaje)
   const [destino, setDestino] = useState("");
   const [desde, setDesde] = useState<Date | null>(null);
@@ -52,19 +70,20 @@ export default function MisViajes() {
   const [modalDestino, setModalDestino] = useState(false);
   const [modalTransporte, setModalTransporte] = useState(false);
   const [modalActividades, setModalActividades] = useState(false);
-  const [modalCalendario, setModalCalendario] = useState<null | "desde" | "hasta">(null);
+  const [modalCalendario, setModalCalendario] = useState<
+    null | "desde" | "hasta"
+  >(null);
 
   // 📌 Filtros
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
   const [filtroDestino, setFiltroDestino] = useState<string>(VALOR_TODOS);
-  const [filtroTransporte, setFiltroTransporte] = useState<string>(VALOR_TODOS);
-  const [filtroActividad, setFiltroActividad] = useState<string>(VALOR_TODOS);
+  const [filtroTransporte, setFiltroTransporte] =
+    useState<string>(VALOR_TODOS);
+  const [filtroActividad, setFiltroActividad] =
+    useState<string>(VALOR_TODOS);
 
   const [filtroRapidoTransporte, setFiltroRapidoTransporte] =
     useState<string>(QUICK_ALL);
-
-  // 📌 Placeholder de maletas hasta integrar backend
-  const maletas: Maleta[] = [];
 
   const { width } = useWindowDimensions();
   const isWeb = width > 768;
@@ -73,8 +92,61 @@ export default function MisViajes() {
   const formatDate = (date: Date | null) =>
     date ? date.toISOString().split("T")[0] : "";
 
-  const handleHacerMaleta = () => {
-    router.push("/lista-equipaje");
+  // ============================================================
+  // Cargar viajes del backend
+  // ============================================================
+
+  const cargarViajes = async () => {
+    try {
+      setLoadingViajes(true);
+      const data = await apiRequest<Viaje[]>("/api/viajes", {
+        method: "GET",
+      });
+      setViajes(data || []);
+    } catch (err) {
+      console.log("Error cargando viajes:", err);
+    } finally {
+      setLoadingViajes(false);
+    }
+  };
+
+  useEffect(() => {
+    cargarViajes();
+  }, []);
+
+  // ============================================================
+  // Crear viaje y navegar a lista de equipaje
+  // ============================================================
+
+  const handleHacerMaleta = async () => {
+    if (!destino || !desde || !hasta || !transporte) {
+      Alert.alert(
+        "Faltan datos",
+        "Rellena destino, fechas y método de transporte."
+      );
+      return;
+    }
+
+    try {
+      const nuevoViaje = await apiRequest<Viaje>("/api/viajes", {
+        method: "POST",
+        body: JSON.stringify({
+          destino,
+          ciudad: destino, // puedes cambiarlo si luego hay ciudad separada
+          fechaInicio: formatDate(desde),
+          fechaFin: formatDate(hasta),
+          transporte,
+          actividades,
+          descripcion: "",
+        }),
+      });
+
+      // Navegamos a la pantalla de equipaje de ese viaje
+      router.push(`/lista-equipaje?id=${nuevoViaje.id}`);
+    } catch (err) {
+      console.log("Error creando viaje:", err);
+      Alert.alert("Error", "No se pudo crear el viaje.");
+    }
   };
 
   /* -------------------- QUICK CHIPS TRANSPORTE -------------------- */
@@ -84,15 +156,16 @@ export default function MisViajes() {
     []
   );
 
-  /* -------------------- FILTRO FINAL DE MALETAS -------------------- */
+  /* -------------------- FILTRO FINAL DE VIAJES -------------------- */
 
-  const filteredMaletas = useMemo(() => {
-    return maletas.filter((m) => {
+  const filteredViajes = useMemo(() => {
+    return viajes.filter((m) => {
       const coincideDestino =
         filtroDestino === VALOR_TODOS || m.destino === filtroDestino;
 
       const coincideTransporte =
-        filtroTransporte === VALOR_TODOS || m.transporte === filtroTransporte;
+        filtroTransporte === VALOR_TODOS ||
+        m.transporte === filtroTransporte;
 
       const coincideActividad =
         filtroActividad === VALOR_TODOS ||
@@ -100,32 +173,37 @@ export default function MisViajes() {
 
       return coincideDestino && coincideTransporte && coincideActividad;
     });
-  }, [maletas, filtroDestino, filtroTransporte, filtroActividad]);
+  }, [viajes, filtroDestino, filtroTransporte, filtroActividad]);
 
-  /* -------------------- RENDER CARD MALETA (GRID) -------------------- */
+  /* -------------------- RENDER CARD VIAJE (GRID) -------------------- */
 
-  const renderMaleta = ({ item }: { item: Maleta }) => (
-    <Card style={styles.maletaCard}>
-      <View style={styles.maletaInner}>
-        <View style={styles.maletaHeaderRow}>
-          <Ionicons
-            name="briefcase-outline"
-            size={18}
-            color={colors.primaryDark}
-          />
-          <Text style={styles.maletaTitle}>{item.destino}</Text>
-        </View>
-        <Text style={styles.maletaSubtitle}>
-          {item.desde} → {item.hasta}
-        </Text>
-        <Text style={styles.maletaSubtitle}>{item.transporte}</Text>
-        {item.actividades && item.actividades.length > 0 && (
-          <Text style={styles.maletaTags}>
-            {item.actividades.join(" · ")}
+  const renderViaje = ({ item }: { item: Viaje }) => (
+    <TouchableOpacity
+      style={{ flex: 1 }}
+      onPress={() => router.push(`/lista-equipaje?id=${item.id}`)}
+    >
+      <Card style={styles.maletaCard}>
+        <View style={styles.maletaInner}>
+          <View style={styles.maletaHeaderRow}>
+            <Ionicons
+              name="briefcase-outline"
+              size={18}
+              color={colors.primaryDark}
+            />
+            <Text style={styles.maletaTitle}>{item.destino}</Text>
+          </View>
+          <Text style={styles.maletaSubtitle}>
+            {item.fechaInicio} → {item.fechaFin}
           </Text>
-        )}
-      </View>
-    </Card>
+          <Text style={styles.maletaSubtitle}>{item.transporte}</Text>
+          {item.actividades && item.actividades.length > 0 && (
+            <Text style={styles.maletaTags}>
+              {item.actividades.join(" · ")}
+            </Text>
+          )}
+        </View>
+      </Card>
+    </TouchableOpacity>
   );
 
   /* -------------------- UI AUX -------------------- */
@@ -184,9 +262,9 @@ export default function MisViajes() {
           <View style={styles.titleBlock}>
             <TitleSerif style={styles.title}>Mis viajes</TitleSerif>
             <SubtitleSerif>
-              {maletas.length === 0
-                ? "Aún no tienes maletas creadas"
-                : `${maletas.length} viajes planificados`}
+              {viajes.length === 0
+                ? "Aún no tienes viajes creados"
+                : `${viajes.length} viaje(s) planificados`}
             </SubtitleSerif>
           </View>
 
@@ -202,7 +280,8 @@ export default function MisViajes() {
                 key={cat}
                 style={[
                   styles.categoryChip,
-                  filtroRapidoTransporte === cat && styles.categoryChipActive,
+                  filtroRapidoTransporte === cat &&
+                    styles.categoryChipActive,
                 ]}
                 onPress={() => {
                   setFiltroRapidoTransporte(cat);
@@ -390,9 +469,13 @@ export default function MisViajes() {
           )}
         </View>
 
-        {/* ░░ GRID DE MALETAS CON SCROLL ░░ */}
+        {/* ░░ GRID DE VIAJES CON SCROLL ░░ */}
         <View style={{ flex: 1, minHeight: 0 }}>
-          {filteredMaletas.length === 0 ? (
+          {loadingViajes ? (
+            <View style={styles.emptyBox}>
+              <Text style={styles.emptyText}>Cargando viajes…</Text>
+            </View>
+          ) : filteredViajes.length === 0 ? (
             <View style={styles.emptyBox}>
               <Ionicons
                 name="briefcase-outline"
@@ -400,13 +483,13 @@ export default function MisViajes() {
                 color={colors.primary}
               />
               <Text style={styles.emptyText}>
-                Aún no tienes maletas creadas
+                Aún no tienes viajes creados
               </Text>
             </View>
           ) : (
             <FlatList
-              data={filteredMaletas}
-              renderItem={renderMaleta}
+              data={filteredViajes}
+              renderItem={renderViaje}
               keyExtractor={(item) => item.id}
               numColumns={columnas}
               showsVerticalScrollIndicator={true}
@@ -446,11 +529,7 @@ export default function MisViajes() {
         {/* --------------------------------------------- */}
         {/* MODAL TRANSPORTE */}
         {/* --------------------------------------------- */}
-        <Modal
-          visible={modalTransporte}
-          transparent
-          animationType="fade"
-        >
+        <Modal visible={modalTransporte} transparent animationType="fade">
           <View style={styles.modalOverlay}>
             <View style={styles.modalBox}>
               <Text style={styles.modalTitle}>Método de transporte</Text>
@@ -474,11 +553,7 @@ export default function MisViajes() {
         {/* --------------------------------------------- */}
         {/* MODAL ACTIVIDADES (MULTI SELECT) */}
         {/* --------------------------------------------- */}
-        <Modal
-          visible={modalActividades}
-          transparent
-          animationType="fade"
-        >
+        <Modal visible={modalActividades} transparent animationType="fade">
           <View style={styles.modalOverlay}>
             <View style={styles.modalBox}>
               <Text style={styles.modalTitle}>Actividades</Text>

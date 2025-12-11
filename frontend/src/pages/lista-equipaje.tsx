@@ -1,5 +1,6 @@
 // ============================================================
-// LISTA DE EQUIPAJE — UI COMPLETA (versión frontend-first)
+// LISTA DE EQUIPAJE — Versión final (B1) alineada al backend real
+// Ruta: /lista-equipaje?id=viajeId
 // ============================================================
 
 import React, { useState, useEffect } from "react";
@@ -9,8 +10,9 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  FlatList,
   Modal,
+  ActivityIndicator,
+  TextInput,
   Alert,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -21,28 +23,34 @@ import { useLocalSearchParams, router } from "expo-router";
 import TitleSerif from "../components/ui/TitleSerif";
 import SubtitleSerif from "../components/ui/SubtitleSerif";
 import Card from "../components/ui/Card";
-import FloatingActionButton from "../components/ui/FloatingActionButton";
 import colors from "../constants/colors";
+import { apiRequest } from "../utils/apiClient";
 
 // ============================================================
-// Tipos internos frontend (Opción B)
+// Tipos reales del backend
 // ============================================================
 
-export interface EquipajeItem {
-  id?: string;
+interface Prenda {
+  id: string;
   nombre: string;
-  cantidad?: number;
-  tipo?: string;
-  meta?: any;
+  tipo: string;
+  color?: string;
+  imagen?: string;
 }
 
-export interface EquipajeCategoria {
-  categoria: string;
-  items: EquipajeItem[];
+interface ItemMaleta {
+  id: string;
+  nombre: string;
+  categoria: string; // casual / formal / deporte / elegante
+  tipo: "outfit_completo" | "prendas_sueltas";
+  cantidad: number;
+  empacado: boolean;
+  notas?: string;
+  prendas: Prenda[];
 }
 
 // ============================================================
-// Helpers
+// Weather helpers
 // ============================================================
 
 const weatherMap: Record<number, { condition: string; icon: string }> = {
@@ -58,27 +66,16 @@ const weatherMap: Record<number, { condition: string; icon: string }> = {
 };
 
 // ============================================================
-// Componente principal
+// MAIN COMPONENT
 // ============================================================
 
 export default function ListaEquipaje() {
-  const params = useLocalSearchParams();
+  const { id: viajeId } = useLocalSearchParams();
 
-  const destino = params.destino || "Destino";
-  const desde = params.desde ? new Date(params.desde as string) : null;
-  const hasta = params.hasta ? new Date(params.hasta as string) : null;
-
-  const actividades = params.actividades
-    ? JSON.parse(params.actividades as string)
-    : [];
-
-  // ============================================================
-  // Estado local
-  // ============================================================
-
-  const [equipaje, setEquipaje] = useState<EquipajeCategoria[]>([]);
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const [loadingIA, setLoadingIA] = useState(true);
+  // Estado
+  const [items, setItems] = useState<ItemMaleta[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
 
   // Clima
   const [weather, setWeather] = useState<{
@@ -87,44 +84,32 @@ export default function ListaEquipaje() {
     icon: string;
   } | null>(null);
 
-  // Edición / eliminar
+  // Modal edición
   const [modalVisible, setModalVisible] = useState(false);
-  const [itemSeleccionado, setItemSeleccionado] = useState<{
-    categoria: string;
-    item: EquipajeItem;
-  } | null>(null);
+  const [selected, setSelected] = useState<ItemMaleta | null>(null);
+  const [notasTemp, setNotasTemp] = useState("");
 
   // ============================================================
-  // Load clima
+  // Cargar clima desde frontend
   // ============================================================
 
-  const cargarClima = async () => {
+  const cargarClima = async (destino: string) => {
     try {
-      // 1. Obtener coordenadas por nombre de ciudad
-      const encoded = encodeURIComponent(destino as string);
+      const encoded = encodeURIComponent(destino);
       const geo = await fetch(
         `https://geocoding-api.open-meteo.com/v1/search?name=${encoded}`
       ).then((r) => r.json());
 
-      if (!geo?.results?.length) {
-        setWeather({
-          temperature: null,
-          condition: "Desconocido",
-          icon: "weather-cloudy",
-        });
-        return;
-      }
+      if (!geo?.results?.length) return;
 
       const { latitude, longitude } = geo.results[0];
 
-      // 2. Obtener clima actual
       const data = await fetch(
         `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&timezone=auto`
       ).then((r) => r.json());
 
       const temp = Math.round(data.current.temperature_2m);
       const code = data.current.weather_code;
-
       const info = weatherMap[code] ?? {
         condition: "Desconocido",
         icon: "weather-cloudy",
@@ -135,109 +120,99 @@ export default function ListaEquipaje() {
         condition: info.condition,
         icon: info.icon,
       });
-    } catch (e) {
-      setWeather({
-        temperature: null,
-        condition: "Desconocido",
-        icon: "weather-cloudy",
-      });
+    } catch (e) {}
+  };
+
+  // ============================================================
+  // Cargar maleta del backend
+  // ============================================================
+
+  const cargarMaleta = async () => {
+    try {
+      setLoading(true);
+      const data = await apiRequest<ItemMaleta[]>(
+        `/api/viajes/${viajeId}/maleta`,
+        { method: "GET" }
+      );
+      setItems(data);
+    } catch (err) {
+      console.log("Error cargando maleta:", err);
+    } finally {
+      setLoading(false);
     }
   };
 
   // ============================================================
-  // Stub IA (dummy data hasta backend real)
+  // Generar maleta con IA
   // ============================================================
 
-  const cargarEquipajeIA = async () => {
-    setLoadingIA(true);
-
-    // Aquí luego enchufamos tu endpoint real:
-    // const result = await apiRequest("/api/equipaje/generar", ...)
-
-    // Dummy temporal (estructura Opción B)
-    const dummy: EquipajeCategoria[] = [
-      {
-        categoria: "Ropa",
-        items: [
-          { nombre: "Camisa blanca", cantidad: 2, tipo: "parte arriba" },
-          { nombre: "Pantalón vaquero", cantidad: 1, tipo: "parte abajo" },
-          { nombre: "Zapatillas cómodas", cantidad: 1, tipo: "calzado" },
-        ],
-      },
-      {
-        categoria: "Baño",
-        items: [
-          { nombre: "Cepillo de dientes", cantidad: 1 },
-          { nombre: "Gel de baño", cantidad: 1 },
-        ],
-      },
-      {
-        categoria: "Seguridad y Salud",
-        items: [{ nombre: "Ibuprofeno", cantidad: 1 }],
-      },
-      {
-        categoria: "Gadgets y Accesorios",
-        items: [
-          { nombre: "Cargador móvil", cantidad: 1 },
-          { nombre: "Adaptador universal", cantidad: 1 },
-        ],
-      },
-      {
-        categoria: "Maletas",
-        items: [{ nombre: "Maleta de mano", cantidad: 1 }],
-      },
-    ];
-
-    setEquipaje(dummy);
-
-    // Expandir todo al inicio
-    const expandedMap: any = {};
-    dummy.forEach((c) => (expandedMap[c.categoria] = true));
-    setExpanded(expandedMap);
-
-    setLoadingIA(false);
+  const generarMaleta = async () => {
+    try {
+      setGenerating(true);
+      await apiRequest(`/api/viajes/${viajeId}/maleta/generar`, {
+        method: "POST",
+      });
+      await cargarMaleta();
+    } catch (err: any) {
+      Alert.alert("Error", err.message || "No se pudo generar la maleta");
+    } finally {
+      setGenerating(false);
+    }
   };
 
   // ============================================================
-  // Effect inicial
+  // Actualizar item (empacado, cantidad, notas)
+  // ============================================================
+
+  const actualizarItem = async (
+    idItem: string,
+    cambios: Partial<ItemMaleta>
+  ) => {
+    try {
+      await apiRequest(`/api/viajes/${viajeId}/maleta/${idItem}`, {
+        method: "PUT",
+        body: JSON.stringify(cambios),
+      });
+      await cargarMaleta();
+    } catch (err) {
+      console.log("Error actualizando item:", err);
+    }
+  };
+
+  // ============================================================
+  // Eliminar item
+  // ============================================================
+
+  const eliminarItem = async (idItem: string) => {
+    try {
+      await apiRequest(`/api/viajes/${viajeId}/maleta/${idItem}`, {
+        method: "DELETE",
+      });
+      await cargarMaleta();
+    } catch (err) {
+      console.log("Error eliminando item:", err);
+    }
+  };
+
+  // ============================================================
+  // Al montar: cargar maleta y clima
   // ============================================================
 
   useEffect(() => {
-    cargarClima();
-    cargarEquipajeIA();
-  }, []);
+    if (!viajeId) return;
+    cargarMaleta();
+
+    // OJO: aquí no tenemos el destino del viaje.
+    // Si quieres clima correcto, pásalo desde Mis-Viajes por query param.
+    cargarClima("Destino");
+  }, [viajeId]);
 
   // ============================================================
-  // Helpers UI
+  // Separar por tipo (B1)
   // ============================================================
 
-  const toggleCategoria = (cat: string) => {
-    setExpanded((prev) => ({ ...prev, [cat]: !prev[cat] }));
-  };
-
-  const abrirItem = (categoria: string, item: EquipajeItem) => {
-    setItemSeleccionado({ categoria, item });
-    setModalVisible(true);
-  };
-
-  const eliminarItem = () => {
-    if (!itemSeleccionado) return;
-
-    setEquipaje((prev) =>
-      prev.map((cat) =>
-        cat.categoria === itemSeleccionado.categoria
-          ? {
-              ...cat,
-              items: cat.items.filter(
-                (i) => i.nombre !== itemSeleccionado.item.nombre
-              ),
-            }
-          : cat
-      )
-    );
-
-    setModalVisible(false);
-  };
+  const outfits = items.filter((i) => i.tipo === "outfit_completo");
+  const sueltas = items.filter((i) => i.tipo === "prendas_sueltas");
 
   // ============================================================
   // Render
@@ -246,154 +221,227 @@ export default function ListaEquipaje() {
   return (
     <LinearGradient colors={colors.gradient} style={{ flex: 1 }}>
       <SafeAreaView style={{ flex: 1 }} edges={["top", "bottom"]}>
-        {/* Header Maison */}
-        <View style={styles.headerTopRow}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.backButton}
-          >
-            <Ionicons
-              name="chevron-back-outline"
-              size={26}
-              color={colors.iconActive}
-            />
-          </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={() => router.push("/perfil")}
-            style={styles.profileButton}
-          >
-            <Ionicons
-              name="person-circle-outline"
-              size={32}
-              color={colors.iconActive}
-            />
-          </TouchableOpacity>
-        </View>
-
-        {/* Título y clima */}
-        <View style={styles.titleBlock}>
-          <TitleSerif style={styles.title}>Lista de equipaje</TitleSerif>
-
-          <SubtitleSerif>
-            {destino} {desde && hasta ? `· ${desde.toLocaleDateString()} - ${hasta.toLocaleDateString()}` : ""}
-          </SubtitleSerif>
-
-          {weather && (
-            <View style={styles.weatherRow}>
-              <MaterialCommunityIcons
-                name={weather.icon as any}
-                size={22}
+        {/* HEADER TIPO MIS-VIAJES */}
+        <View style={styles.headerArea}>
+          <View style={styles.headerTopRow}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={styles.backButton}
+            >
+              <Ionicons
+                name="chevron-back-outline"
+                size={26}
                 color={colors.iconActive}
               />
-              <Text style={styles.weatherText}>
-                {weather.condition}
-                {weather.temperature !== null ? ` · ${weather.temperature}°` : ""}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* Contenido */}
-        <ScrollView contentContainerStyle={{ padding: 20 }}>
-          {loadingIA ? (
-            <Text style={{ color: "#555" }}>Generando equipaje…</Text>
-          ) : (
-            equipaje.map((cat) => (
-              <View key={cat.categoria} style={styles.categoriaBlock}>
-                {/* Header de categoría */}
-                <TouchableOpacity
-                  style={styles.categoriaHeader}
-                  onPress={() => toggleCategoria(cat.categoria)}
-                >
-                  <Text style={styles.categoriaTitle}>{cat.categoria}</Text>
-
-                  <Ionicons
-                    name={
-                      expanded[cat.categoria]
-                        ? "chevron-up-outline"
-                        : "chevron-down-outline"
-                    }
-                    size={20}
-                    color={colors.textPrimary}
-                  />
-                </TouchableOpacity>
-
-                {/* Items */}
-                {expanded[cat.categoria] && (
-                  <View style={styles.itemsBlock}>
-                    {cat.items.map((i) => (
-                      <TouchableOpacity
-                        key={i.nombre}
-                        style={styles.itemRow}
-                        onPress={() => abrirItem(cat.categoria, i)}
-                      >
-                        <Text style={styles.itemText}>
-                          {i.nombre}
-                          {i.cantidad ? ` ×${i.cantidad}` : ""}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-              </View>
-            ))
-          )}
-
-          {/* Botón cerrar maleta */}
-          <TouchableOpacity style={styles.btnCerrar}>
-            <Text style={styles.btnCerrarText}>Cerrar maleta</Text>
-          </TouchableOpacity>
-
-          {/* Botones PDF / compartir */}
-          <View style={styles.bottomActions}>
-            <TouchableOpacity style={styles.actionIcon}>
-              <MaterialCommunityIcons name="file-pdf-box" size={42} color="#333" />
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.actionIcon}>
-              <Ionicons name="share-social-outline" size={38} color="#333" />
+            <TouchableOpacity
+              onPress={() => router.push("/perfil")}
+              style={styles.profileButton}
+            >
+              <Ionicons
+                name="person-circle-outline"
+                size={32}
+                color={colors.iconActive}
+              />
             </TouchableOpacity>
           </View>
+
+          <View style={styles.titleBlock}>
+            <TitleSerif style={styles.title}>Equipaje</TitleSerif>
+            <SubtitleSerif>Tu maleta generada</SubtitleSerif>
+
+            {weather && (
+              <View style={styles.weatherRow}>
+                <MaterialCommunityIcons
+                  name={weather.icon as any}
+                  size={20}
+                  color={colors.iconActive}
+                />
+                <Text style={styles.weatherText}>
+                  {weather.condition}
+                  {weather.temperature ? ` · ${weather.temperature}°` : ""}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* CONTENIDO */}
+        <ScrollView contentContainerStyle={styles.content}>
+
+          {loading ? (
+            <ActivityIndicator size="large" color={colors.primary} />
+          ) : items.length === 0 ? (
+            <View style={{ marginTop: 40 }}>
+              <Text style={{ color: colors.textSecondary, marginBottom: 20 }}>
+                Aún no se ha generado ninguna maleta.
+              </Text>
+
+              <TouchableOpacity
+                style={styles.btnGenerar}
+                onPress={generarMaleta}
+                disabled={generating}
+              >
+                <Text style={styles.btnGenerarText}>
+                  {generating ? "Generando..." : "Generar maleta con IA"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              {/* Outfits completos */}
+              <Text style={styles.sectionTitle}>Outfits completos</Text>
+
+              {outfits.map((item) => (
+                <Card key={item.id} style={styles.itemCard}>
+
+                  <TouchableOpacity
+                    onPress={() => {
+                      setSelected(item);
+                      setNotasTemp(item.notas || "");
+                      setModalVisible(true);
+                    }}
+                  >
+                    <Text style={styles.itemTitle}>{item.nombre}</Text>
+                    <Text style={styles.itemSub}>
+                      {item.categoria} · Cantidad: {item.cantidad}
+                    </Text>
+
+                    <View style={styles.prendasRow}>
+                      {item.prendas.map((p) => (
+                        <View key={p.id} style={styles.prendaBadge}>
+                          <Text style={styles.prendaText}>{p.nombre}</Text>
+                        </View>
+                      ))}
+                    </View>
+
+                    {/* Empacado */}
+                    <TouchableOpacity
+                      style={styles.empacadoRow}
+                      onPress={() =>
+                        actualizarItem(item.id, { empacado: !item.empacado })
+                      }
+                    >
+                      <Ionicons
+                        name={
+                          item.empacado
+                            ? "checkbox-outline"
+                            : "square-outline"
+                        }
+                        size={22}
+                        color={colors.primary}
+                      />
+                      <Text style={styles.empacadoText}>Empacado</Text>
+                    </TouchableOpacity>
+                  </TouchableOpacity>
+
+                </Card>
+              ))}
+
+              {/* Prendas sueltas */}
+              <Text style={styles.sectionTitle}>Prendas sueltas</Text>
+
+              {sueltas.map((item) => (
+                <Card key={item.id} style={styles.itemCard}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setSelected(item);
+                      setNotasTemp(item.notas || "");
+                      setModalVisible(true);
+                    }}
+                  >
+                    <Text style={styles.itemTitle}>{item.nombre}</Text>
+                    <Text style={styles.itemSub}>Cantidad: {item.cantidad}</Text>
+
+                    <TouchableOpacity
+                      style={styles.empacadoRow}
+                      onPress={() =>
+                        actualizarItem(item.id, { empacado: !item.empacado })
+                      }
+                    >
+                      <Ionicons
+                        name={
+                          item.empacado
+                            ? "checkbox-outline"
+                            : "square-outline"
+                        }
+                        size={22}
+                        color={colors.primary}
+                      />
+                      <Text style={styles.empacadoText}>Empacado</Text>
+                    </TouchableOpacity>
+                  </TouchableOpacity>
+                </Card>
+              ))}
+            </>
+          )}
+
+          <View style={{ height: 80 }} />
         </ScrollView>
 
-        {/* MODAL ITEM */}
+        {/* MODAL DETALLE */}
         <Modal visible={modalVisible} transparent animationType="fade">
           <View style={styles.modalOverlay}>
             <View style={styles.modalCard}>
-              {itemSeleccionado && (
+              {selected && (
                 <>
-                  <Text style={styles.modalTitle}>
-                    {itemSeleccionado.item.nombre}
-                  </Text>
+                  <Text style={styles.modalTitle}>{selected.nombre}</Text>
 
-                  <Text style={styles.modalText}>
-                    Cantidad: {itemSeleccionado.item.cantidad ?? 1}
-                  </Text>
+                  {/* Notas */}
+                  <Text style={styles.modalLabel}>Notas</Text>
+                  <TextInput
+                    value={notasTemp}
+                    onChangeText={setNotasTemp}
+                    placeholder="Escribe notas..."
+                    style={styles.modalInput}
+                    multiline
+                  />
 
-                  {itemSeleccionado.item.tipo && (
-                    <Text style={styles.modalText}>
-                      Tipo: {itemSeleccionado.item.tipo}
-                    </Text>
-                  )}
+                  {/* Cantidad */}
+                  <Text style={styles.modalLabel}>Cantidad</Text>
+                  <TextInput
+                    keyboardType="numeric"
+                    defaultValue={String(selected.cantidad)}
+                    onChangeText={(v) =>
+                      actualizarItem(selected.id, {
+                        cantidad: Number(v),
+                      })
+                    }
+                    style={styles.modalInput}
+                  />
 
-                  {/* Acciones */}
-                  <View style={styles.modalActions}>
-                    <TouchableOpacity
-                      style={styles.modalBtnDanger}
-                      onPress={eliminarItem}
-                    >
-                      <Ionicons name="trash-outline" size={18} color="#FFF" />
-                      <Text style={styles.modalBtnDangerText}>Eliminar</Text>
-                    </TouchableOpacity>
+                  {/* Guardar */}
+                  <TouchableOpacity
+                    style={styles.modalBtn}
+                    onPress={() => {
+                      actualizarItem(selected.id, { notas: notasTemp });
+                      setModalVisible(false);
+                    }}
+                  >
+                    <Text style={styles.modalBtnText}>Guardar</Text>
+                  </TouchableOpacity>
 
-                    <TouchableOpacity
-                      style={styles.modalBtnClose}
-                      onPress={() => setModalVisible(false)}
-                    >
-                      <Text style={styles.modalBtnCloseText}>Cerrar</Text>
-                    </TouchableOpacity>
-                  </View>
+                  {/* Eliminar */}
+                  <TouchableOpacity
+                    style={styles.modalDelete}
+                    onPress={() => {
+                      eliminarItem(selected.id);
+                      setModalVisible(false);
+                    }}
+                  >
+                    <Ionicons name="trash-outline" size={18} color="#FFF" />
+                    <Text style={styles.modalDeleteText}>Eliminar</Text>
+                  </TouchableOpacity>
+
+                  {/* Cerrar */}
+                  <TouchableOpacity
+                    style={styles.modalClose}
+                    onPress={() => setModalVisible(false)}
+                  >
+                    <Ionicons name="close" size={20} color="#333" />
+                  </TouchableOpacity>
                 </>
               )}
             </View>
@@ -409,162 +457,146 @@ export default function ListaEquipaje() {
 // ============================================================
 
 const styles = StyleSheet.create({
+  headerArea: {
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 20,
+  },
   headerTopRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingTop: 10,
     marginBottom: 10,
   },
-
   backButton: {
     backgroundColor: colors.card,
     padding: 8,
     borderRadius: 12,
   },
+  profileButton: { padding: 4 },
 
-  profileButton: {
-    padding: 4,
-  },
-
-  titleBlock: {
-    paddingHorizontal: 20,
-    marginBottom: 16,
-  },
-
-  title: {
-    fontSize: 32,
-    marginBottom: 4,
-    color: colors.textPrimary,
-  },
+  titleBlock: { marginBottom: 16 },
+  title: { fontSize: 32, color: colors.textPrimary },
 
   weatherRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 6,
     gap: 8,
+    marginTop: 4,
   },
+  weatherText: { color: colors.textSecondary },
 
-  weatherText: {
-    color: colors.textSecondary,
-    fontSize: 15,
-  },
+  content: { paddingHorizontal: 20 },
 
-  categoriaBlock: {
-    marginBottom: 18,
-  },
-
-  categoriaHeader: {
-    backgroundColor: colors.card,
-    borderRadius: 14,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-
-  categoriaTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-
-  itemsBlock: {
-    paddingLeft: 10,
-    marginTop: 6,
-  },
-
-  itemRow: {
-    paddingVertical: 6,
-  },
-
-  itemText: {
-    color: colors.textPrimary,
-    fontSize: 15,
-  },
-
-  btnCerrar: {
-    backgroundColor: colors.primary,
-    paddingVertical: 14,
-    borderRadius: 18,
-    marginTop: 20,
-    alignItems: "center",
-  },
-
-  btnCerrarText: {
-    color: colors.textOnPrimary,
-    fontSize: 16,
-    fontWeight: "700",
-  },
-
-  bottomActions: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 26,
-    paddingHorizontal: 40,
-    marginBottom: 50,
-  },
-
-  actionIcon: {
-    alignItems: "center",
-  },
-
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    justifyContent: "center",
-    padding: 20,
-  },
-
-  modalCard: {
-    backgroundColor: "#FFF",
-    borderRadius: 20,
-    padding: 20,
-  },
-
-  modalTitle: {
+  sectionTitle: {
     fontSize: 20,
-    fontWeight: "700",
+    fontWeight: "600",
+    marginTop: 24,
     marginBottom: 10,
   },
 
-  modalText: {
-    fontSize: 15,
+  itemCard: {
+    padding: 16,
+    borderRadius: 18,
+    marginBottom: 14,
+  },
+  itemTitle: {
+    fontSize: 16,
+    fontWeight: "600",
     marginBottom: 4,
   },
-
-  modalActions: {
-    marginTop: 14,
-    flexDirection: "row",
-    justifyContent: "space-between",
+  itemSub: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginBottom: 10,
   },
 
-  modalBtnDanger: {
-    backgroundColor: colors.danger,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 12,
+  prendasRow: {
     flexDirection: "row",
+    flexWrap: "wrap",
     gap: 6,
+    marginBottom: 12,
+  },
+  prendaBadge: {
+    backgroundColor: colors.primarySoft,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  prendaText: { fontSize: 12, color: colors.primaryDark },
+
+  empacadoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  empacadoText: { fontSize: 14 },
+
+  btnGenerar: {
+    backgroundColor: colors.primary,
+    paddingVertical: 14,
+    borderRadius: 18,
     alignItems: "center",
   },
-
-  modalBtnDangerText: {
+  btnGenerarText: {
     color: "#FFF",
+    fontSize: 16,
     fontWeight: "600",
   },
 
-  modalBtnClose: {
-    backgroundColor: colors.card,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+  // Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "#00000088",
+    justifyContent: "center",
+    padding: 20,
+  },
+  modalCard: {
+    backgroundColor: "#FFF",
+    padding: 20,
+    borderRadius: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    marginBottom: 14,
+  },
+  modalLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  modalInput: {
+    backgroundColor: "#EEE",
     borderRadius: 12,
+    padding: 12,
+    marginBottom: 14,
   },
+  modalBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  modalBtnText: { color: "white", fontWeight: "600" },
 
-  modalBtnCloseText: {
-    color: colors.textPrimary,
-    fontWeight: "600",
+  modalDelete: {
+    backgroundColor: colors.danger,
+    paddingVertical: 10,
+    borderRadius: 12,
+    marginTop: 10,
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 6,
+  },
+  modalDeleteText: { color: "white", fontWeight: "600" },
+
+  modalClose: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    backgroundColor: "#FFF",
+    padding: 6,
+    borderRadius: 999,
   },
 });

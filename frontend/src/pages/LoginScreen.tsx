@@ -21,6 +21,7 @@ import { useAuth } from "../hooks/useAuth";
 import { logEvent } from "../logger/logEvent";
 import { getClientInfo } from "../utils/getClientInfo";
 import { useLoader } from "../context/LoaderContext";
+import { makeRedirectUri } from "expo-auth-session";
 
 // COMPONENTES MAISON
 import TitleSerif from "components/ui/TitleSerif";
@@ -51,11 +52,15 @@ const LoginScreen: React.FC = () => {
   const { showLoader, hideLoader } = useLoader();
 
   const [bannerMessage, setBannerMessage] = useState<string | null>(null);
+  const redirectUri = makeRedirectUri({
+  scheme: 'pocketcloset',
+});
 
   const [request, response, promptAsync] = Google.useAuthRequest({
     iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_ID,
     androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_ID,
     webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_ID,
+     redirectUri, 
   });
 
   // Redirección si ya está autenticado
@@ -133,6 +138,7 @@ const LoginScreen: React.FC = () => {
           message: "Inicio de sesión exitoso",
           extra: { email: form.email, userId: data.usuario?.id },
         });
+
         await login(
           data.token,
           data.usuario?.nombre || data.usuario?.name,
@@ -184,43 +190,15 @@ const LoginScreen: React.FC = () => {
     }
   };
 
-  // ✅ Google OAuth - VERSIÓN DEBUG
+  // Google OAuth
   const handleGoogleLogin = async () => {
-    console.log('🔵 Google Login iniciado');
     try {
-      const result: any = await promptAsync();
+      const result = await promptAsync();
 
-      console.log('════════════════════════════════════');
-      console.log('🔵 RESULT COMPLETO:');
-      console.log(JSON.stringify(result, null, 2));
-      console.log('════════════════════════════════════');
+      if (result?.type === "success") {
+        const token = result.authentication?.idToken || result.authentication?.accessToken;
 
-      console.log('🔵 result.type:', result?.type);
-      console.log('🔵 result.authentication (completo):', result?.authentication);
-
-      // 🔍 Ver TODOS los campos de authentication
-      if (result?.authentication) {
-        console.log('🔵 CAMPOS de authentication:');
-        for (const [key, value] of Object.entries(result.authentication)) {
-          console.log(`  - ${key}:`, value);
-        }
-      }
-
-      // Intentar obtener el token de varias formas
-      const token =
-        result?.authentication?.idToken ||
-        result?.authentication?.id_token ||
-        result?.authentication?.accessToken ||
-        result?.authentication?.access_token ||
-        result?.authentication?.token;
-
-      console.log('🔵 TOKEN ENCONTRADO:', token ? 'SÍ' : 'NO');
-      console.log('🔵 TOKEN VALUE:', token);
-
-      if (result?.type === "success" && token) {
-        console.log('✅ Enviando token al backend...');
-
-        const res = await fetch('${ API_BASE }/api/auth/oauth/google', {
+        const res = await fetch(`${API_BASE}/api/auth/oauth/google`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ id_token: token }),
@@ -246,16 +224,8 @@ const LoginScreen: React.FC = () => {
             text2: data.error || "No se pudo iniciar sesión",
           });
         }
-      } else {
-        console.log('❌ No hay token o result.type no es success');
-        Toast.show({
-          type: "error",
-          text1: "Error con Google",
-          text2: "No se pudo obtener el token",
-        });
       }
     } catch (error: any) {
-      console.error('❌ Error en handleGoogleLogin:', error);
       await logEvent({
         event: "LoginGoogleError",
         level: "error",
@@ -263,7 +233,6 @@ const LoginScreen: React.FC = () => {
       });
     }
   };
-
 
   // Apple OAuth
   const handleAppleLogin = async () => {
