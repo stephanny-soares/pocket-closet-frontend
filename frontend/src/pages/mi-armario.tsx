@@ -422,9 +422,6 @@ export default function MiArmario() {
           />
         </View>
 
-        {/* FAB */}
-        <FloatingActionButton onPress={() => router.push("/add-prenda")} />
-
         {/* MODAL DETALLE */}
         <Modal visible={modalVisible} animationType="fade" transparent>
           <View style={styles.modalOverlay}>

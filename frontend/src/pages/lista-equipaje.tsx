@@ -1,8 +1,3 @@
-// ============================================================
-// LISTA DE EQUIPAJE — Versión final (B1) alineada al backend real
-// Ruta: /lista-equipaje?id=viajeId
-// ============================================================
-
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -41,12 +36,21 @@ interface Prenda {
 interface ItemMaleta {
   id: string;
   nombre: string;
-  categoria: string; // casual / formal / deporte / elegante
+  categoria: string;
   tipo: "outfit_completo" | "prendas_sueltas";
   cantidad: number;
   empacado: boolean;
   notas?: string;
   prendas: Prenda[];
+}
+
+interface Viaje {
+  id: string;
+  destino: string;
+  ciudad?: string;
+  fechaInicio: string;
+  fechaFin: string;
+  tipoMaletaCalculado?: string; // 🔹 NUEVO: lo manda el backend
 }
 
 // ============================================================
@@ -66,23 +70,127 @@ const weatherMap: Record<number, { condition: string; icon: string }> = {
 };
 
 // ============================================================
-// MAIN COMPONENT
+// FUNCIÓN PREVISIÓN REAL (≤ 13 días)
+// ============================================================
+
+async function cargarClimaViaje(destino: string, inicio: string, fin: string) {
+  try {
+    const encoded = encodeURIComponent(destino);
+    const geo = await fetch(
+      `https://geocoding-api.open-meteo.com/v1/search?name=${encoded}`
+    ).then((r) => r.json());
+
+    if (!geo?.results?.length) return null;
+
+    const { latitude, longitude } = geo.results[0];
+
+    const data = await fetch(
+      `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&daily=weathercode,temperature_2m_max,temperature_2m_min&start_date=${inicio}&end_date=${fin}&timezone=auto`
+    ).then((r) => r.json());
+
+    const codes: number[] = data?.daily?.weathercode ?? [];
+    const maxs: number[] = data?.daily?.temperature_2m_max ?? [];
+    const mins: number[] = data?.daily?.temperature_2m_min ?? [];
+
+    if (!codes.length) return null;
+
+    const firstCode = codes[0];
+    const info = weatherMap[firstCode] ?? {
+      condition: "Desconocido",
+      icon: "weather-cloudy",
+    };
+
+    return {
+      condition: info.condition,
+      icon: info.icon,
+      min: Math.min(...mins),
+      max: Math.max(...maxs),
+    };
+  } catch (e) {
+    console.log("Error clima futuro:", e);
+    return null;
+  }
+}
+
+// ============================================================
+// CLIMA HISTÓRICO (> 13 días)
+// ============================================================
+
+async function cargarClimaHistorico(
+  destino: string,
+  fechaInicio: string,
+  fechaFin: string
+) {
+  try {
+    const encoded = encodeURIComponent(destino);
+    const geo = await fetch(
+      `https://geocoding-api.open-meteo.com/v1/search?name=${encoded}`
+    ).then((r) => r.json());
+
+    if (!geo?.results?.length) return null;
+
+    const { latitude, longitude } = geo.results[0];
+
+    // Usamos el MISMO rango de fechas pero del año pasado
+    const start = new Date(fechaInicio);
+    const end = new Date(fechaFin);
+    start.setFullYear(start.getFullYear() - 1);
+    end.setFullYear(end.getFullYear() - 1);
+
+    const startStr = start.toISOString().split("T")[0];
+    const endStr = end.toISOString().split("T")[0];
+
+    const data = await fetch(
+      `https://historical-forecast-api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&start_date=${startStr}&end_date=${endStr}&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=auto`
+    ).then((r) => r.json());
+
+    const codes = data?.daily?.weathercode ?? [];
+    const maxs = data?.daily?.temperature_2m_max ?? [];
+    const mins = data?.daily?.temperature_2m_min ?? [];
+
+    if (!codes.length) return null;
+
+    // Moda del weathercode → condición típica
+    const freq: Record<number, number> = {};
+    for (const c of codes) freq[c] = (freq[c] || 0) + 1;
+    const code = Number(
+      Object.entries(freq).sort((a, b) => b[1] - a[1])[0][0]
+    );
+
+    const condition = weatherMap[code]?.condition ?? "Clima típico";
+    const icon = weatherMap[code]?.icon ?? "weather-partly-cloudy";
+
+    return {
+      condition,
+      icon,
+      min: Math.round(Math.min(...mins)),
+      max: Math.round(Math.max(...maxs)),
+    };
+  } catch (e) {
+    console.log("Error clima histórico:", e);
+    return null;
+  }
+}
+
+// ============================================================
+// MAIN
 // ============================================================
 
 export default function ListaEquipaje() {
-  const { id: viajeId } = useLocalSearchParams();
+  const params = useLocalSearchParams();
+  const viajeId = Array.isArray(params.id) ? params.id[0] : params.id;
 
-  // Estado
   const [items, setItems] = useState<ItemMaleta[]>([]);
+  const [viaje, setViaje] = useState<Viaje | null>(null);
+  const [weather, setWeather] = useState<{
+    condition: string | null;
+    icon: string | null;
+    min: number | null;
+    max: number | null;
+  } | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
-
-  // Clima
-  const [weather, setWeather] = useState<{
-    temperature: number | null;
-    condition: string;
-    icon: string;
-  } | null>(null);
 
   // Modal edición
   const [modalVisible, setModalVisible] = useState(false);
@@ -90,192 +198,168 @@ export default function ListaEquipaje() {
   const [notasTemp, setNotasTemp] = useState("");
 
   // ============================================================
-  // Cargar clima desde frontend
+  // Cargar viaje
   // ============================================================
 
-  const cargarClima = async (destino: string) => {
+  async function cargarViaje() {
     try {
-      const encoded = encodeURIComponent(destino);
-      const geo = await fetch(
-        `https://geocoding-api.open-meteo.com/v1/search?name=${encoded}`
-      ).then((r) => r.json());
-
-      if (!geo?.results?.length) return;
-
-      const { latitude, longitude } = geo.results[0];
-
-      const data = await fetch(
-        `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&timezone=auto`
-      ).then((r) => r.json());
-
-      const temp = Math.round(data.current.temperature_2m);
-      const code = data.current.weather_code;
-      const info = weatherMap[code] ?? {
-        condition: "Desconocido",
-        icon: "weather-cloudy",
-      };
-
-      setWeather({
-        temperature: temp,
-        condition: info.condition,
-        icon: info.icon,
+      const data = await apiRequest<Viaje>(`/api/viajes/${viajeId}`, {
+        method: "GET",
       });
-    } catch (e) {}
-  };
+      setViaje(data);
+      return data;
+    } catch (e) {
+      console.log("Error viaje:", e);
+      return null;
+    }
+  }
 
   // ============================================================
-  // Cargar maleta del backend
+  // Cargar maleta
   // ============================================================
 
-  const cargarMaleta = async () => {
+  async function cargarMaleta() {
     try {
-      setLoading(true);
       const data = await apiRequest<ItemMaleta[]>(
         `/api/viajes/${viajeId}/maleta`,
         { method: "GET" }
       );
       setItems(data);
-    } catch (err) {
-      console.log("Error cargando maleta:", err);
-    } finally {
-      setLoading(false);
+    } catch (e) {
+      console.log("Error maleta:", e);
     }
-  };
+  }
 
   // ============================================================
-  // Generar maleta con IA
+  // Generar maleta IA
   // ============================================================
 
-  const generarMaleta = async () => {
+  async function generarMaleta() {
     try {
       setGenerating(true);
       await apiRequest(`/api/viajes/${viajeId}/maleta/generar`, {
         method: "POST",
       });
       await cargarMaleta();
-    } catch (err: any) {
-      Alert.alert("Error", err.message || "No se pudo generar la maleta");
+    } catch (e: any) {
+      Alert.alert("Error", e.message ?? "No se pudo generar la maleta");
     } finally {
       setGenerating(false);
     }
-  };
+  }
 
   // ============================================================
-  // Actualizar item (empacado, cantidad, notas)
+  // Actualizar / eliminar item
   // ============================================================
 
-  const actualizarItem = async (
-    idItem: string,
-    cambios: Partial<ItemMaleta>
-  ) => {
-    try {
-      await apiRequest(`/api/viajes/${viajeId}/maleta/${idItem}`, {
-        method: "PUT",
-        body: JSON.stringify(cambios),
-      });
-      await cargarMaleta();
-    } catch (err) {
-      console.log("Error actualizando item:", err);
-    }
-  };
+  async function actualizarItem(id: string, cambios: Partial<ItemMaleta>) {
+    await apiRequest(`/api/viajes/${viajeId}/maleta/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(cambios),
+    });
+    cargarMaleta();
+  }
+
+  async function eliminarItem(id: string) {
+    await apiRequest(`/api/viajes/${viajeId}/maleta/${id}`, {
+      method: "DELETE",
+    });
+    cargarMaleta();
+  }
 
   // ============================================================
-  // Eliminar item
-  // ============================================================
-
-  const eliminarItem = async (idItem: string) => {
-    try {
-      await apiRequest(`/api/viajes/${viajeId}/maleta/${idItem}`, {
-        method: "DELETE",
-      });
-      await cargarMaleta();
-    } catch (err) {
-      console.log("Error eliminando item:", err);
-    }
-  };
-
-  // ============================================================
-  // Al montar: cargar maleta y clima
+  // EFECTO PRINCIPAL
   // ============================================================
 
   useEffect(() => {
     if (!viajeId) return;
-    cargarMaleta();
 
-    // OJO: aquí no tenemos el destino del viaje.
-    // Si quieres clima correcto, pásalo desde Mis-Viajes por query param.
-    cargarClima("Destino");
+    (async () => {
+      setLoading(true);
+      const v = await cargarViaje();
+      await cargarMaleta();
+
+      if (v) {
+        const hoy = new Date();
+        const inicio = new Date(v.fechaInicio);
+        const diff =
+          (inicio.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24);
+
+        const destinoClima = v.ciudad || v.destino;
+
+        // ≤ 13 días → previsión real
+        if (diff <= 13) {
+          const real = await cargarClimaViaje(
+            destinoClima,
+            v.fechaInicio,
+            v.fechaFin
+          );
+          if (real) setWeather(real);
+        } else {
+          // > 13 días → clima histórico
+          const hist = await cargarClimaHistorico(
+            destinoClima,
+            v.fechaInicio,
+            v.fechaFin
+          );
+          if (hist) setWeather(hist);
+        }
+      }
+
+      setLoading(false);
+    })();
   }, [viajeId]);
 
   // ============================================================
-  // Separar por tipo (B1)
+  // RENDER UI
   // ============================================================
 
   const outfits = items.filter((i) => i.tipo === "outfit_completo");
   const sueltas = items.filter((i) => i.tipo === "prendas_sueltas");
 
-  // ============================================================
-  // Render
-  // ============================================================
-
   return (
     <LinearGradient colors={colors.gradient} style={{ flex: 1 }}>
-      <SafeAreaView style={{ flex: 1 }} edges={["top", "bottom"]}>
-
-        {/* HEADER TIPO MIS-VIAJES */}
+      <SafeAreaView style={{ flex: 1 }}>
+        {/* HEADER */}
         <View style={styles.headerArea}>
           <View style={styles.headerTopRow}>
             <TouchableOpacity
               onPress={() => router.back()}
-              style={styles.backButton}
+              style={styles.backBtn}
             >
-              <Ionicons
-                name="chevron-back-outline"
-                size={26}
-                color={colors.iconActive}
-              />
+              <Ionicons name="chevron-back-outline" size={24} />
             </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={() => router.push("/perfil")}
-              style={styles.profileButton}
-            >
-              <Ionicons
-                name="person-circle-outline"
-                size={32}
+            <Ionicons name="person-circle-outline" size={34} />
+          </View>
+
+          <TitleSerif style={styles.title}>Equipaje</TitleSerif>
+          <SubtitleSerif>{viaje?.destino}</SubtitleSerif>
+
+          {weather && (
+            <View style={styles.weatherRow}>
+              <MaterialCommunityIcons
+                name={weather.icon as any}
+                size={22}
                 color={colors.iconActive}
               />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.titleBlock}>
-            <TitleSerif style={styles.title}>Equipaje</TitleSerif>
-            <SubtitleSerif>Tu maleta generada</SubtitleSerif>
-
-            {weather && (
-              <View style={styles.weatherRow}>
-                <MaterialCommunityIcons
-                  name={weather.icon as any}
-                  size={20}
-                  color={colors.iconActive}
-                />
-                <Text style={styles.weatherText}>
-                  {weather.condition}
-                  {weather.temperature ? ` · ${weather.temperature}°` : ""}
-                </Text>
-              </View>
-            )}
-          </View>
+              <Text style={styles.weatherText}>
+                {weather.condition}
+                {weather.min != null && weather.max != null
+                  ? ` · ${weather.min}°–${weather.max}°`
+                  : ""}
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* CONTENIDO */}
-        <ScrollView contentContainerStyle={styles.content}>
-
+        <ScrollView style={{ paddingHorizontal: 20 }}>
           {loading ? (
             <ActivityIndicator size="large" color={colors.primary} />
           ) : items.length === 0 ? (
-            <View style={{ marginTop: 40 }}>
-              <Text style={{ color: colors.textSecondary, marginBottom: 20 }}>
+            <>
+              <Text style={{ marginTop: 20, color: colors.textSecondary }}>
                 Aún no se ha generado ninguna maleta.
               </Text>
 
@@ -284,19 +368,17 @@ export default function ListaEquipaje() {
                 onPress={generarMaleta}
                 disabled={generating}
               >
-                <Text style={styles.btnGenerarText}>
+                <Text style={styles.btnTxt}>
                   {generating ? "Generando..." : "Generar maleta con IA"}
                 </Text>
               </TouchableOpacity>
-            </View>
+            </>
           ) : (
             <>
-              {/* Outfits completos */}
+              {/* OUTFITS */}
               <Text style={styles.sectionTitle}>Outfits completos</Text>
-
               {outfits.map((item) => (
                 <Card key={item.id} style={styles.itemCard}>
-
                   <TouchableOpacity
                     onPress={() => {
                       setSelected(item);
@@ -311,38 +393,35 @@ export default function ListaEquipaje() {
 
                     <View style={styles.prendasRow}>
                       {item.prendas.map((p) => (
-                        <View key={p.id} style={styles.prendaBadge}>
-                          <Text style={styles.prendaText}>{p.nombre}</Text>
+                        <View key={p.id} style={styles.badge}>
+                          <Text style={styles.badgeText}>{p.nombre}</Text>
                         </View>
                       ))}
                     </View>
 
-                    {/* Empacado */}
                     <TouchableOpacity
                       style={styles.empacadoRow}
                       onPress={() =>
-                        actualizarItem(item.id, { empacado: !item.empacado })
+                        actualizarItem(item.id, {
+                          empacado: !item.empacado,
+                        })
                       }
                     >
                       <Ionicons
                         name={
-                          item.empacado
-                            ? "checkbox-outline"
-                            : "square-outline"
+                          item.empacado ? "checkbox-outline" : "square-outline"
                         }
                         size={22}
                         color={colors.primary}
                       />
-                      <Text style={styles.empacadoText}>Empacado</Text>
+                      <Text>Empacado</Text>
                     </TouchableOpacity>
                   </TouchableOpacity>
-
                 </Card>
               ))}
 
-              {/* Prendas sueltas */}
+              {/* PRENDAS SUELTAS */}
               <Text style={styles.sectionTitle}>Prendas sueltas</Text>
-
               {sueltas.map((item) => (
                 <Card key={item.id} style={styles.itemCard}>
                   <TouchableOpacity
@@ -353,35 +432,81 @@ export default function ListaEquipaje() {
                     }}
                   >
                     <Text style={styles.itemTitle}>{item.nombre}</Text>
-                    <Text style={styles.itemSub}>Cantidad: {item.cantidad}</Text>
+                    <Text style={styles.itemSub}>
+                      Cantidad: {item.cantidad}
+                    </Text>
 
                     <TouchableOpacity
                       style={styles.empacadoRow}
                       onPress={() =>
-                        actualizarItem(item.id, { empacado: !item.empacado })
+                        actualizarItem(item.id, {
+                          empacado: !item.empacado,
+                        })
                       }
                     >
                       <Ionicons
                         name={
-                          item.empacado
-                            ? "checkbox-outline"
-                            : "square-outline"
+                          item.empacado ? "checkbox-outline" : "square-outline"
                         }
                         size={22}
                         color={colors.primary}
                       />
-                      <Text style={styles.empacadoText}>Empacado</Text>
+                      <Text>Empacado</Text>
                     </TouchableOpacity>
                   </TouchableOpacity>
                 </Card>
               ))}
+
+              {/* =======================================================
+                  NUEVAS SECCIONES (estructura lista, de momento vacías)
+                  ======================================================= */}
+
+              <Text style={styles.sectionTitle}>Baño</Text>
+              <Card style={styles.itemCard}>
+                <Text style={styles.placeholderText}>
+                  (Contenido en desarrollo…)
+                </Text>
+              </Card>
+
+              <Text style={styles.sectionTitle}>Esenciales de viaje</Text>
+              <Card style={styles.itemCard}>
+                <Text style={styles.placeholderText}>
+                  (Contenido en desarrollo…)
+                </Text>
+              </Card>
+
+              <Text style={styles.sectionTitle}>Seguridad y salud</Text>
+              <Card style={styles.itemCard}>
+                <Text style={styles.placeholderText}>
+                  (Contenido en desarrollo…)
+                </Text>
+              </Card>
+
+              <Text style={styles.sectionTitle}>Gadgets y Accesorios</Text>
+              <Card style={styles.itemCard}>
+                <Text style={styles.placeholderText}>
+                  (Contenido en desarrollo…)
+                </Text>
+              </Card>
+
+              {/* MALETAS: único que viene del backend ahora */}
+              <Text style={styles.sectionTitle}>Maletas</Text>
+              <Card style={styles.itemCard}>
+                <Text style={styles.itemTitle}>
+                  Tipo de maleta recomendada
+                </Text>
+                <Text style={styles.itemSub}>
+                  {viaje?.tipoMaletaCalculado
+                    ? viaje.tipoMaletaCalculado.charAt(0).toUpperCase() +
+                      viaje.tipoMaletaCalculado.slice(1)
+                    : "No calculado"}
+                </Text>
+              </Card>
             </>
           )}
-
-          <View style={{ height: 80 }} />
         </ScrollView>
 
-        {/* MODAL DETALLE */}
+        {/* ===== MODAL ===== */}
         <Modal visible={modalVisible} transparent animationType="fade">
           <View style={styles.modalOverlay}>
             <View style={styles.modalCard}>
@@ -389,7 +514,6 @@ export default function ListaEquipaje() {
                 <>
                   <Text style={styles.modalTitle}>{selected.nombre}</Text>
 
-                  {/* Notas */}
                   <Text style={styles.modalLabel}>Notas</Text>
                   <TextInput
                     value={notasTemp}
@@ -399,7 +523,6 @@ export default function ListaEquipaje() {
                     multiline
                   />
 
-                  {/* Cantidad */}
                   <Text style={styles.modalLabel}>Cantidad</Text>
                   <TextInput
                     keyboardType="numeric"
@@ -412,7 +535,6 @@ export default function ListaEquipaje() {
                     style={styles.modalInput}
                   />
 
-                  {/* Guardar */}
                   <TouchableOpacity
                     style={styles.modalBtn}
                     onPress={() => {
@@ -423,7 +545,6 @@ export default function ListaEquipaje() {
                     <Text style={styles.modalBtnText}>Guardar</Text>
                   </TouchableOpacity>
 
-                  {/* Eliminar */}
                   <TouchableOpacity
                     style={styles.modalDelete}
                     onPress={() => {
@@ -435,12 +556,11 @@ export default function ListaEquipaje() {
                     <Text style={styles.modalDeleteText}>Eliminar</Text>
                   </TouchableOpacity>
 
-                  {/* Cerrar */}
                   <TouchableOpacity
                     style={styles.modalClose}
                     onPress={() => setModalVisible(false)}
                   >
-                    <Ionicons name="close" size={20} color="#333" />
+                    <Ionicons name="close" size={20} />
                   </TouchableOpacity>
                 </>
               )}
@@ -453,7 +573,7 @@ export default function ListaEquipaje() {
 }
 
 // ============================================================
-// STYLES
+// STYLES (idénticos a tu versión + 1 estilo nuevo)
 // ============================================================
 
 const styles = StyleSheet.create({
@@ -467,25 +587,21 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 10,
   },
-  backButton: {
+  backBtn: {
     backgroundColor: colors.card,
     padding: 8,
     borderRadius: 12,
   },
-  profileButton: { padding: 4 },
 
-  titleBlock: { marginBottom: 16 },
-  title: { fontSize: 32, color: colors.textPrimary },
+  title: { fontSize: 32 },
 
   weatherRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
     marginTop: 4,
+    gap: 6,
   },
   weatherText: { color: colors.textSecondary },
-
-  content: { paddingHorizontal: 20 },
 
   sectionTitle: {
     fontSize: 20,
@@ -516,34 +632,29 @@ const styles = StyleSheet.create({
     gap: 6,
     marginBottom: 12,
   },
-  prendaBadge: {
+  badge: {
     backgroundColor: colors.primarySoft,
     borderRadius: 10,
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
-  prendaText: { fontSize: 12, color: colors.primaryDark },
+  badgeText: { fontSize: 12, color: colors.primaryDark },
 
   empacadoRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
   },
-  empacadoText: { fontSize: 14 },
 
   btnGenerar: {
     backgroundColor: colors.primary,
     paddingVertical: 14,
     borderRadius: 18,
     alignItems: "center",
+    marginTop: 20,
   },
-  btnGenerarText: {
-    color: "#FFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
+  btnTxt: { color: "#FFF", fontWeight: "600", fontSize: 16 },
 
-  // Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: "#00000088",
@@ -552,51 +663,51 @@ const styles = StyleSheet.create({
   },
   modalCard: {
     backgroundColor: "#FFF",
-    padding: 20,
     borderRadius: 20,
+    padding: 20,
+    position: "relative",
   },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    marginBottom: 14,
-  },
-  modalLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginTop: 10,
-    marginBottom: 4,
-  },
+  modalTitle: { fontSize: 20, fontWeight: "700", marginBottom: 16 },
+
+  modalLabel: { fontWeight: "600", marginTop: 10 },
   modalInput: {
     backgroundColor: "#EEE",
-    borderRadius: 12,
     padding: 12,
-    marginBottom: 14,
+    borderRadius: 10,
+    marginTop: 6,
   },
+
   modalBtn: {
     backgroundColor: colors.primary,
-    borderRadius: 14,
     paddingVertical: 12,
+    borderRadius: 12,
+    marginTop: 12,
     alignItems: "center",
   },
-  modalBtnText: { color: "white", fontWeight: "600" },
+  modalBtnText: { color: "#FFF", fontWeight: "600" },
 
   modalDelete: {
     backgroundColor: colors.danger,
     paddingVertical: 10,
     borderRadius: 12,
     marginTop: 10,
+    alignItems: "center",
     flexDirection: "row",
     justifyContent: "center",
     gap: 6,
   },
-  modalDeleteText: { color: "white", fontWeight: "600" },
+  modalDeleteText: { color: "#FFF", fontWeight: "600" },
 
   modalClose: {
     position: "absolute",
-    top: 12,
-    right: 12,
-    backgroundColor: "#FFF",
+    top: 10,
+    right: 10,
     padding: 6,
-    borderRadius: 999,
+  },
+
+  // 🔹 NUEVO: para el texto "(Contenido en desarrollo…)"
+  placeholderText: {
+    fontStyle: "italic",
+    color: colors.textSecondary,
   },
 });

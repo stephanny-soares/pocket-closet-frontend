@@ -75,6 +75,16 @@ interface OutfitEventoApi {
   imagen: string;
   eventoId?: string;
 }
+interface Viaje {
+  id: string;
+  destino: string;
+  ciudad: string;
+  fechaInicio: string; // YYYY-MM-DD
+  fechaFin: string;
+  transporte: string;
+  actividades?: string[];
+  createdAt?: string;
+}
 
 
 
@@ -106,6 +116,10 @@ export default function Home() {
   // Outfits favoritos / más usados (por ahora: últimos creados)
   const [favoriteOutfits, setFavoriteOutfits] = useState<FavoriteOutfit[]>([]);
   const [loadingFavorites, setLoadingFavorites] = useState(false);
+  
+  // Viajes del usuario (para "Próximo viaje")
+  const [viajes, setViajes] = useState<Viaje[]>([]);
+  const [loadingViajes, setLoadingViajes] = useState(false);
 
   // Día seleccionado para "Outfits del día" (semana)
   const [selectedDayIndex, setSelectedDayIndex] = useState(getTodayIndex);
@@ -327,6 +341,7 @@ export default function Home() {
   useEffect(() => {
     cargarOutfits();
     cargarFavoritos();
+    cargarViajes();
   }, []);
 
   const cargarOutfits = async () => {
@@ -408,6 +423,37 @@ export default function Home() {
       setLoadingFavorites(false);
     }
   };
+
+    /* ============================================================
+     Viajes para "Próximo viaje"
+  ============================================================ */
+
+  const cargarViajes = async () => {
+    try {
+      setLoadingViajes(true);
+
+      const data = await apiRequest<Viaje[]>("/api/viajes", {
+        method: "GET",
+      });
+
+      const lista = data || [];
+      const hoyISO = new Date().toISOString().split("T")[0];
+
+      // Nos quedamos con viajes que no han terminado aún (próximos o en curso)
+      const futuros = lista.filter((v) => v.fechaFin >= hoyISO);
+
+      // Ordenamos por fecha de inicio ascendente (el más próximo primero)
+      futuros.sort((a, b) => a.fechaInicio.localeCompare(b.fechaInicio));
+
+      // Solo queremos mostrar máximo 5
+      setViajes(futuros.slice(0, 5));
+    } catch (e) {
+      console.log("Error cargando viajes en Home:", e);
+    } finally {
+      setLoadingViajes(false);
+    }
+  };
+
   const generarSemana = () => {
     const dias = [];
     const hoy = new Date();
@@ -595,24 +641,87 @@ export default function Home() {
 
           {/* ----- PRÓXIMO VIAJE ----- */}
           <TitleSerif style={styles.sectionTitle}>Próximo viaje</TitleSerif>
-          <Card style={styles.tripCard}>
-            <View style={styles.tripRow}>
-              <Ionicons
-                name="airplane-outline"
-                size={20}
-                color={colors.iconActive}
-              />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.tripTitle}>Aún no tienes viajes guardados</Text>
-                <Text style={styles.tripSubtitle}>
-                  Crea tu próximo viaje para planificar la maleta y los outfits.
-                </Text>
+
+          {loadingViajes ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : viajes.length === 0 ? (
+            <Card style={styles.tripCard}>
+              <View style={styles.tripRow}>
+                <Ionicons
+                  name="airplane-outline"
+                  size={20}
+                  color={colors.iconActive}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.tripTitle}>
+                    Aún no tienes viajes guardados
+                  </Text>
+                  <Text style={styles.tripSubtitle}>
+                    Crea tu próximo viaje para planificar la maleta y los outfits.
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => router.push("/mis-viajes" as any)}
+                >
+                  <Text style={styles.tripCTA}>Abrir viajes</Text>
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity onPress={() => router.push("/mis-viajes" as any)}>
-                <Text style={styles.tripCTA}>Abrir viajes</Text>
-              </TouchableOpacity>
-            </View>
-          </Card>
+            </Card>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+            >
+              {viajes.map((v) => (
+                <Card
+                  key={v.id}
+                  style={[styles.tripCard, { width: 230, marginRight: 12 }]}
+                >
+                  <TouchableOpacity
+                    onPress={() =>
+                      router.push(`/lista-equipaje?id=${v.id}` as any)
+                    }
+                  >
+                    <View style={styles.tripRow}>
+                      <Ionicons
+                        name="airplane-outline"
+                        size={20}
+                        color={colors.iconActive}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.tripTitle}>{v.destino}</Text>
+                        <Text style={styles.tripSubtitle}>
+                          {v.fechaInicio} → {v.fechaFin}
+                        </Text>
+                        <Text style={styles.tripSubtitle}>{v.transporte}</Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                </Card>
+              ))}
+
+              {/* CTA al final del carrusel */}
+              <Card style={[styles.tripCard, { width: 180 }]}>
+                <TouchableOpacity
+                  style={styles.tripRow}
+                  onPress={() => router.push("/mis-viajes" as any)}
+                >
+                  <Ionicons
+                    name="add-circle-outline"
+                    size={22}
+                    color={colors.iconActive}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.tripTitle}>Ver todos</Text>
+                    <Text style={styles.tripSubtitle}>
+                      Gestiona y crea nuevos viajes.
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              </Card>
+            </ScrollView>
+          )}
+
 
           {/* ----- FAVORITOS ----- */}
           <TitleSerif style={styles.sectionTitle}>Favoritos</TitleSerif>
