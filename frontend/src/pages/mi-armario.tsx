@@ -25,7 +25,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import TitleSerif from "../components/ui/TitleSerif";
 import SubtitleSerif from "../components/ui/SubtitleSerif";
 import Card from "../components/ui/Card";
-import FloatingActionButton from "../components/ui/FloatingActionButton";
 
 import colors from "../constants/colors";
 import { apiRequest } from "../utils/apiClient";

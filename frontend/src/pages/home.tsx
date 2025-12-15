@@ -385,6 +385,49 @@ export default function Home() {
       setLoadingOutfits(false);
     }
   };
+  
+  // =================================================
+  // Cargar eventos y outfits asociados a eventos 
+  // =================================================
+  useEffect(() => {
+    cargarEventosYOutfits();
+  }, []);
+
+  const cargarEventosYOutfits = async () => {
+    try {
+      const [dataEventos, dataOutfits] = await Promise.all([
+        apiRequest("/api/eventos", { method: "GET" }),
+        apiRequest("/api/outfits", { method: "GET" }),
+      ]);
+
+      // 1️⃣ Guardamos eventos
+      const evs: Evento[] = dataEventos?.eventos || [];
+      setEventos(evs);
+
+      // 2️⃣ Construimos mapa outfitsPorEvento usando eventoId
+      const map: Record<string, EventoOutfit[]> = {};
+
+      (dataOutfits?.outfits || []).forEach((o: OutfitEventoApi) => {
+        if (!o.eventoId) return;
+
+        if (!map[o.eventoId]) {
+          map[o.eventoId] = [];
+        }
+
+        map[o.eventoId].push({
+          id: o.id,
+          nombre: o.nombre,
+          imagen: o.imagen,
+          eventoId: o.eventoId,
+        });
+      });
+
+      setOutfitsPorEvento(map);
+
+    } catch (e) {
+      console.log("Error cargando eventos y outfits en Home:", e);
+    }
+  };
 
   /* ============================================================
      OUTFITS favoritos (por ahora: últimos por fecha de creación)
@@ -476,6 +519,42 @@ export default function Home() {
   const semana = generarSemana();
   const [selectedDay, setSelectedDay] = useState(semana[0].fechaISO);
 
+  // ===============================
+  // Helpers Outfits por día
+  // ===============================
+  const isSameDay = (a: string, b: string) => a === b;
+
+  const hoyISO = semana[0].fechaISO;
+
+  // Eventos del día seleccionado
+  const eventosDelDia = eventos.filter((e) => {
+    const fechaEvento = new Date(e.fecha).toISOString().split("T")[0];
+    return isSameDay(fechaEvento, selectedDay);
+  });
+
+  // Outfits asociados a eventos del día
+  const outfitsEventosDelDia: EventoOutfit[] = eventosDelDia.flatMap(
+    (e) => outfitsPorEvento[e.id] || []
+  );
+
+  // Outfits IA (solo se usan hoy)
+  const outfitsIA = outfits;
+
+  // Outfits finales a mostrar
+  let outfitsMostrar: (EventoOutfit | OutfitSugerido)[] = [];
+
+  if (selectedDay === hoyISO) {
+    // HOY → primero eventos, luego IA
+    outfitsMostrar = [...outfitsEventosDelDia, ...outfitsIA];
+  } else {
+    // FUTURO → solo eventos
+    outfitsMostrar = [...outfitsEventosDelDia];
+  }
+
+   const getNombreEvento = (eventoId?: string) => {
+      if (!eventoId) return null;
+      return eventos.find((e) => e.id === eventoId)?.nombre || null;
+    };
 
   /* ============================================================
      RENDER
@@ -560,65 +639,52 @@ export default function Home() {
             ))}
           </View>
 
-          {/* ----- OUTFITS DE EVENTO + IA (SOLO HOY) — CARRUSEL ----- */}
-          {(() => {
-            const hoyISO = semana[0].fechaISO;
-            const evento = eventos.find((e) => {
-              const fechaEvento = new Date(e.fecha).toISOString().split("T")[0];
-              return fechaEvento === selectedDay;
-            });
-            const outfitsEvento = evento ? outfitsPorEvento[evento.id] || [] : [];
-            const esHoy = selectedDay === hoyISO;
-
-            let outfitsMostrar: any[] = [];
-
-            if (esHoy) {
-              outfitsMostrar = [...outfitsEvento, ...outfits]; // evento -> IA
-            } else {
-              outfitsMostrar = [...outfitsEvento];
-            }
-
-            if (outfitsMostrar.length === 0) {
-              return (
-                <Text style={{ color: "#777", marginBottom: 10 }}>
-                  No hay outfit asignado para este día
-                </Text>
-              );
-            }
-
-            return (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ paddingVertical: 10 }}
-              >
-                {outfitsMostrar.map((o) => (
-                  <Card
-                    key={o.id}
-                    style={{
-                      width: 220,           // tamaño ideal Maison
-                      marginRight: 16,
-                    }}
+          {/* ----- OUTFITS DEL DÍA (EVENTOS + IA) ----- */}
+          {outfitsMostrar.length === 0 ? (
+            <Text style={{ color: "#777", marginBottom: 10 }}>
+              No hay outfit asignado para este día
+            </Text>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingVertical: 10 }}
+            >
+              {outfitsMostrar.map((o) => (
+                <Card
+                  key={o.id}
+                  style={{
+                    width: 220,
+                    marginRight: 16,
+                  }}
+                >
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => router.push(`/mis-outfits?id=${o.id}`)}
                   >
-                    <TouchableOpacity
-                      activeOpacity={0.8}
-                      onPress={() => router.push(`/mis-outfits?id=${o.id}`)}
-                    >
-                      <Image
-                        source={{ uri: o.imagen || o.prendas?.[0]?.imagen }}
-                        style={styles.outfitCarouselImage}
-                      />
+                    <Image
+                      source={{
+                        uri:
+                          "imagen" in o && o.imagen
+                            ? o.imagen
+                            : "prendas" in o
+                            ? o.prendas?.[0]?.imagen
+                            : undefined,
+                      }}
+                      style={styles.outfitCarouselImage}
+                    />
 
-                      <Text style={styles.outfitName}>{o.nombre}</Text>
-                      <Text style={styles.outfitCat}>
-                        {o.eventoId ? "Evento" : "Sugerido por IA"}
-                      </Text>
-                    </TouchableOpacity>
-                  </Card>
-                ))}
-              </ScrollView>
-            );
-          })()}
+                    <Text style={styles.outfitName}>{o.nombre}</Text>
+                    <Text style={styles.outfitCat}>
+                      {"eventoId" in o && o.eventoId
+                        ? getNombreEvento(o.eventoId) || "Evento"
+                        : "Sugerido por IA"}
+                    </Text>
+                  </TouchableOpacity>
+                </Card>
+              ))}
+            </ScrollView>
+          )}
 
 
           {/* ----- ACCIONES RÁPIDAS ----- */}

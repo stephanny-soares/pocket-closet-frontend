@@ -330,7 +330,16 @@ export default function ListaEquipaje() {
               <Ionicons name="chevron-back-outline" size={24} />
             </TouchableOpacity>
 
-            <Ionicons name="person-circle-outline" size={34} />
+            <TouchableOpacity
+              onPress={() => router.push("/perfil")}
+              style={styles.profileButton}
+            >
+              <Ionicons
+                name="person-circle-outline"
+                size={32}
+                color={colors.iconActive}
+              />
+            </TouchableOpacity>
           </View>
 
           <TitleSerif style={styles.title}>Equipaje</TitleSerif>
@@ -591,6 +600,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     padding: 8,
     borderRadius: 12,
+  },
+  profileButton: {
+    padding: 4,
   },
 
   title: { fontSize: 32 },

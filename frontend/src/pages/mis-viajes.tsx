@@ -23,7 +23,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import TitleSerif from "../components/ui/TitleSerif";
 import SubtitleSerif from "../components/ui/SubtitleSerif";
 import Card from "../components/ui/Card";
-import FloatingActionButton from "../components/ui/FloatingActionButton";
 
 import colors from "../constants/colors";
 import { Calendar, DateData } from "react-native-calendars";
@@ -75,13 +74,15 @@ export default function MisViajes() {
   const [editFechaFin, setEditFechaFin] = useState("");
   const [editTransporte, setEditTransporte] = useState("");
   const [editActividades, setEditActividades] = useState("");
+  const [reabrirEditModal, setReabrirEditModal] = useState(false);
+
 
   // 📌 Modales
   const [modalDestino, setModalDestino] = useState(false);
   const [modalTransporte, setModalTransporte] = useState(false);
   const [modalActividades, setModalActividades] = useState(false);
   const [modalCalendario, setModalCalendario] = useState<
-    null | "desde" | "hasta"
+    null | "desde" | "hasta" | "editInicio" | "editFin"
   >(null);
 
   // 📌 Modal confirm delete
@@ -105,6 +106,8 @@ export default function MisViajes() {
 
   const formatDate = (date: Date | null) =>
     date ? date.toISOString().split("T")[0] : "";
+  const today = new Date().toISOString().split("T")[0];
+
 
   // ============================================================
   // Cargar viajes del backend
@@ -723,18 +726,63 @@ export default function MisViajes() {
 
               <ScrollView contentContainerStyle={styles.modalContent}>
                 <Text style={styles.modalTitle}>
-                  {modalCalendario === "desde"
+                  {modalCalendario === "desde" || modalCalendario === "editInicio"
                     ? "Seleccionar fecha de inicio"
                     : "Seleccionar fecha de fin"}
                 </Text>
 
                 <Calendar
+                  minDate={
+                    modalCalendario === "desde"
+                      ? today
+                      : modalCalendario === "hasta" && desde
+                      ? formatDate(new Date(desde.getTime() + 24 * 60 * 60 * 1000))
+                      : modalCalendario === "editInicio"
+                      ? today
+                      : modalCalendario === "editFin" && editFechaInicio
+                      ? formatDate(
+                          new Date(
+                            new Date(editFechaInicio).getTime() + 24 * 60 * 60 * 1000
+                          )
+                        )
+                      : today
+                  }
                   onDayPress={(day: DateData) => {
-                    if (modalCalendario === "desde")
-                      setDesde(new Date(day.dateString));
-                    if (modalCalendario === "hasta")
+                    /* ===== CREAR VIAJE ===== */
+                    if (modalCalendario === "desde") {
+                      const nuevaFechaInicio = new Date(day.dateString);
+                      setDesde(nuevaFechaInicio);
+
+                      if (hasta && hasta <= nuevaFechaInicio) {
+                        setHasta(null);
+                      }
+                    }
+
+                    if (modalCalendario === "hasta") {
                       setHasta(new Date(day.dateString));
+                    }
+
+                    /* ===== EDITAR VIAJE ===== */
+                    if (modalCalendario === "editInicio") {
+                      setEditFechaInicio(day.dateString);
+
+                      if (
+                        editFechaFin &&
+                        new Date(editFechaFin) <= new Date(day.dateString)
+                      ) {
+                        setEditFechaFin("");
+                      }
+                    }
+
+                    if (modalCalendario === "editFin") {
+                      setEditFechaFin(day.dateString);
+                    }
+
                     setModalCalendario(null);
+                    if (reabrirEditModal) {
+                      setEditModalVisible(true);
+                      setReabrirEditModal(false);
+                    }
                   }}
                   theme={{
                     calendarBackground: "#FFF",
@@ -789,19 +837,27 @@ export default function MisViajes() {
                   onChangeText={setEditDestino}
                 />
 
-                <TextInput
-                  placeholder="Fecha inicio (YYYY-MM-DD)"
-                  style={styles.input}
-                  value={editFechaInicio}
-                  onChangeText={setEditFechaInicio}
-                />
+                <View style={styles.formChipContainer}>
+                  {renderChipFormulario(
+                    editFechaInicio || "Desde",
+                    () => {
+                      setEditModalVisible(false);
+                      setReabrirEditModal(true);
+                      setModalCalendario("editInicio");
+                    }
+                  )}
 
-                <TextInput
-                  placeholder="Fecha fin (YYYY-MM-DD)"
-                  style={styles.input}
-                  value={editFechaFin}
-                  onChangeText={setEditFechaFin}
-                />
+                  {renderChipFormulario(
+                    editFechaFin || "Hasta",
+                    () => {
+                      if (!editFechaInicio) return;
+                      setEditModalVisible(false);
+                      setReabrirEditModal(true);
+                      setModalCalendario("editFin");
+                    }
+                  )}
+                </View>
+
 
                 <TextInput
                   placeholder="Transporte"

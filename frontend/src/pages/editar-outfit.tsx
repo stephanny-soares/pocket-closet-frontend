@@ -9,6 +9,7 @@ import {
   Image,
   StyleSheet,
   Alert,
+  Platform,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Stack, useLocalSearchParams, router } from "expo-router";
@@ -22,6 +23,7 @@ import PrimaryButton from "../components/ui/PrimaryButton";
 import Card from "../components/ui/Card";
 import { apiRequest } from "../utils/apiClient";
 import { useLoader } from "../context/LoaderContext";
+import ModalKeyboardWrapper from "../components/ui/ModalKeyboardWrapper";
 
 export default function EditarOutfit() {
   const { id } = useLocalSearchParams();
@@ -96,7 +98,7 @@ export default function EditarOutfit() {
             <TitleSerif>Editar outfit</TitleSerif>
           </View>
 
-          <ScrollView contentContainerStyle={styles.scrollContent}>
+          <ModalKeyboardWrapper>
             
             <Card style={styles.card}>
 
@@ -105,6 +107,7 @@ export default function EditarOutfit() {
                 <Image
                   source={{ uri: imagen || outfit.prendas[0].imagen }}
                   style={styles.img}
+                  resizeMode="contain"
                 />
               ) : null}
 
@@ -120,7 +123,7 @@ export default function EditarOutfit() {
               />
             </Card>
 
-          </ScrollView>
+          </ModalKeyboardWrapper>
         </SafeAreaView>
       </LinearGradient>
     </>
@@ -154,6 +157,8 @@ const styles = StyleSheet.create({
     height: 260,
     borderRadius: 16,
     marginBottom: 20,
-    resizeMode: "cover",
+    backgroundColor: "#F3F3F3",
+    ...(Platform.OS === "web" && { objectFit: "contain" }),
   },
+
 });

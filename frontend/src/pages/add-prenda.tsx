@@ -30,6 +30,7 @@ import Header from "components/Header";
 import PrimaryButton from "components/ui/PrimaryButton";
 import { useLoader } from "../context/LoaderContext";
 import TitleSerif from "components/ui/TitleSerif";
+import ModalKeyboardWrapper from "../components/ui/ModalKeyboardWrapper";
 
 
 interface UploadResponse {
@@ -223,7 +224,7 @@ export default function AddPrenda() {
           </View>
 
           {/* ========= CONTENIDO ========= */}
-          <ScrollView contentContainerStyle={styles.scrollContent}>
+          <ModalKeyboardWrapper>
             <View style={[styles.mainCard, isWeb && { width: 650, alignSelf: "center" }]}>
 
               {/* Banner IA (texto negro) */}
@@ -317,7 +318,7 @@ export default function AddPrenda() {
             </View>
 
             <View style={{ height: 60 }} />
-          </ScrollView>
+          </ModalKeyboardWrapper>
         </SafeAreaView>
       </LinearGradient>
     </>
