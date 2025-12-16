@@ -6,14 +6,15 @@ Este repositorio contiene el frontend del PocketCloset, desarrollado con **React
 
 ## Descripción del proyecto
 
-PocketCloset es una aplicación móvil inteligente basada en Inteligencia Artificial (IA) que funciona como asistente personal de estilo y organización de ropa que permite al usuario:
+PocketCloset es una aplicación inteligente de organización de ropa, que actúa como un asistente personal de estilo. Permite:
 
-- Registrar y organizar prendas en su armario digital
-- Generar outfits automáticos según momento, clima y estilo
-- Preparar listas de equipaje inteligentes (SmartPack)
-- Interfaz moderna, fluida e intuitiva
+- Gestionar el armario digital del usuario
+- Planificar outfits diarios
+- Crear outfits para eventos, ocasiones o viajes
+- Clasificar automáticamente prendas y sugerir combinaciones según clima y ocasión
+- Crear maletas de viaje automáticamente usando prendas y outfits ya guardados, con opción de editar
 
-Objetivo: facilitar la toma de decisiones sobre qué vestir y optimizar el uso del armario.
+Objetivo: facilitar la toma de decisiones diarias sobre qué vestir y optimizar el uso de la ropa existente.
 
 ---
 
@@ -21,67 +22,77 @@ Objetivo: facilitar la toma de decisiones sobre qué vestir y optimizar el uso d
 
 - Registro y login de usuarios
 - Visualización y gestión de prendas
+  * Ver detalles: categoría, color, estación
+  * Filtros: categoría, color, estación, ocasión, clima
+  * Marcar prendas como favoritas
 - Planner de outfits inteligentes
+  * Sugerencias automáticas de IA: 3 looks por día en la pantalla principal
+  * Crear outfits personalizados por evento o por prenda
+  * Guardar, editar o eliminar combinaciones
 - Modo viaje (SmartPack)
+  * IA crea la maleta automáticamente, el usuario puede editar y usar looks ya guardados
+  * Agregar o remover prendas manualmente
+  * Guardar diferentes listas de viaje
 
 ---
 
 ## Tecnologías
 
-- React Native + Expo
-- TypeScript
-- Docker
+- Framework: React Native + Expo
+- Lenguaje: TypeScript
+- Librerías principales:
+  * @react-navigation/native & @react-navigation/bottom-tabs
+  * Axios
+  * Expo modules:
+    - expo-image-picker
+    - expo-linear-gradient
+    - expo-location
+    - expo-secure-store
+    - expo-auth-session
+  * NativeWind & TailwindCSS
+  * Otras librerías: React Native Calendars, Toast Message, Gesture Handler
+- Testing / Dev: Jest, @testing-library/react-native, ESLint, TypeScript
 
 ---
 
 ## Estructura del proyecto
 ```plaintext
 frontend/
-├── app/                # Rutas de páginas iniciales (_layout, home, index, register)
-├── assets/             # Imágenes e íconos
-│   ├── icons/
-│   └── images/
-├── src/
-│   ├── components/     # Componentes reutilizables (CheckBox, CustomInput, Header, etc.)
-│   ├── constants/      # Constantes de la app (colores, etc.)
-│   ├── logger/         # Manejo de logs y helpers
-│   ├── pages/          # Pantallas de la aplicación (Home, LoginScreen, RegisterScreen)
-│   └── utils/          # Funciones utilitarias (validation.js)
-├── Dockerfile
+├── README.md
+├── .env.example
 ├── package.json
-├── package-lock.json
-├── app.json
-├── eslint.config.js
-├── .dockerignore
-└── .gitignore
+├── tsconfig.json
+├── app/              # Rutas (autenticación y áreas protegidas)
+├── src/              # Componentes, hooks, servicios y utilidades
+├── assets/           # Fuentes, iconos e imágenes
+├── styles/           # Estilos globales
+├── test/             # Tests
+└── config/           # Configuración (Babel, ESLint, Tailwind, Metro, Jest)
 ```
 ---
 
 ## Configuración del entorno
 
-### 1. Crear proyecto TypeScript
-```bash
-npx create-expo-app . --template expo-template-blank-typescript
-```
-### 2. Instalar dependencias
+### 1. Instalar dependencias
 ```bash
 npm install
 ```
-### 3. Ejecutar localmente
+### 2. Ejecutar localmente
 ```bash
 npx expo start --web
+
 Web: http://localhost:8081
 Android/iOS: Expo Go
 ```
 
-### 4. Ejecutar con Docker
-```bash
-docker build -t pocketcloset-frontend .
-docker run -it --rm -p 8081:8081 pocketcloset-frontend
-```
-### 5. Configuración de la API
+### 3. Variables de entorno
+
+- Copiar .env.example para .env y completar con tus credenciales locales.
+
+### 4. Configuración de la API
 ```plaintext
 Modificar la URL base de la API en src/services/api.ts:
+
 export const API_URL = "http://localhost:5000/api";
 ```
 ---
