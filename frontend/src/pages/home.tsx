@@ -26,7 +26,6 @@ import { apiRequest } from "../utils/apiClient";
 import { useLoader } from "../context/LoaderContext";
 import { useAuth } from "../hooks/useAuth";
 
-
 /* ============================================================
    Tipos
 ============================================================ */
@@ -75,8 +74,16 @@ interface OutfitEventoApi {
   imagen: string;
   eventoId?: string;
 }
-
-
+interface Viaje {
+  id: string;
+  destino: string;
+  ciudad: string;
+  fechaInicio: string; // YYYY-MM-DD
+  fechaFin: string;
+  transporte: string;
+  actividades?: string[];
+  createdAt?: string;
+}
 
 /* Día actual como índice 0-6 (Lun–Dom) */
 const WEEK_DAYS_SHORT = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
@@ -84,6 +91,9 @@ const getTodayIndex = () => {
   const js = new Date().getDay(); // 0 = Dom, 1 = Lun...
   return (js + 6) % 7; // 0 = Lun
 };
+
+// 🔴 FIX OUTFITS IA: mínimo de prendas
+const MIN_PRENDAS_IA = 5;
 
 /* ============================================================
    Home
@@ -102,10 +112,13 @@ export default function Home() {
     Record<string, EventoOutfit[]>
   >({});
 
-
   // Outfits favoritos / más usados (por ahora: últimos creados)
   const [favoriteOutfits, setFavoriteOutfits] = useState<FavoriteOutfit[]>([]);
   const [loadingFavorites, setLoadingFavorites] = useState(false);
+
+  // Viajes del usuario (para "Próximo viaje")
+  const [viajes, setViajes] = useState<Viaje[]>([]);
+  const [loadingViajes, setLoadingViajes] = useState(false);
 
   // Día seleccionado para "Outfits del día" (semana)
   const [selectedDayIndex, setSelectedDayIndex] = useState(getTodayIndex);
@@ -116,6 +129,8 @@ export default function Home() {
   const userId = auth?.userId || "anon";
   const [perfil, setPerfil] = useState<{ nombre: string }>({ nombre: "" });
 
+  // 🔴 FIX OUTFITS IA: contador de prendas
+  const [prendasCount, setPrendasCount] = useState<number | null>(null);
 
   /* ------------------- Saludo dinámico ------------------- */
   const getGreeting = () => {
@@ -126,7 +141,6 @@ export default function Home() {
   };
 
   const username = auth?.userName || perfil.nombre || "Usuario";
-
   const greeting = `${getGreeting()}, ${username}.`;
 
   /* ============================================================
@@ -294,6 +308,7 @@ export default function Home() {
 
     hideLoader();
   };
+
   // ==========================================================
   // Cargar perfil real del backend
   // ==========================================================
@@ -318,20 +333,97 @@ export default function Home() {
     }
   }, [auth?.userId]);
 
+  /* ============================================================
+     🔴 FIX OUTFITS IA
+  ============================================================ */
+  const cargarNumeroPrendas = async (): Promise<number> => {
+    try {
+      const data = await apiRequest<{ total: number }>("/api/prendas/count", {
+        method: "GET",
+      });
+      setPrendasCount(data.total);
+      return data.total;
+    } catch (e) {
+      setPrendasCount(0);
+      return 0;
+    }
+  };
+
+  // ✅ Carga eventos y los outfits asociados a cada evento
+  const cargarEventosYOutfits = async () => {
+    try {
+      // 1) Eventos
+      const dataEventos = await apiRequest<{ eventos: Evento[] }>("/api/eventos", {
+        method: "GET",
+      });
+
+      const evs = dataEventos?.eventos || [];
+      setEventos(evs);
+
+      // 2) Outfits (los que tengan eventoId)
+      const dataOutfits = await apiRequest<{ outfits: OutfitEventoApi[] }>(
+        "/api/outfits",
+        { method: "GET" }
+      );
+
+      const map: Record<string, EventoOutfit[]> = {};
+
+      (dataOutfits?.outfits || []).forEach((o) => {
+        if (!o.eventoId) return;
+
+        if (!map[o.eventoId]) map[o.eventoId] = [];
+        map[o.eventoId].push({
+          id: o.id,
+          nombre: o.nombre,
+          imagen: o.imagen,
+          eventoId: o.eventoId,
+        });
+      });
+
+      setOutfitsPorEvento(map);
+    } catch (e) {
+      console.log("Error cargando eventos y outfits:", e);
+      setEventos([]);
+      setOutfitsPorEvento({});
+    }
+    };
 
 
   /* ============================================================
-     OUTFITS sugeridos: solo una vez al día por usuario (como antes)
+     OUTFITS sugeridos
   ============================================================ */
 
   useEffect(() => {
-    cargarOutfits();
-    cargarFavoritos();
+    (async () => {
+      // 🔴 FIX OUTFITS IA: aseguramos contador antes de cargar outfits
+      const total = await cargarNumeroPrendas();
+
+      // resto igual
+      if (total >= MIN_PRENDAS_IA) {
+        cargarOutfits();
+      } else {
+        setOutfits([]); // no mostrar IA
+      }
+
+      cargarFavoritos();
+      cargarViajes();
+      cargarEventosYOutfits();
+    })();
   }, []);
 
   const cargarOutfits = async () => {
     try {
       setLoadingOutfits(true);
+
+      // 🔴 FIX OUTFITS IA: si aún no tenemos el count, lo pedimos
+      const totalPrendas =
+        prendasCount === null ? await cargarNumeroPrendas() : prendasCount;
+
+      // 🔴 FIX OUTFITS IA: sin prendas suficientes -> NO IA, NO cache
+      if (totalPrendas < MIN_PRENDAS_IA) {
+        setOutfits([]);
+        return;
+      }
 
       const hoy = new Date().toISOString().slice(0, 10);
       const fechaKey = `outfits_fecha_${userId}`;
@@ -344,7 +436,6 @@ export default function Home() {
       if (storedFecha === hoy && storedData) {
         const parsed = JSON.parse(storedData) as OutfitSugerido[];
         setOutfits(parsed);
-        setLoadingOutfits(false);
         return;
       }
 
@@ -360,9 +451,9 @@ export default function Home() {
         setOutfits(nuevos);
         await AsyncStorage.setItem(fechaKey, hoy);
         await AsyncStorage.setItem(dataKey, JSON.stringify(nuevos));
-      } else if (storedData) {
-        // si el backend no devuelve nada pero había algo guardado, lo usamos
-        setOutfits(JSON.parse(storedData));
+      } else {
+        // 🔴 FIX OUTFITS IA: si backend no devuelve nada, dejamos vacío (no “revivir” cache fantasma)
+        setOutfits([]);
       }
     } catch (err) {
       console.log("Error outfits:", err);
@@ -408,6 +499,37 @@ export default function Home() {
       setLoadingFavorites(false);
     }
   };
+
+  /* ============================================================
+     Viajes para "Próximo viaje"
+  ============================================================ */
+
+  const cargarViajes = async () => {
+    try {
+      setLoadingViajes(true);
+
+      const data = await apiRequest<Viaje[]>("/api/viajes", {
+        method: "GET",
+      });
+
+      const lista = data || [];
+      const hoyISO = new Date().toISOString().split("T")[0];
+
+      // Nos quedamos con viajes que no han terminado aún (próximos o en curso)
+      const futuros = lista.filter((v) => v.fechaFin >= hoyISO);
+
+      // Ordenamos por fecha de inicio ascendente (el más próximo primero)
+      futuros.sort((a, b) => a.fechaInicio.localeCompare(b.fechaInicio));
+
+      // Solo queremos mostrar máximo 5
+      setViajes(futuros.slice(0, 5));
+    } catch (e) {
+      console.log("Error cargando viajes en Home:", e);
+    } finally {
+      setLoadingViajes(false);
+    }
+  };
+
   const generarSemana = () => {
     const dias = [];
     const hoy = new Date();
@@ -429,6 +551,48 @@ export default function Home() {
 
   const semana = generarSemana();
   const [selectedDay, setSelectedDay] = useState(semana[0].fechaISO);
+
+  // ===============================
+  // Helpers Outfits por día
+  // ===============================
+  const isSameDay = (a: string, b: string) => a === b;
+
+  const hoyISO = semana[0].fechaISO;
+
+  // Eventos del día seleccionado
+  const eventosDelDia = eventos.filter((e) => {
+    const fechaEvento = new Date(e.fecha).toISOString().split("T")[0];
+    return isSameDay(fechaEvento, selectedDay);
+  });
+
+  // Outfits asociados a eventos del día
+  const outfitsEventosDelDia: EventoOutfit[] = eventosDelDia.flatMap(
+    (e) => outfitsPorEvento[e.id] || []
+  );
+
+  // Outfits IA (solo se usan hoy)
+  const outfitsIA = outfits;
+
+  // Outfits finales a mostrar
+  let outfitsMostrar: (EventoOutfit | OutfitSugerido)[] = [];
+
+  // ✅ SIEMPRE mostrar outfits de evento
+  outfitsMostrar = [...outfitsEventosDelDia];
+
+  // ✅ SOLO añadir IA si:
+  // - es HOY
+  // - hay contador de prendas
+  // - hay suficientes prendas
+  if (
+    selectedDay === hoyISO &&
+    prendasCount !== null &&
+    prendasCount >= MIN_PRENDAS_IA
+  ) {
+    outfitsMostrar = [...outfitsMostrar, ...outfitsIA];
+  }
+  const esOutfitEvento = (o: any) =>
+  "eventoId" in o && o.eventoId !== undefined && o.eventoId !== null;
+
 
 
   /* ============================================================
@@ -514,80 +678,72 @@ export default function Home() {
             ))}
           </View>
 
-          {/* ----- OUTFITS DE EVENTO + IA (SOLO HOY) — CARRUSEL ----- */}
-          {(() => {
-            const hoyISO = semana[0].fechaISO;
-            const evento = eventos.find((e) => {
-              const fechaEvento = new Date(e.fecha).toISOString().split("T")[0];
-              return fechaEvento === selectedDay;
-            });
-            const outfitsEvento = evento ? outfitsPorEvento[evento.id] || [] : [];
-            const esHoy = selectedDay === hoyISO;
-
-            let outfitsMostrar: any[] = [];
-
-            if (esHoy) {
-              outfitsMostrar = [...outfitsEvento, ...outfits]; // evento -> IA
-            } else {
-              outfitsMostrar = [...outfitsEvento];
-            }
-
-            if (outfitsMostrar.length === 0) {
-              return (
-                <Text style={{ color: "#777", marginBottom: 10 }}>
-                  No hay outfit asignado para este día
-                </Text>
-              );
-            }
-
-            return (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ paddingVertical: 10 }}
-              >
-                {outfitsMostrar.map((o) => (
-                  <Card
-                    key={o.id}
-                    style={{
-                      width: 220,           // tamaño ideal Maison
-                      marginRight: 16,
-                    }}
+          {/* ----- OUTFITS DEL DÍA (EVENTOS + IA) ----- */}
+          {/* 🔴 FIX OUTFITS IA: si HOY y no hay prendas suficientes, no mostrar IA */}
+          {selectedDay === hoyISO &&
+          prendasCount !== null &&
+          prendasCount < MIN_PRENDAS_IA ? (
+            <BodyText style={{ color: "#777", marginBottom: 10 }}>
+              Añade al menos {MIN_PRENDAS_IA} prendas a tu armario para que la IA
+              pueda sugerirte outfits.
+            </BodyText>
+          ) : outfitsMostrar.length === 0 ? (
+            <Text style={{ color: "#777", marginBottom: 10 }}>
+              No hay outfit asignado para este día
+            </Text>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ paddingVertical: 10 }}
+            >
+              {outfitsMostrar.map((o) => (
+                <Card
+                  key={o.id}
+                  style={{
+                    width: 220,
+                    marginRight: 16,
+                  }}
+                >
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    onPress={() => router.push(`/mis-outfits?id=${o.id}`)}
                   >
-                    <TouchableOpacity
-                      activeOpacity={0.8}
-                      onPress={() => router.push(`/mis-outfits?id=${o.id}`)}
-                    >
-                      <Image
-                        source={{ uri: o.imagen || o.prendas?.[0]?.imagen }}
-                        style={styles.outfitCarouselImage}
-                      />
+                    <Image
+                      source={{
+                        uri:
+                          "imagen" in o && o.imagen
+                            ? o.imagen
+                            : "prendas" in o
+                            ? o.prendas?.[0]?.imagen
+                            : undefined,
+                      }}
+                      style={styles.outfitCarouselImage}
+                    />
 
-                      <Text style={styles.outfitName}>{o.nombre}</Text>
-                      <Text style={styles.outfitCat}>
-                        {o.eventoId ? "Evento" : "Sugerido por IA"}
-                      </Text>
-                    </TouchableOpacity>
-                  </Card>
-                ))}
-              </ScrollView>
-            );
-          })()}
-
+                    <Text style={styles.outfitName}>{o.nombre}</Text>
+                    <Text style={styles.outfitCat}>
+                      {esOutfitEvento(o) ? "Evento" : "Sugerencia de IA"}
+                    </Text>
+                  </TouchableOpacity>
+                </Card>
+              ))}
+            </ScrollView>
+          )}
 
           {/* ----- ACCIONES RÁPIDAS ----- */}
           <TitleSerif style={styles.sectionTitle}>Acciones rápidas</TitleSerif>
 
           <View style={styles.actionsGrid}>
-            <QuickAction label="Try-on" icon="camera-outline" route="/add-prenda" />
+            <QuickAction label="Agregar prenda" icon="camera-outline" route="/add-prenda" />
             <QuickAction
               label="Crear outfit"
               icon="plus-circle-outline"
               route="/crear-outfit"
             />
-            <QuickAction label="Estilista IA" icon="wand" route="/mis-outfits" />
+            <QuickAction label="Outfits" icon="wand" route="/mis-outfits" />
             <QuickAction
-              label="Moodboard"
+              label="Armario"
               icon="image-multiple-outline"
               route="/mi-armario"
             />
@@ -595,24 +751,79 @@ export default function Home() {
 
           {/* ----- PRÓXIMO VIAJE ----- */}
           <TitleSerif style={styles.sectionTitle}>Próximo viaje</TitleSerif>
-          <Card style={styles.tripCard}>
-            <View style={styles.tripRow}>
-              <Ionicons
-                name="airplane-outline"
-                size={20}
-                color={colors.iconActive}
-              />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.tripTitle}>Aún no tienes viajes guardados</Text>
-                <Text style={styles.tripSubtitle}>
-                  Crea tu próximo viaje para planificar la maleta y los outfits.
-                </Text>
+
+          {loadingViajes ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : viajes.length === 0 ? (
+            <Card style={styles.tripCard}>
+              <View style={styles.tripRow}>
+                <Ionicons
+                  name="airplane-outline"
+                  size={20}
+                  color={colors.iconActive}
+                />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.tripTitle}>
+                    Aún no tienes viajes guardados
+                  </Text>
+                  <Text style={styles.tripSubtitle}>
+                    Crea tu próximo viaje para planificar la maleta y los outfits.
+                  </Text>
+                </View>
+                <TouchableOpacity onPress={() => router.push("/mis-viajes" as any)}>
+                  <Text style={styles.tripCTA}>Abrir viajes</Text>
+                </TouchableOpacity>
               </View>
-              <TouchableOpacity onPress={() => router.push("/mis-viajes" as any)}>
-                <Text style={styles.tripCTA}>Abrir viajes</Text>
-              </TouchableOpacity>
-            </View>
-          </Card>
+            </Card>
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              {viajes.map((v) => (
+                <Card
+                  key={v.id}
+                  style={[styles.tripCard, { width: 230, marginRight: 12 }]}
+                >
+                  <TouchableOpacity
+                    onPress={() => router.push(`/lista-equipaje?id=${v.id}` as any)}
+                  >
+                    <View style={styles.tripRow}>
+                      <Ionicons
+                        name="airplane-outline"
+                        size={20}
+                        color={colors.iconActive}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.tripTitle}>{v.destino}</Text>
+                        <Text style={styles.tripSubtitle}>
+                          {v.fechaInicio} → {v.fechaFin}
+                        </Text>
+                        <Text style={styles.tripSubtitle}>{v.transporte}</Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                </Card>
+              ))}
+
+              {/* CTA al final del carrusel */}
+              <Card style={[styles.tripCard, { width: 180 }]}>
+                <TouchableOpacity
+                  style={styles.tripRow}
+                  onPress={() => router.push("/mis-viajes" as any)}
+                >
+                  <Ionicons
+                    name="add-circle-outline"
+                    size={22}
+                    color={colors.iconActive}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.tripTitle}>Ver todos</Text>
+                    <Text style={styles.tripSubtitle}>
+                      Gestiona y crea nuevos viajes.
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              </Card>
+            </ScrollView>
+          )}
 
           {/* ----- FAVORITOS ----- */}
           <TitleSerif style={styles.sectionTitle}>Favoritos</TitleSerif>
@@ -632,10 +843,7 @@ export default function Home() {
                     activeOpacity={0.8}
                     onPress={() => router.push(`/mis-outfits?id=${o.id}`)}
                   >
-                    <Image
-                      source={{ uri: o.imagen }}
-                      style={styles.favoriteImage}
-                    />
+                    <Image source={{ uri: o.imagen }} style={styles.favoriteImage} />
                     <Text style={styles.favoriteName} numberOfLines={1}>
                       {o.nombre}
                     </Text>
@@ -685,7 +893,7 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 20,
     paddingBottom: 30,
-    paddingTop: 10, // saludo un poco más abajo
+    paddingTop: 10, 
   },
 
   headerRow: {
@@ -757,7 +965,7 @@ const styles = StyleSheet.create({
   outfitOfDayCard: {
     marginBottom: 24,
   },
- outfitImage: {
+  outfitImage: {
     width: "100%",
     aspectRatio: 3 / 4,
     borderRadius: 16,
@@ -766,12 +974,11 @@ const styles = StyleSheet.create({
   },
   outfitCarouselImage: {
     width: "100%",
-    height: 220,       // proporcion estable
+    height: 220, 
     borderRadius: 16,
-    resizeMode: "contain",   // ⭐ NO RECORTA NUNCA
+    resizeMode: "contain", 
     backgroundColor: "#F4F4F4",
   },
-
 
   outfitName: {
     fontSize: 15,
@@ -838,10 +1045,10 @@ const styles = StyleSheet.create({
 
   favoriteImage: {
     width: "100%",
-    height: 180,         // más alto para que visually quede bonito
+    height: 180, 
     borderRadius: 16,
-    resizeMode: "contain",   // ⭐ NUNCA RECORTA
-    backgroundColor: "#F7F7F7",  // estilo Maison
+    resizeMode: "contain", 
+    backgroundColor: "#F7F7F7", 
   },
 
   favoriteName: {

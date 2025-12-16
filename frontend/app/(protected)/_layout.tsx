@@ -18,7 +18,7 @@ export default function ProtectedLayout() {
     return (
       <SafeAreaProvider>
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-          <ActivityIndicator size="large" color="#4B0082" />
+          <ActivityIndicator size="large" color="#C8B6A6" />
         </View>
       </SafeAreaProvider>
     );
@@ -37,6 +37,10 @@ export default function ProtectedLayout() {
           <Stack.Screen name="perfil" options={{ headerShown: false }} />
           <Stack.Screen name="notificaciones" options={{ headerShown: false }} />
           <Stack.Screen name="questionnaire" options={{ headerShown: false }} />
+          <Stack.Screen name="lista-equipaje" options={{ headerShown: false }} />
+          <Stack.Screen name="crear-outfit" options={{ headerShown: false }} />
+          <Stack.Screen name="editar-outfit" options={{ headerShown: false }} />
+          <Stack.Screen name="editar-prenda" options={{ headerShown: false }} />
 
         </Stack>
         <StatusBar style="dark" translucent />

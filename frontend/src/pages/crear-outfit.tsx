@@ -22,6 +22,7 @@ import TitleSerif from "components/ui/TitleSerif";
 import colors from "../constants/colors";
 import { apiRequest } from "../utils/apiClient";
 import { useLoader } from "../context/LoaderContext";
+import ModalKeyboardWrapper from "../components/ui/ModalKeyboardWrapper";
 
 export default function CrearOutfit() {
   const { prendaId, eventoId, eventoNombre } = useLocalSearchParams();
@@ -151,13 +152,7 @@ export default function CrearOutfit() {
             <TitleSerif>Crear outfit</TitleSerif>
           </View>
 
-          <ScrollView
-            contentContainerStyle={{
-              paddingHorizontal: 20,
-              paddingBottom: 50,
-              paddingTop: 10,
-            }}
-          >
+          <ModalKeyboardWrapper>
             {/* ---------- BOTONES PRINCIPALES ---------- */}
             <View style={[styles.mainCard, { width: "100%", maxWidth: 650, alignSelf: "center" }]}>
               <TouchableOpacity
@@ -278,7 +273,7 @@ export default function CrearOutfit() {
               </View>
             )}
 
-          </ScrollView>
+          </ModalKeyboardWrapper>
         </SafeAreaView>
       </LinearGradient>
     </>

@@ -22,6 +22,7 @@ import PrimaryButton from "../components/ui/PrimaryButton";
 import Card from "../components/ui/Card";
 import { apiRequest } from "../utils/apiClient";
 import { useLoader } from "../context/LoaderContext";
+import ModalKeyboardWrapper from "../components/ui/ModalKeyboardWrapper";
 
 export default function EditarPrenda() {
   const { id } = useLocalSearchParams();
@@ -105,7 +106,7 @@ export default function EditarPrenda() {
             <TitleSerif>Editar prenda</TitleSerif>
           </View>
 
-          <ScrollView contentContainerStyle={styles.scrollContent}>
+          <ModalKeyboardWrapper>
             
             {/* CARD */}
             <Card style={styles.card}>
@@ -124,7 +125,7 @@ export default function EditarPrenda() {
               <PrimaryButton text="Guardar cambios" onPress={guardarCambios} style={{ marginTop: 20 }} />
             </Card>
 
-          </ScrollView>
+          </ModalKeyboardWrapper>
         </SafeAreaView>
       </LinearGradient>
     </>

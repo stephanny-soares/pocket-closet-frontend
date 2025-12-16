@@ -1,4 +1,8 @@
-import React, { useState, useMemo } from "react";
+import React, {
+  useState,
+  useMemo,
+  useEffect,
+} from "react";
 import {
   View,
   Text,
@@ -9,6 +13,7 @@ import {
   TextInput,
   FlatList,
   useWindowDimensions,
+  Alert,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -18,29 +23,42 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import TitleSerif from "../components/ui/TitleSerif";
 import SubtitleSerif from "../components/ui/SubtitleSerif";
 import Card from "../components/ui/Card";
-import FloatingActionButton from "../components/ui/FloatingActionButton";
 
 import colors from "../constants/colors";
 import { Calendar, DateData } from "react-native-calendars";
+import { apiRequest } from "../utils/apiClient"; // ⭐ usamos el mismo helper que en el resto
 
 // Listas cerradas
 const TRANSPORTES = ["Avión", "Tren", "Coche", "Bus", "Barco"];
-const ACTIVIDADES = ["Playa", "Montaña", "Trabajo", "Ciudad", "Deporte", "Compras"];
+const ACTIVIDADES = [
+  "Playa",
+  "Montaña",
+  "Trabajo",
+  "Ciudad",
+  "Deporte",
+  "Compras",
+];
 
 const VALOR_TODOS = "todos";
 const QUICK_ALL = "Todos";
 
-interface Maleta {
+interface Viaje {
   id: string;
   destino: string;
-  desde: string;
-  hasta: string;
+  ciudad: string;
+  fechaInicio: string; // YYYY-MM-DD o ISO
+  fechaFin: string;
   transporte: string;
   actividades?: string[];
   createdAt?: string;
+  descripcion?: string;
 }
 
 export default function MisViajes() {
+  // 📌 Viajes reales del backend
+  const [viajes, setViajes] = useState<Viaje[]>([]);
+  const [loadingViajes, setLoadingViajes] = useState(false);
+
   // 📌 Campos del viaje (formulario nuevo viaje)
   const [destino, setDestino] = useState("");
   const [desde, setDesde] = useState<Date | null>(null);
@@ -48,23 +66,39 @@ export default function MisViajes() {
   const [transporte, setTransporte] = useState("");
   const [actividades, setActividades] = useState<string[]>([]);
 
+  // 📌 Estados para editar viaje
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [viajeEditando, setViajeEditando] = useState<Viaje | null>(null);
+  const [editDestino, setEditDestino] = useState("");
+  const [editFechaInicio, setEditFechaInicio] = useState("");
+  const [editFechaFin, setEditFechaFin] = useState("");
+  const [editTransporte, setEditTransporte] = useState("");
+  const [editActividades, setEditActividades] = useState("");
+  const [reabrirEditModal, setReabrirEditModal] = useState(false);
+
+
   // 📌 Modales
   const [modalDestino, setModalDestino] = useState(false);
   const [modalTransporte, setModalTransporte] = useState(false);
   const [modalActividades, setModalActividades] = useState(false);
-  const [modalCalendario, setModalCalendario] = useState<null | "desde" | "hasta">(null);
+  const [modalCalendario, setModalCalendario] = useState<
+    null | "desde" | "hasta" | "editInicio" | "editFin"
+  >(null);
+
+  // 📌 Modal confirm delete
+  const [confirmDeleteVisible, setConfirmDeleteVisible] = useState(false);
+  const [viajeAEliminar, setViajeAEliminar] = useState<Viaje | null>(null);
 
   // 📌 Filtros
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
   const [filtroDestino, setFiltroDestino] = useState<string>(VALOR_TODOS);
-  const [filtroTransporte, setFiltroTransporte] = useState<string>(VALOR_TODOS);
-  const [filtroActividad, setFiltroActividad] = useState<string>(VALOR_TODOS);
+  const [filtroTransporte, setFiltroTransporte] =
+    useState<string>(VALOR_TODOS);
+  const [filtroActividad, setFiltroActividad] =
+    useState<string>(VALOR_TODOS);
 
   const [filtroRapidoTransporte, setFiltroRapidoTransporte] =
     useState<string>(QUICK_ALL);
-
-  // 📌 Placeholder de maletas hasta integrar backend
-  const maletas: Maleta[] = [];
 
   const { width } = useWindowDimensions();
   const isWeb = width > 768;
@@ -72,9 +106,64 @@ export default function MisViajes() {
 
   const formatDate = (date: Date | null) =>
     date ? date.toISOString().split("T")[0] : "";
+  const today = new Date().toISOString().split("T")[0];
 
-  const handleHacerMaleta = () => {
-    router.push("/lista-equipaje");
+
+  // ============================================================
+  // Cargar viajes del backend
+  // ============================================================
+
+  const cargarViajes = async () => {
+    try {
+      setLoadingViajes(true);
+      const data = await apiRequest<Viaje[]>("/api/viajes", {
+        method: "GET",
+      });
+      setViajes(data || []);
+    } catch (err) {
+      console.log("Error cargando viajes:", err);
+    } finally {
+      setLoadingViajes(false);
+    }
+  };
+
+  useEffect(() => {
+    cargarViajes();
+  }, []);
+
+  // ============================================================
+  // Crear viaje y navegar a lista de equipaje
+  // ============================================================
+
+  const handleHacerMaleta = async () => {
+    if (!destino || !desde || !hasta || !transporte) {
+      Alert.alert(
+        "Faltan datos",
+        "Rellena destino, fechas y método de transporte."
+      );
+      return;
+    }
+
+    try {
+      const nuevoViaje = await apiRequest<Viaje>("/api/viajes", {
+        method: "POST",
+        body: JSON.stringify({
+          destino,
+          ciudad: destino, // puedes cambiarlo si luego hay ciudad separada
+          fechaInicio: formatDate(desde),
+          fechaFin: formatDate(hasta),
+          transporte,
+          actividades,
+          descripcion: "",
+        }),
+      });
+
+      // Navegamos a la pantalla de equipaje de ese viaje
+      router.push(`/lista-equipaje?id=${nuevoViaje.id}`);
+    } catch (err) {
+      console.log("Error creando viaje:", err);
+      Alert.alert("Error", "No se pudo crear el viaje.");
+    }
   };
 
   /* -------------------- QUICK CHIPS TRANSPORTE -------------------- */
@@ -84,15 +173,16 @@ export default function MisViajes() {
     []
   );
 
-  /* -------------------- FILTRO FINAL DE MALETAS -------------------- */
+  /* -------------------- FILTRO FINAL DE VIAJES -------------------- */
 
-  const filteredMaletas = useMemo(() => {
-    return maletas.filter((m) => {
+  const filteredViajes = useMemo(() => {
+    return viajes.filter((m) => {
       const coincideDestino =
         filtroDestino === VALOR_TODOS || m.destino === filtroDestino;
 
       const coincideTransporte =
-        filtroTransporte === VALOR_TODOS || m.transporte === filtroTransporte;
+        filtroTransporte === VALOR_TODOS ||
+        m.transporte === filtroTransporte;
 
       const coincideActividad =
         filtroActividad === VALOR_TODOS ||
@@ -100,32 +190,103 @@ export default function MisViajes() {
 
       return coincideDestino && coincideTransporte && coincideActividad;
     });
-  }, [maletas, filtroDestino, filtroTransporte, filtroActividad]);
+  }, [viajes, filtroDestino, filtroTransporte, filtroActividad]);
 
-  /* -------------------- RENDER CARD MALETA (GRID) -------------------- */
+  /* -------------------- EDITAR VIAJE -------------------- */
 
-  const renderMaleta = ({ item }: { item: Maleta }) => (
-    <Card style={styles.maletaCard}>
-      <View style={styles.maletaInner}>
-        <View style={styles.maletaHeaderRow}>
-          <Ionicons
-            name="briefcase-outline"
-            size={18}
-            color={colors.primaryDark}
-          />
-          <Text style={styles.maletaTitle}>{item.destino}</Text>
-        </View>
-        <Text style={styles.maletaSubtitle}>
-          {item.desde} → {item.hasta}
-        </Text>
-        <Text style={styles.maletaSubtitle}>{item.transporte}</Text>
-        {item.actividades && item.actividades.length > 0 && (
-          <Text style={styles.maletaTags}>
-            {item.actividades.join(" · ")}
+  const abrirEditarViaje = (viaje: Viaje) => {
+    setViajeEditando(viaje);
+    setEditDestino(viaje.destino);
+    setEditFechaInicio(viaje.fechaInicio);
+    setEditFechaFin(viaje.fechaFin);
+    setEditTransporte(viaje.transporte);
+    setEditActividades((viaje.actividades || []).join(", "));
+    setEditModalVisible(true);
+  };
+
+  const guardarEdicionViaje = async () => {
+    if (!viajeEditando) return;
+
+    if (!editDestino || !editFechaInicio || !editFechaFin || !editTransporte) {
+      Alert.alert(
+        "Faltan datos",
+        "Rellena destino, fechas y método de transporte."
+      );
+      return;
+    }
+
+    const actividadesArray = editActividades
+      .split(",")
+      .map((a) => a.trim())
+      .filter((a) => a.length > 0);
+
+    try {
+      await apiRequest(`/api/viajes/${viajeEditando.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          destino: editDestino,
+          ciudad: editDestino,
+          fechaInicio: editFechaInicio,
+          fechaFin: editFechaFin,
+          transporte: editTransporte,
+          actividades: actividadesArray,
+          descripcion: viajeEditando.descripcion ?? "",
+        }),
+      });
+
+      setEditModalVisible(false);
+      setViajeEditando(null);
+      cargarViajes();
+    } catch (err) {
+      console.log("Error actualizando viaje:", err);
+      Alert.alert("Error", "No se pudo actualizar el viaje.");
+    }
+  };
+
+  /* -------------------- RENDER CARD VIAJE (GRID) -------------------- */
+
+  const renderViaje = ({ item }: { item: Viaje }) => (
+    <TouchableOpacity
+      style={{ flex: 1 }}
+      onPress={() => router.push(`/lista-equipaje?id=${item.id}`)}
+    >
+      <Card style={styles.maletaCard}>
+        <View style={styles.maletaInner}>
+          <View style={styles.maletaHeaderRow}>
+            <View style={styles.maletaHeaderLeft}>
+              <Ionicons
+                name="briefcase-outline"
+                size={18}
+                color={colors.primaryDark}
+              />
+              <Text style={styles.maletaTitle}>{item.destino}</Text>
+            </View>
+
+            {/* ✏️ Botón editar viaje */}
+            <TouchableOpacity
+              onPress={() => abrirEditarViaje(item)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons
+                name="pencil-outline"
+                size={18}
+                color={colors.textPrimary}
+              />
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.maletaSubtitle}>
+            {item.fechaInicio} → {item.fechaFin}
           </Text>
-        )}
-      </View>
-    </Card>
+          <Text style={styles.maletaSubtitle}>{item.transporte}</Text>
+          {item.actividades && item.actividades.length > 0 && (
+            <Text style={styles.maletaTags}>
+              {item.actividades.join(" · ")}
+            </Text>
+          )}
+        </View>
+      </Card>
+    </TouchableOpacity>
   );
 
   /* -------------------- UI AUX -------------------- */
@@ -184,9 +345,9 @@ export default function MisViajes() {
           <View style={styles.titleBlock}>
             <TitleSerif style={styles.title}>Mis viajes</TitleSerif>
             <SubtitleSerif>
-              {maletas.length === 0
-                ? "Aún no tienes maletas creadas"
-                : `${maletas.length} viajes planificados`}
+              {viajes.length === 0
+                ? "Aún no tienes viajes creados"
+                : `${viajes.length} viaje(s) planificados`}
             </SubtitleSerif>
           </View>
 
@@ -202,7 +363,8 @@ export default function MisViajes() {
                 key={cat}
                 style={[
                   styles.categoryChip,
-                  filtroRapidoTransporte === cat && styles.categoryChipActive,
+                  filtroRapidoTransporte === cat &&
+                    styles.categoryChipActive,
                 ]}
                 onPress={() => {
                   setFiltroRapidoTransporte(cat);
@@ -390,9 +552,13 @@ export default function MisViajes() {
           )}
         </View>
 
-        {/* ░░ GRID DE MALETAS CON SCROLL ░░ */}
+        {/* ░░ GRID DE VIAJES CON SCROLL ░░ */}
         <View style={{ flex: 1, minHeight: 0 }}>
-          {filteredMaletas.length === 0 ? (
+          {loadingViajes ? (
+            <View style={styles.emptyBox}>
+              <Text style={styles.emptyText}>Cargando viajes…</Text>
+            </View>
+          ) : filteredViajes.length === 0 ? (
             <View style={styles.emptyBox}>
               <Ionicons
                 name="briefcase-outline"
@@ -400,13 +566,13 @@ export default function MisViajes() {
                 color={colors.primary}
               />
               <Text style={styles.emptyText}>
-                Aún no tienes maletas creadas
+                Aún no tienes viajes creados
               </Text>
             </View>
           ) : (
             <FlatList
-              data={filteredMaletas}
-              renderItem={renderMaleta}
+              data={filteredViajes}
+              renderItem={renderViaje}
               keyExtractor={(item) => item.id}
               numColumns={columnas}
               showsVerticalScrollIndicator={true}
@@ -415,115 +581,134 @@ export default function MisViajes() {
           )}
         </View>
 
-        {/* FAB para crear/hacer maleta rápido */}
-        <FloatingActionButton onPress={handleHacerMaleta} />
-
         {/* --------------------------------------------- */}
-        {/* MODAL DESTINO */}
+        {/* MODAL DESTINO (estilo mi-armario + ❌)       */}
         {/* --------------------------------------------- */}
         <Modal visible={modalDestino} transparent animationType="fade">
           <View style={styles.modalOverlay}>
             <View style={styles.modalBox}>
-              <Text style={styles.modalTitle}>Destino</Text>
-
-              <TextInput
-                placeholder="Introduce el destino"
-                style={styles.input}
-                value={destino}
-                onChangeText={setDestino}
-              />
-
               <TouchableOpacity
-                style={styles.modalBtn}
+                style={styles.modalCloseIcon}
                 onPress={() => setModalDestino(false)}
               >
-                <Text style={styles.modalBtnText}>Aceptar</Text>
+                <Ionicons name="close" size={20} color={colors.textPrimary} />
               </TouchableOpacity>
-            </View>
-          </View>
-        </Modal>
 
-        {/* --------------------------------------------- */}
-        {/* MODAL TRANSPORTE */}
-        {/* --------------------------------------------- */}
-        <Modal
-          visible={modalTransporte}
-          transparent
-          animationType="fade"
-        >
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalBox}>
-              <Text style={styles.modalTitle}>Método de transporte</Text>
+              <ScrollView
+                contentContainerStyle={styles.modalContent}
+                keyboardShouldPersistTaps="handled"
+              >
+                <Text style={styles.modalTitle}>Destino</Text>
 
-              {TRANSPORTES.map((t) => (
+                <TextInput
+                  placeholder="Introduce el destino"
+                  style={styles.input}
+                  value={destino}
+                  onChangeText={setDestino}
+                />
+
                 <TouchableOpacity
-                  key={t}
-                  style={styles.optionItem}
-                  onPress={() => {
-                    setTransporte(t);
-                    setModalTransporte(false);
-                  }}
+                  style={styles.modalBtn}
+                  onPress={() => setModalDestino(false)}
                 >
-                  <Text style={styles.optionText}>{t}</Text>
+                  <Text style={styles.modalBtnText}>Aceptar</Text>
                 </TouchableOpacity>
-              ))}
+              </ScrollView>
             </View>
           </View>
         </Modal>
 
         {/* --------------------------------------------- */}
-        {/* MODAL ACTIVIDADES (MULTI SELECT) */}
+        {/* MODAL TRANSPORTE (estilo mi-armario + ❌)    */}
         {/* --------------------------------------------- */}
-        <Modal
-          visible={modalActividades}
-          transparent
-          animationType="fade"
-        >
+        <Modal visible={modalTransporte} transparent animationType="fade">
           <View style={styles.modalOverlay}>
             <View style={styles.modalBox}>
-              <Text style={styles.modalTitle}>Actividades</Text>
+              <TouchableOpacity
+                style={styles.modalCloseIcon}
+                onPress={() => setModalTransporte(false)}
+              >
+                <Ionicons name="close" size={20} color={colors.textPrimary} />
+              </TouchableOpacity>
 
-              {ACTIVIDADES.map((a) => {
-                const active = actividades.includes(a);
-                return (
+              <ScrollView contentContainerStyle={styles.modalContent}>
+                <Text style={styles.modalTitle}>Método de transporte</Text>
+
+                {TRANSPORTES.map((t) => (
                   <TouchableOpacity
-                    key={a}
-                    style={[
-                      styles.optionItemMulti,
-                      active && styles.optionActive,
-                    ]}
+                    key={t}
+                    style={styles.optionItem}
                     onPress={() => {
-                      setActividades((prev) =>
-                        active
-                          ? prev.filter((x) => x !== a)
-                          : [...prev, a]
-                      );
+                      setTransporte(t);
+                      setModalTransporte(false);
                     }}
                   >
-                    <Text
-                      style={[
-                        styles.optionText,
-                        active && styles.optionTextActive,
-                      ]}
-                    >
-                      {a}
-                    </Text>
+                    <Text style={styles.optionText}>{t}</Text>
                   </TouchableOpacity>
-                );
-              })}
-
-              <TouchableOpacity
-                style={[styles.modalBtn, { marginTop: 10 }]}
-                onPress={() => setModalActividades(false)}
-              >
-                <Text style={styles.modalBtnText}>Aceptar</Text>
-              </TouchableOpacity>
+                ))}
+              </ScrollView>
             </View>
           </View>
         </Modal>
 
         {/* --------------------------------------------- */}
-        {/* MODAL CALENDARIO (DESDE / HASTA) */}
+        {/* MODAL ACTIVIDADES (MULTI SELECT + ❌)        */}
+        {/* --------------------------------------------- */}
+        <Modal visible={modalActividades} transparent animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalBox}>
+              <TouchableOpacity
+                style={styles.modalCloseIcon}
+                onPress={() => setModalActividades(false)}
+              >
+                <Ionicons name="close" size={20} color={colors.textPrimary} />
+              </TouchableOpacity>
+
+              <ScrollView contentContainerStyle={styles.modalContent}>
+                <Text style={styles.modalTitle}>Actividades</Text>
+
+                {ACTIVIDADES.map((a) => {
+                  const active = actividades.includes(a);
+                  return (
+                    <TouchableOpacity
+                      key={a}
+                      style={[
+                        styles.optionItemMulti,
+                        active && styles.optionActive,
+                      ]}
+                      onPress={() => {
+                        setActividades((prev) =>
+                          active
+                            ? prev.filter((x) => x !== a)
+                            : [...prev, a]
+                        );
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.optionText,
+                          active && styles.optionTextActive,
+                        ]}
+                      >
+                        {a}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+
+                <TouchableOpacity
+                  style={[styles.modalBtn, { marginTop: 10 }]}
+                  onPress={() => setModalActividades(false)}
+                >
+                  <Text style={styles.modalBtnText}>Aceptar</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+        {/* --------------------------------------------- */}
+        {/* MODAL CALENDARIO (DESDE / HASTA + ❌)        */}
         {/* --------------------------------------------- */}
         <Modal
           visible={modalCalendario !== null}
@@ -532,39 +717,271 @@ export default function MisViajes() {
         >
           <View style={styles.modalOverlay}>
             <View style={styles.calendarModal}>
-              <Text style={styles.modalTitle}>
-                {modalCalendario === "desde"
-                  ? "Seleccionar fecha de inicio"
-                  : "Seleccionar fecha de fin"}
-              </Text>
-
-              <Calendar
-                onDayPress={(day: DateData) => {
-                  if (modalCalendario === "desde")
-                    setDesde(new Date(day.dateString));
-                  if (modalCalendario === "hasta")
-                    setHasta(new Date(day.dateString));
-                  setModalCalendario(null);
-                }}
-                theme={{
-                  calendarBackground: "#FFF",
-                  textSectionTitleColor: "#666",
-                  dayTextColor: "#333",
-                  monthTextColor: colors.primary,
-                  selectedDayBackgroundColor: colors.primary,
-                  selectedDayTextColor: "#FFF",
-                  todayTextColor: colors.primary,
-                  arrowColor: colors.primary,
-                }}
-                style={{ borderRadius: 12 }}
-              />
-
               <TouchableOpacity
-                style={[styles.modalBtn, { marginTop: 14 }]}
+                style={styles.modalCloseIcon}
                 onPress={() => setModalCalendario(null)}
               >
-                <Text style={styles.modalBtnText}>Cerrar</Text>
+                <Ionicons name="close" size={20} color={colors.textPrimary} />
               </TouchableOpacity>
+
+              <ScrollView contentContainerStyle={styles.modalContent}>
+                <Text style={styles.modalTitle}>
+                  {modalCalendario === "desde" || modalCalendario === "editInicio"
+                    ? "Seleccionar fecha de inicio"
+                    : "Seleccionar fecha de fin"}
+                </Text>
+
+                <Calendar
+                  minDate={
+                    modalCalendario === "desde"
+                      ? today
+                      : modalCalendario === "hasta" && desde
+                      ? formatDate(new Date(desde.getTime() + 24 * 60 * 60 * 1000))
+                      : modalCalendario === "editInicio"
+                      ? today
+                      : modalCalendario === "editFin" && editFechaInicio
+                      ? formatDate(
+                          new Date(
+                            new Date(editFechaInicio).getTime() + 24 * 60 * 60 * 1000
+                          )
+                        )
+                      : today
+                  }
+                  onDayPress={(day: DateData) => {
+                    /* ===== CREAR VIAJE ===== */
+                    if (modalCalendario === "desde") {
+                      const nuevaFechaInicio = new Date(day.dateString);
+                      setDesde(nuevaFechaInicio);
+
+                      if (hasta && hasta <= nuevaFechaInicio) {
+                        setHasta(null);
+                      }
+                    }
+
+                    if (modalCalendario === "hasta") {
+                      setHasta(new Date(day.dateString));
+                    }
+
+                    /* ===== EDITAR VIAJE ===== */
+                    if (modalCalendario === "editInicio") {
+                      setEditFechaInicio(day.dateString);
+
+                      if (
+                        editFechaFin &&
+                        new Date(editFechaFin) <= new Date(day.dateString)
+                      ) {
+                        setEditFechaFin("");
+                      }
+                    }
+
+                    if (modalCalendario === "editFin") {
+                      setEditFechaFin(day.dateString);
+                    }
+
+                    setModalCalendario(null);
+                    if (reabrirEditModal) {
+                      setEditModalVisible(true);
+                      setReabrirEditModal(false);
+                    }
+                  }}
+                  theme={{
+                    calendarBackground: "#FFF",
+                    textSectionTitleColor: "#666",
+                    dayTextColor: "#333",
+                    monthTextColor: colors.primary,
+                    selectedDayBackgroundColor: colors.primary,
+                    selectedDayTextColor: "#FFF",
+                    todayTextColor: colors.primary,
+                    arrowColor: colors.primary,
+                  }}
+                  style={{ borderRadius: 12 }}
+                />
+
+                <TouchableOpacity
+                  style={[styles.modalBtn, { marginTop: 14 }]}
+                  onPress={() => setModalCalendario(null)}
+                >
+                  <Text style={styles.modalBtnText}>Cerrar</Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+        {/* --------------------------------------------- */}
+        {/* MODAL EDITAR VIAJE (estilo mi-armario + ❌)  */}
+        {/* --------------------------------------------- */}
+        <Modal visible={editModalVisible} transparent animationType="fade">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalBox}>
+              <TouchableOpacity
+                style={styles.modalCloseIcon}
+                onPress={() => {
+                  setEditModalVisible(false);
+                  setViajeEditando(null);
+                }}
+              >
+                <Ionicons name="close" size={20} color={colors.textPrimary} />
+              </TouchableOpacity>
+
+              <ScrollView
+                contentContainerStyle={styles.modalContent}
+                keyboardShouldPersistTaps="handled"
+              >
+                <Text style={styles.modalTitle}>Editar viaje</Text>
+
+                <TextInput
+                  placeholder="Destino"
+                  style={styles.input}
+                  value={editDestino}
+                  onChangeText={setEditDestino}
+                />
+
+                <View style={styles.formChipContainer}>
+                  {renderChipFormulario(
+                    editFechaInicio || "Desde",
+                    () => {
+                      setEditModalVisible(false);
+                      setReabrirEditModal(true);
+                      setModalCalendario("editInicio");
+                    }
+                  )}
+
+                  {renderChipFormulario(
+                    editFechaFin || "Hasta",
+                    () => {
+                      if (!editFechaInicio) return;
+                      setEditModalVisible(false);
+                      setReabrirEditModal(true);
+                      setModalCalendario("editFin");
+                    }
+                  )}
+                </View>
+
+
+                <TextInput
+                  placeholder="Transporte"
+                  style={styles.input}
+                  value={editTransporte}
+                  onChangeText={setEditTransporte}
+                />
+
+                <TextInput
+                  placeholder="Actividades separadas por coma"
+                  style={styles.input}
+                  value={editActividades}
+                  onChangeText={setEditActividades}
+                />
+
+                {/* GUARDAR CAMBIOS */}
+                <TouchableOpacity
+                  style={styles.modalBtn}
+                  onPress={guardarEdicionViaje}
+                >
+                  <Text style={styles.modalBtnText}>Guardar cambios</Text>
+                </TouchableOpacity>
+
+                {/* ELIMINAR VIAJE → abre modal de confirmación */}
+                <TouchableOpacity
+                  style={[
+                    styles.modalBtn,
+                    { backgroundColor: "#ff4d4d", marginTop: 10 },
+                  ]}
+                  onPress={() => {
+                    if (!viajeEditando) return;
+                    setViajeAEliminar(viajeEditando);
+                    setEditModalVisible(false);
+                    setConfirmDeleteVisible(true);
+                  }}
+                >
+                  <Text style={styles.modalBtnText}>Eliminar viaje</Text>
+                </TouchableOpacity>
+
+                {/* CANCELAR */}
+                <TouchableOpacity
+                  style={[
+                    styles.modalBtn,
+                    { marginTop: 10, backgroundColor: "#ccc" },
+                  ]}
+                  onPress={() => {
+                    setEditModalVisible(false);
+                    setViajeEditando(null);
+                  }}
+                >
+                  <Text style={[styles.modalBtnText, { color: "#333" }]}>
+                    Cancelar
+                  </Text>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
+
+        {/* --------------------------------------------- */}
+        {/* MODAL CONFIRMAR ELIMINACIÓN (funciona en Web)*/}
+        {/* --------------------------------------------- */}
+        <Modal
+          visible={confirmDeleteVisible}
+          transparent
+          animationType="fade"
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalBox}>
+              <TouchableOpacity
+                style={styles.modalCloseIcon}
+                onPress={() => setConfirmDeleteVisible(false)}
+              >
+                <Ionicons name="close" size={20} color={colors.textPrimary} />
+              </TouchableOpacity>
+
+              <ScrollView contentContainerStyle={styles.modalContent}>
+                <Text style={styles.modalTitle}>Eliminar viaje</Text>
+                <Text style={{ marginBottom: 16 }}>
+                  ¿Seguro que deseas eliminar el viaje a{" "}
+                  {viajeAEliminar?.destino ?? "este destino"}?
+                </Text>
+
+                <View style={{ flexDirection: "row", gap: 10 }}>
+                  <TouchableOpacity
+                    style={[
+                      styles.modalBtn,
+                      { flex: 1, backgroundColor: "#ccc" },
+                    ]}
+                    onPress={() => setConfirmDeleteVisible(false)}
+                  >
+                    <Text
+                      style={[styles.modalBtnText, { color: "#333" }]}
+                    >
+                      Cancelar
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.modalBtn,
+                      { flex: 1, backgroundColor: "#ff4d4d" },
+                    ]}
+                    onPress={async () => {
+                      if (!viajeAEliminar) return;
+                      try {
+                        await apiRequest(`/api/viajes/${viajeAEliminar.id}`, {
+                          method: "DELETE",
+                        });
+                        setConfirmDeleteVisible(false);
+                        setViajeAEliminar(null);
+                        cargarViajes();
+                      } catch (err) {
+                        Alert.alert(
+                          "Error",
+                          "No se pudo eliminar el viaje."
+                        );
+                      }
+                    }}
+                  >
+                    <Text style={styles.modalBtnText}>Eliminar</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
             </View>
           </View>
         </Modal>
@@ -799,8 +1216,14 @@ const styles = StyleSheet.create({
   maletaHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    justifyContent: "space-between",
     marginBottom: 4,
+  },
+
+  maletaHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
 
   maletaTitle: {
@@ -835,15 +1258,41 @@ const styles = StyleSheet.create({
 
   modalOverlay: {
     flex: 1,
-    backgroundColor: "#00000088",
+    backgroundColor: "rgba(0,0,0,0.35)",
     justifyContent: "center",
-    padding: 20,
+    alignItems: "center",
+    padding: 24,
   },
 
   modalBox: {
     backgroundColor: colors.card,
     borderRadius: 16,
-    padding: 20,
+    padding: 16,
+    width: "100%",
+    maxWidth: 360,
+    maxHeight: "80%",
+  },
+
+  calendarModal: {
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    padding: 16,
+    width: "100%",
+    maxWidth: 360,
+    maxHeight: "80%",
+  },
+
+  modalCloseIcon: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    padding: 6,
+    zIndex: 10,
+  },
+
+  modalContent: {
+    paddingTop: 18,
+    paddingBottom: 4,
   },
 
   modalTitle: {
@@ -896,14 +1345,5 @@ const styles = StyleSheet.create({
   optionTextActive: {
     color: colors.primary,
     fontWeight: "700",
-  },
-
-  calendarModal: {
-    backgroundColor: "#FFF",
-    padding: 16,
-    borderRadius: 16,
-    width: "100%",
-    maxWidth: 360,
-    alignSelf: "center",
   },
 });

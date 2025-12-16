@@ -34,6 +34,7 @@ import SubtitleSerif from "../components/ui/SubtitleSerif";
 import Card from "../components/ui/Card";
 import InputMaison from "../components/ui/InputMaison";
 import PrimaryButton from "../components/ui/PrimaryButton";
+import ModalKeyboardWrapper from "../components/ui/ModalKeyboardWrapper";
 
 interface Evento {
   id: string;
@@ -469,87 +470,87 @@ export default function MisEventos() {
         <Modal visible={modalCrear} transparent animationType="fade">
           <View style={styles.modalOverlay}>
             <Card style={styles.modalBox}>
-              <TitleSerif>
-                {editandoEvento ? "Editar evento" : "Nuevo evento"}
-              </TitleSerif>
+              <ModalKeyboardWrapper>
+                <TitleSerif>
+                  {editandoEvento ? "Editar evento" : "Nuevo evento"}
+                </TitleSerif>
 
-              <InputMaison
-                label="Nombre del evento"
-                value={nuevoNombre}
-                onChangeText={setNuevoNombre}
-                placeholder="Ej: Cena con amigos"
-              />
-
-              <InputMaison
-                label="Tipo de evento"
-                value={nuevoTipo}
-                onChangeText={setNuevoTipo}
-                placeholder="Ej: boda, cena, cumpleaños..."
-              />
-
-              <InputMaison
-                label="Lugar"
-                value={nuevaUbicacion}
-                onChangeText={setNuevaUbicacion}
-                placeholder="Ej: Jardín principal, Restaurante X..."
-              />
-
-              <InputMaison
-                label="Ciudad"
-                value={nuevaCiudad}
-                onChangeText={setNuevaCiudad}
-                placeholder="Ej: Madrid, Alicante..."
-              />
-
-              <InputMaison
-                label="Descripción"
-                value={nuevaDescripcion}
-                onChangeText={setNuevaDescripcion}
-                placeholder="Detalles del evento..."
-                multiline
-                style={{ height: 80 }}
-              />
-
-              <View style={styles.switchRow}>
-                <Text style={styles.switchLabel}>
-                  Guardar también en tu calendario
-                </Text>
-                <Switch
-                  value={guardarEnCalendario}
-                  onValueChange={setGuardarEnCalendario}
-                  disabled={!!editandoEvento} // solo tiene sentido al crear
-                />
-              </View>
-
-              <View style={styles.modalActions}>
-                <PrimaryButton
-                  text="Cancelar"
-                  variant="secondary"
-                  onPress={() => {
-                    setModalCrear(false);
-                    setEditandoEvento(null);
-                  }}
-                  style={{ flex: 1 }}
+                <InputMaison
+                  label="Nombre del evento"
+                  value={nuevoNombre}
+                  onChangeText={setNuevoNombre}
+                  placeholder="Ej: Cena con amigos"
                 />
 
-                <PrimaryButton
-                  text={editandoEvento ? "Guardar" : "Crear"}
-                  onPress={crearEvento}
-                  style={{ flex: 1 }}
+                <InputMaison
+                  label="Tipo de evento"
+                  value={nuevoTipo}
+                  onChangeText={setNuevoTipo}
+                  placeholder="Ej: boda, cena, cumpleaños..."
                 />
-              </View>
 
-              {editandoEvento && (
-                <TouchableOpacity
-                  style={styles.deleteEventBtn}
-                  onPress={() => {
-                    setEventoAEliminar(editandoEvento);
-                    setConfirmDeleteVisible(true);
-                  }}
-                >
-                  <Text style={styles.deleteEventText}>Eliminar evento</Text>
-                </TouchableOpacity>
-              )}
+                <InputMaison
+                  label="Lugar"
+                  value={nuevaUbicacion}
+                  onChangeText={setNuevaUbicacion}
+                  placeholder="Ej: Jardín principal, Restaurante X..."
+                />
+
+                <InputMaison
+                  label="Ciudad"
+                  value={nuevaCiudad}
+                  onChangeText={setNuevaCiudad}
+                  placeholder="Ej: Madrid, Alicante..."
+                />
+
+                <InputMaison
+                  label="Descripción"
+                  value={nuevaDescripcion}
+                  onChangeText={setNuevaDescripcion}
+                  placeholder="Detalles del evento..."
+                />
+
+                <View style={styles.switchRow}>
+                  <Text style={styles.switchLabel}>
+                    Guardar también en tu calendario
+                  </Text>
+                  <Switch
+                    value={guardarEnCalendario}
+                    onValueChange={setGuardarEnCalendario}
+                    disabled={!!editandoEvento} // solo tiene sentido al crear
+                  />
+                </View>
+
+                <View style={styles.modalActions}>
+                  <PrimaryButton
+                    text="Cancelar"
+                    variant="secondary"
+                    onPress={() => {
+                      setModalCrear(false);
+                      setEditandoEvento(null);
+                    }}
+                    style={{ flex: 1 }}
+                  />
+
+                  <PrimaryButton
+                    text={editandoEvento ? "Guardar" : "Crear"}
+                    onPress={crearEvento}
+                    style={{ flex: 1 }}
+                  />
+                </View>
+
+                {editandoEvento && (
+                  <TouchableOpacity
+                    style={styles.deleteEventBtn}
+                    onPress={() => {
+                      setEventoAEliminar(editandoEvento);
+                      setConfirmDeleteVisible(true);
+                    }}
+                  >
+                    <Text style={styles.deleteEventText}>Eliminar evento</Text>
+                  </TouchableOpacity>
+                )}
+              </ModalKeyboardWrapper>
             </Card>
           </View>
         </Modal>

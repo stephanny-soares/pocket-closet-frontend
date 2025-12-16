@@ -2,6 +2,7 @@ import React, { useRef } from "react";
 import { View, Text, Pressable, Animated, StyleSheet, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { usePathname, router } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context"; // 👈 AÑADIDO
 import colors from "../constants/colors";
 
 const navItems = [
@@ -14,11 +15,19 @@ const navItems = [
 
 export default function BottomNavigation() {
   const pathname = usePathname();
+  const insets = useSafeAreaInsets(); // 👈 AÑADIDO
 
   const isActive = (route: string) => pathname.startsWith(route);
 
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        {
+          paddingBottom: Platform.OS === "ios" ? insets.bottom : insets.bottom + 6, // 👈 FIX REAL
+        },
+      ]}
+    >
       {navItems.map((item) => {
         const active = isActive(item.route);
         const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -72,7 +81,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#E5E5E5",
     paddingTop: 8,
-    paddingBottom: Platform.OS === "ios" ? 24 : 12,
     shadowColor: "#000",
     shadowOpacity: 0.05,
     shadowOffset: { width: 0, height: -2 },
