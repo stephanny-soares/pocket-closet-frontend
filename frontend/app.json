@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "frontend",
-    "slug": "frontend",
+    "name": "PocketCloset",
+    "slug": "pocketcloset",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -22,7 +22,7 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.frontend",
+      "package": "com.pocketcloset.app",
       "intentFilters": [
         {
           "action": "VIEW",
@@ -36,9 +36,11 @@
       ]
     },
     "web": {
+      "name": "PocketCloset",
       "output": "static",
-      "favicon": "./assets/images/favicon.png",
-      "bundler": "metro"
+      "favicon": "./assets/images/favicon.ico",
+      "bundler": "metro",
+      "package": "com.pocketcloset.app"
     },
     "plugins": [
       "expo-router",
