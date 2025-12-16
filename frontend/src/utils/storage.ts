@@ -1,107 +1,104 @@
+// src/utils/storage.ts
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Platform } from "react-native";
 
-const isWeb = typeof window !== "undefined";
+/* ────────────────────────────────── */
+/* Utils */
+/* ────────────────────────────────── */
+
+const isWeb = Platform.OS === "web";
+
+/* ────────────────────────────────── */
+/* Storage base */
+/* ────────────────────────────────── */
 
 export const storage = {
   async setItem(key: string, value: string): Promise<void> {
     try {
-      if (isWeb && typeof localStorage !== "undefined") {
+      if (isWeb) {
         localStorage.setItem(key, value);
       } else {
         await AsyncStorage.setItem(key, value);
       }
-    } catch (error) {
-      console.error(`Error guardando ${key}:`, error);
+    } catch {
+      // silencioso
     }
   },
 
   async getItem(key: string): Promise<string | null> {
     try {
-      if (isWeb && typeof localStorage !== "undefined") {
+      if (isWeb) {
         return localStorage.getItem(key);
-      } else {
-        return await AsyncStorage.getItem(key);
       }
-    } catch (error) {
-      console.error(`Error obteniendo ${key}:`, error);
+      return await AsyncStorage.getItem(key);
+    } catch {
       return null;
     }
   },
 
   async removeItem(key: string): Promise<void> {
     try {
-      if (isWeb && typeof localStorage !== "undefined") {
+      if (isWeb) {
         localStorage.removeItem(key);
       } else {
         await AsyncStorage.removeItem(key);
       }
-    } catch (error) {
-      console.error(`Error eliminando ${key}:`, error);
+    } catch {
+      // silencioso
     }
   },
 
   async clear(): Promise<void> {
     try {
-      if (isWeb && typeof localStorage !== "undefined") {
+      if (isWeb) {
         localStorage.clear();
       } else {
         await AsyncStorage.clear();
       }
-    } catch (error) {
-      console.error("Error limpiando almacenamiento:", error);
+    } catch {
+      // silencioso
     }
   },
 };
 
-// -------------------------------------------------------------
-// 🧩 Helpers específicos para el token de autenticación
-// -------------------------------------------------------------
+/* ────────────────────────────────── */
+/* Auth helpers */
+/* ────────────────────────────────── */
 
+const AUTH_TOKEN_KEY = "authToken";
+
+/**
+ * Obtiene el token JWT (web / móvil)
+ */
 export async function getToken(): Promise<string | null> {
   try {
-    // 🔹 En web, primero intenta sessionStorage, luego localStorage
-    if (typeof window !== "undefined") {
-      const ss = typeof sessionStorage !== "undefined" ? sessionStorage.getItem("authToken") : null;
-      if (ss) {
-        console.log("🔑 [getToken] Token encontrado en sessionStorage:", ss.substring(0, 20) + "...");
-        return ss;
-      }
-      
-      const ls = typeof localStorage !== "undefined" ? localStorage.getItem("authToken") : null;
-      if (ls) {
-        console.log("🔑 [getToken] Token encontrado en localStorage:", ls.substring(0, 20) + "...");
-        return ls;
-      }
+    // Web: sessionStorage → localStorage
+    if (isWeb) {
+      return (
+        sessionStorage.getItem(AUTH_TOKEN_KEY) ||
+        localStorage.getItem(AUTH_TOKEN_KEY)
+      );
     }
 
-    // 🔹 En móvil/nativo, usa AsyncStorage (solo clave "authToken")
-    const token = await AsyncStorage.getItem("authToken");
-    
-    if (token) {
-      console.log("🔑 [getToken] Token encontrado en AsyncStorage:", token.substring(0, 20) + "...");
-    } else {
-      console.warn("⚠️ [getToken] No se encontró token en AsyncStorage");
-    }
-    
-    return token;
-  } catch (error) {
-    console.error("❌ [getToken] Error obteniendo token:", error);
+    // Native
+    return await AsyncStorage.getItem(AUTH_TOKEN_KEY);
+  } catch {
     return null;
   }
 }
 
+/**
+ * Elimina completamente el token
+ */
 export async function removeToken(): Promise<void> {
   try {
-    if (typeof window !== "undefined") {
-      try { sessionStorage.removeItem("authToken"); } catch {}
-      try { localStorage.removeItem("authToken"); } catch {}
-      console.log("🗑️ [removeToken] Token eliminado de web storage");
-      return;
+    if (isWeb) {
+      sessionStorage.removeItem(AUTH_TOKEN_KEY);
+      localStorage.removeItem(AUTH_TOKEN_KEY);
     }
 
-    await AsyncStorage.removeItem("authToken");
-    console.log("🗑️ [removeToken] Token eliminado de AsyncStorage");
-  } catch (error) {
-    console.error("❌ Error al eliminar el token:", error);
+    await AsyncStorage.removeItem(AUTH_TOKEN_KEY);
+  } catch {
+    // silencioso
   }
 }

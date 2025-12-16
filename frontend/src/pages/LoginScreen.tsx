@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   KeyboardAvoidingView,
@@ -14,16 +14,17 @@ import Toast from "react-native-toast-message";
 import * as Google from "expo-auth-session/providers/google";
 import * as WebBrowser from "expo-web-browser";
 import * as AppleAuthentication from "expo-apple-authentication";
+import { makeRedirectUri } from "expo-auth-session";
 
 import colors from "../constants/colors";
 import { validateEmail } from "../utils/validation";
+import { apiRequest } from "../utils/apiClient";
 import { useAuth } from "../hooks/useAuth";
 import { logEvent } from "../logger/logEvent";
 import { getClientInfo } from "../utils/getClientInfo";
 import { useLoader } from "../context/LoaderContext";
-import { makeRedirectUri } from "expo-auth-session";
 
-// COMPONENTES MAISON
+// UI Maison
 import TitleSerif from "components/ui/TitleSerif";
 import BodyText from "components/ui/BodyText";
 import PrimaryButton from "components/ui/PrimaryButton";
@@ -32,209 +33,217 @@ import PasswordInputMaison from "components/ui/PasswordInputMaison";
 import CheckBoxMaison from "components/ui/CheckBoxMaison";
 
 WebBrowser.maybeCompleteAuthSession();
-declare const window: any;
 
-const API_BASE = (process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000").replace(
-  /\/+$/,
-  ""
-);
+/* ────────────────────────────────── */
+/* Types */
+/* ────────────────────────────────── */
+interface LoginForm {
+  email: string;
+  password: string;
+}
 
+interface LoginErrors {
+  email?: string;
+  password?: string;
+}
+
+/* ────────────────────────────────── */
+/* Hook banner web (expired / logout) */
+/* ────────────────────────────────── */
+function useLoginBanner() {
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+
+    const params = new URLSearchParams(window.location.search);
+
+    if (params.get("expired")) {
+      setMessage("Tu sesión ha expirado. Por favor inicia sesión nuevamente.");
+    }
+
+    if (params.get("loggedOut")) {
+      setMessage("👋 Tu sesión se cerró correctamente.");
+
+      const url = new URL(window.location.href);
+      url.searchParams.delete("loggedOut");
+      window.history.replaceState({}, document.title, url.toString());
+
+      const timeout = setTimeout(() => setMessage(null), 3000);
+      return () => clearTimeout(timeout);
+    }
+  }, []);
+
+  return message;
+}
+
+/* ────────────────────────────────── */
+/* Screen */
+/* ────────────────────────────────── */
 const LoginScreen: React.FC = () => {
   const { width } = useWindowDimensions();
   const isWeb = Platform.OS === "web";
   const maxWidth = isWeb ? Math.min(450, width * 0.9) : width * 0.9;
 
-  const [form, setForm] = useState({ email: "", password: "" });
-  const [errors, setErrors] = useState<any>({});
-  const [rememberMe, setRememberMe] = useState(false);
-
   const { login, isAuthenticated } = useAuth();
   const { showLoader, hideLoader } = useLoader();
 
-  const [bannerMessage, setBannerMessage] = useState<string | null>(null);
-  const redirectUri = makeRedirectUri({
-  scheme: 'pocketcloset',
-});
+  const bannerMessage = useLoginBanner();
 
-  const [request, response, promptAsync] = Google.useAuthRequest({
+  const [form, setForm] = useState<LoginForm>({ email: "", password: "" });
+  const [errors, setErrors] = useState<LoginErrors>({});
+  const [rememberMe, setRememberMe] = useState(false);
+
+  /* ──────────────────────────────── */
+  /* Google OAuth config */
+  /* ──────────────────────────────── */
+  const redirectUri = makeRedirectUri({ scheme: "pocketcloset" });
+
+  const [, , promptGoogle] = Google.useAuthRequest({
     iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_ID,
     androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_ID,
     webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_ID,
-     redirectUri, 
+    redirectUri,
   });
 
-  // Redirección si ya está autenticado
+  /* ──────────────────────────────── */
+  /* Redirect if logged */
+  /* ──────────────────────────────── */
   useEffect(() => {
-    if (isAuthenticated) router.replace("/(protected)/home");
+    if (isAuthenticated) {
+      router.replace("/(protected)/home");
+    }
   }, [isAuthenticated]);
 
-  // Banner de sesión expirada / logout
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-
-      if (params.get("expired")) {
-        setBannerMessage("Tu sesión ha expirado. Por favor inicia sesión nuevamente.");
-      }
-
-      if (params.get("loggedOut")) {
-        setBannerMessage("👋 Tu sesión se cerró correctamente.");
-
-        const url = new URL(window.location.href);
-        url.searchParams.delete("loggedOut");
-        window.history.replaceState({}, (document as any).title, url.toString());
-
-        const timeout = setTimeout(() => setBannerMessage(null), 3000);
-        return () => clearTimeout(timeout);
-      }
-    }
-  }, []);
-
-  const setField = (key: keyof typeof form, value: string) => {
+  /* ──────────────────────────────── */
+  /* Helpers */
+  /* ──────────────────────────────── */
+  const setField = (key: keyof LoginForm, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
   const validateForm = (): boolean => {
-    const newErrors: any = {};
-    if (!form.email.trim()) newErrors.email = "El correo electrónico es obligatorio";
-    else if (!validateEmail(form.email)) newErrors.email = "Formato de correo electrónico inválido";
-    if (!form.password.trim()) newErrors.password = "La contraseña es obligatoria";
+    const newErrors: LoginErrors = {};
+
+    if (!form.email.trim()) {
+      newErrors.email = "El correo electrónico es obligatorio";
+    } else if (!validateEmail(form.email)) {
+      newErrors.email = "Formato de correo electrónico inválido";
+    }
+
+    if (!form.password.trim()) {
+      newErrors.password = "La contraseña es obligatoria";
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
+  /* ──────────────────────────────── */
+  /* Login normal */
+  /* ──────────────────────────────── */
   const handleLogin = async () => {
     if (!validateForm()) return;
 
     showLoader("Verificando credenciales...");
 
-    // 🔹 Log inicial (intento)
     logEvent({
       event: "LoginAttempt",
-      level: "info",
       message: "Intento de inicio de sesión",
       extra: { email: form.email },
     });
 
-    const clientInfo = await getClientInfo();
-
     try {
-      const response = await fetch(`${API_BASE}/api/auth/login`, {
+      const client = await getClientInfo();
+
+      const data = await apiRequest<{
+        token: string;
+        usuario: { id: string; nombre?: string; name?: string };
+      }>("/api/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email: form.email,
           password: form.password,
-          client: clientInfo,
+          client,
         }),
       });
 
-      const data: any = await response.json();
-
-      if (response.ok && data.token) {
-        await logEvent({
-          event: "LoginSuccess",
-          level: "info",
-          message: "Inicio de sesión exitoso",
-          extra: { email: form.email, userId: data.usuario?.id },
-        });
-
-        await login(
-          data.token,
-          data.usuario?.nombre || data.usuario?.name,
-          data.usuario?.id,
-          rememberMe
-        );
-
-        Toast.show({
-          type: "success",
-          text1: "Inicio de sesión correcto",
-          position: "bottom",
-          visibilityTime: 2000,
-        });
-
-      } else {
-        // 🔹 Log de fallo
-        await logEvent({
-          event: "LoginFailed",
-          level: "warn",
-          message: data?.error || "Credenciales incorrectas",
-          extra: { email: form.email },
-        });
-
-        Toast.show({
-          type: "error",
-          text1: "Error",
-          text2: data?.error || "Credenciales incorrectas.",
-          position: "bottom",
-          visibilityTime: 2500,
-        });
-      }
-    } catch (error: any) {
       await logEvent({
-        event: "LoginConnectionError",
-        level: "error",
-        message: error?.message || "Error de conexión",
+        event: "LoginSuccess",
+        message: "Inicio de sesión exitoso",
+        extra: { userId: data.usuario?.id },
+      });
+
+      await login(
+        data.token,
+        data.usuario?.nombre || data.usuario?.name,
+        data.usuario?.id,
+        rememberMe
+      );
+
+      Toast.show({
+        type: "success",
+        text1: "Inicio de sesión correcto",
+        position: "bottom",
+      });
+    } catch (err: any) {
+      logEvent({
+        level: "warn",
+        event: "LoginFailed",
+        message: err.message,
         extra: { email: form.email },
       });
 
       Toast.show({
         type: "error",
-        text1: "Error de conexión",
-        text2: "No se pudo conectar con el servidor.",
+        text1: "Error",
+        text2: err.message || "Credenciales incorrectas",
         position: "bottom",
-        visibilityTime: 2500,
       });
     } finally {
       hideLoader();
     }
   };
 
-  // Google OAuth
+  /* ──────────────────────────────── */
+  /* Google Login */
+  /* ──────────────────────────────── */
   const handleGoogleLogin = async () => {
     try {
-      const result = await promptAsync();
+      const result = await promptGoogle();
 
-      if (result?.type === "success") {
-        const token = result.authentication?.idToken || result.authentication?.accessToken;
+      if (result?.type !== "success") return;
 
-        const res = await fetch(`${API_BASE}/api/auth/oauth/google`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id_token: token }),
-        });
+      const token =
+        result.authentication?.idToken ||
+        result.authentication?.accessToken;
 
-        const data = await res.json();
+      const data = await apiRequest<any>("/api/auth/oauth/google", {
+        method: "POST",
+        body: JSON.stringify({ id_token: token }),
+      });
 
-        if (res.ok && data.token) {
-          await logEvent({
-            event: "LoginGoogleSuccess",
-            level: "info",
-            message: "Google Login exitoso",
-            extra: { email: data.usuario?.email },
-          });
+      await login(data.token, data.usuario?.name, data.usuario?.id, true);
 
-          await login(data.token, data.usuario?.name, data.usuario?.id, true);
-
-          Toast.show({ type: "success", text1: "Inicio con Google exitoso" });
-        } else {
-          Toast.show({
-            type: "error",
-            text1: "Error con Google",
-            text2: data.error || "No se pudo iniciar sesión",
-          });
-        }
-      }
-    } catch (error: any) {
-      await logEvent({
-        event: "LoginGoogleError",
+      Toast.show({ type: "success", text1: "Inicio con Google exitoso" });
+    } catch (err: any) {
+      logEvent({
         level: "error",
-        message: error?.message,
+        event: "LoginGoogleError",
+        message: err.message,
+      });
+
+      Toast.show({
+        type: "error",
+        text1: "Error con Google",
+        text2: err.message,
       });
     }
   };
 
-  // Apple OAuth
+  /* ──────────────────────────────── */
+  /* Apple Login */
+  /* ──────────────────────────────── */
   const handleAppleLogin = async () => {
     if (Platform.OS !== "ios") {
       Toast.show({
@@ -246,39 +255,23 @@ const LoginScreen: React.FC = () => {
     }
 
     try {
-      const appleResponse = await AppleAuthentication.signInAsync({
+      const apple = await AppleAuthentication.signInAsync({
         requestedScopes: [
-          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
         ],
       });
 
-      const res = await fetch(`${API_BASE}/api/auth/oauth/apple`, {
+      const data = await apiRequest<any>("/api/auth/oauth/apple", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id_token: appleResponse.identityToken }),
+        body: JSON.stringify({ id_token: apple.identityToken }),
       });
 
-      const data = await res.json();
+      await login(data.token, data.usuario?.name, data.usuario?.id, true);
 
-      if (res.ok && data.token) {
-        await logEvent({
-          event: "LoginAppleSuccess",
-          level: "info",
-          message: "Apple Login exitoso",
-        });
-
-        await login(data.token, data.usuario?.name, data.usuario?.id, true);
-        Toast.show({ type: "success", text1: "Inicio con Apple exitoso" });
-      }
-    } catch (error: any) {
-      if (error?.code !== "ERR_CANCELED") {
-        await logEvent({
-          event: "LoginAppleError",
-          level: "error",
-          message: error?.message,
-        });
-
+      Toast.show({ type: "success", text1: "Inicio con Apple exitoso" });
+    } catch (err: any) {
+      if (err?.code !== "ERR_CANCELED") {
         Toast.show({
           type: "error",
           text1: "No se pudo iniciar sesión con Apple",
@@ -287,15 +280,14 @@ const LoginScreen: React.FC = () => {
     }
   };
 
-  const handleRegisterPress = () => {
-    router.push("/register");
-  };
-
+  /* ──────────────────────────────── */
+  /* Render */
+  /* ──────────────────────────────── */
   return (
     <View style={styles.root}>
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.keyboardView}
+        style={{ flex: 1 }}
       >
         {bannerMessage && (
           <View style={styles.banner}>
@@ -303,71 +295,59 @@ const LoginScreen: React.FC = () => {
           </View>
         )}
 
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          <View style={[styles.content, { maxWidth }]}>
-            <View style={styles.card}>
-              <TitleSerif style={styles.title}>Inicio de sesión</TitleSerif>
-              <BodyText style={styles.subtitle}>
-                Accede a tu cuenta para continuar
-              </BodyText>
+        <ScrollView contentContainerStyle={styles.scroll}>
+          <View style={[styles.card, { maxWidth }]}>
+            <TitleSerif style={styles.title}>Inicio de sesión</TitleSerif>
+            <BodyText style={styles.subtitle}>
+              Accede a tu cuenta para continuar
+            </BodyText>
 
-              {/* FORM */}
-              <View style={{ marginTop: 28 }}>
-                <InputMaison
-                  label="Correo electrónico"
-                  placeholder="Introduce tu correo"
-                  keyboardType="email-address"
-                  value={form.email}
-                  onChangeText={(v: string) => setField("email", v)}
-                  error={errors.email}
-                />
+            <InputMaison
+              label="Correo electrónico"
+              value={form.email}
+              keyboardType="email-address"
+              onChangeText={(v) => setField("email", v)}
+              error={errors.email}
+            />
 
-                <PasswordInputMaison
-                  label="Contraseña"
-                  placeholder="Introduce tu contraseña"
-                  value={form.password}
-                  onChangeText={(v: string) => setField("password", v)}
-                  error={errors.password}
-                />
-              </View>
+            <PasswordInputMaison
+              label="Contraseña"
+              value={form.password}
+              onChangeText={(v) => setField("password", v)}
+              error={errors.password}
+            />
 
-              <View style={styles.rememberRow}>
-                <CheckBoxMaison
-                  checked={rememberMe}
-                  onToggle={() => setRememberMe(!rememberMe)}
-                />
-                <BodyText style={styles.rememberText}>Recordarme</BodyText>
-              </View>
-
-              <PrimaryButton
-                title="Iniciar sesión"
-                onPress={handleLogin}
-                style={{ marginTop: 12 }}
+            <View style={styles.rememberRow}>
+              <CheckBoxMaison
+                checked={rememberMe}
+                onToggle={() => setRememberMe(!rememberMe)}
               />
+              <BodyText style={styles.rememberText}>Recordarme</BodyText>
+            </View>
 
-              {/* Social */}
-              <View style={styles.socialRow}>
-                <TouchableOpacity style={styles.socialCircle} onPress={handleGoogleLogin}>
-                  <Image
-                    source={require("../../assets/icons/google.png")}
-                    style={styles.socialIcon}
-                  />
-                </TouchableOpacity>
+            <PrimaryButton title="Iniciar sesión" onPress={handleLogin} />
 
-                <TouchableOpacity style={styles.socialCircle} onPress={handleAppleLogin}>
-                  <Image
-                    source={require("../../assets/icons/apple.png")}
-                    style={styles.socialIcon}
-                  />
-                </TouchableOpacity>
-              </View>
+            <View style={styles.socialRow}>
+              <TouchableOpacity onPress={handleGoogleLogin}>
+                <Image
+                  source={require("../../assets/icons/google.png")}
+                  style={styles.socialIcon}
+                />
+              </TouchableOpacity>
 
-              <View style={styles.registerContainer}>
-                <BodyText style={styles.registerText}>¿No tienes cuenta?</BodyText>
-                <TouchableOpacity onPress={handleRegisterPress}>
-                  <BodyText style={styles.registerLink}> Regístrate</BodyText>
-                </TouchableOpacity>
-              </View>
+              <TouchableOpacity onPress={handleAppleLogin}>
+                <Image
+                  source={require("../../assets/icons/apple.png")}
+                  style={styles.socialIcon}
+                />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.registerRow}>
+              <BodyText>¿No tienes cuenta?</BodyText>
+              <TouchableOpacity onPress={() => router.push("/register")}>
+                <BodyText style={styles.registerLink}> Regístrate</BodyText>
+              </TouchableOpacity>
             </View>
           </View>
         </ScrollView>
@@ -376,100 +356,71 @@ const LoginScreen: React.FC = () => {
   );
 };
 
+export default LoginScreen;
+
+/* ────────────────────────────────── */
+/* Styles */
+/* ────────────────────────────────── */
 const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.backgroundAlt,
   },
-  keyboardView: { flex: 1 },
-
   banner: {
     backgroundColor: colors.primary,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
+    padding: 12,
   },
   bannerText: {
-    color: "#FFFFFF",
+    color: "#FFF",
     textAlign: "center",
     fontWeight: "600",
   },
-
-  scrollContent: {
+  scroll: {
     flexGrow: 1,
-    alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 40,
+    padding: 20,
   },
-  content: { width: "100%", alignSelf: "center" },
-
   card: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#FFF",
     borderRadius: 24,
     padding: 26,
-    shadowColor: "#000",
-    shadowOpacity: 0.08,
-    shadowOffset: { width: 0, height: 6 },
-    shadowRadius: 16,
-    elevation: 6,
+    alignSelf: "center",
+    width: "100%",
   },
-
   title: {
     textAlign: "center",
-    marginBottom: 4,
   },
   subtitle: {
     textAlign: "center",
     color: colors.textSecondary,
+    marginBottom: 24,
   },
-
   rememberRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 16,
-    marginBottom: 18,
+    marginVertical: 12,
   },
   rememberText: {
     marginLeft: 10,
-    color: "#333",
   },
-
   socialRow: {
     flexDirection: "row",
     justifyContent: "center",
-    marginTop: 22,
-    gap: 20,
-  },
-  socialCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: "#fff",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
+    marginTop: 20,
+    gap: 24,
   },
   socialIcon: {
-    width: 24,
-    height: 24,
+    width: 28,
+    height: 28,
     resizeMode: "contain",
   },
-
-  registerContainer: {
+  registerRow: {
     flexDirection: "row",
     justifyContent: "center",
     marginTop: 24,
-  },
-  registerText: {
-    color: "#666666",
   },
   registerLink: {
     color: colors.primary,
     fontWeight: "600",
   },
 });
-
-export default LoginScreen;

@@ -42,7 +42,7 @@ const styles = StyleSheet.create({
   text: {
     marginTop: 12,
     fontSize: 16,
-    color: colors.textDark,
+    color: colors.textPrimary,
     fontWeight: "500",
     textAlign: "center",
   },

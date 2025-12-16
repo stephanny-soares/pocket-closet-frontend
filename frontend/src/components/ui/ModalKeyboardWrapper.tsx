@@ -1,29 +1,37 @@
+// src/components/ui/ModalKeyboardWrapper.tsx
 import React from "react";
 import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  View,
   StyleSheet,
+  View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Props = {
   children: React.ReactNode;
 };
 
 export default function ModalKeyboardWrapper({ children }: Props) {
+  const insets = useSafeAreaInsets();
+
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.flex}
-      keyboardVerticalOffset={Platform.OS === "ios" ? 80 : 0}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={
+        Platform.OS === "android"
+          ? insets.top + 24
+          : insets.top
+      }
     >
       <ScrollView
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {children}
+        <View style={styles.inner}>{children}</View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -37,5 +45,9 @@ const styles = StyleSheet.create({
   scroll: {
     flexGrow: 1,
     justifyContent: "center",
+  },
+  inner: {
+    width: "100%",
+    paddingBottom: 24, 
   },
 });

@@ -26,7 +26,6 @@ import { apiRequest } from "../utils/apiClient";
 import { useLoader } from "../context/LoaderContext";
 import { useAuth } from "../hooks/useAuth";
 
-
 /* ============================================================
    Tipos
 ============================================================ */
@@ -86,14 +85,15 @@ interface Viaje {
   createdAt?: string;
 }
 
-
-
 /* Día actual como índice 0-6 (Lun–Dom) */
 const WEEK_DAYS_SHORT = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 const getTodayIndex = () => {
   const js = new Date().getDay(); // 0 = Dom, 1 = Lun...
   return (js + 6) % 7; // 0 = Lun
 };
+
+// 🔴 FIX OUTFITS IA: mínimo de prendas
+const MIN_PRENDAS_IA = 5;
 
 /* ============================================================
    Home
@@ -112,11 +112,10 @@ export default function Home() {
     Record<string, EventoOutfit[]>
   >({});
 
-
   // Outfits favoritos / más usados (por ahora: últimos creados)
   const [favoriteOutfits, setFavoriteOutfits] = useState<FavoriteOutfit[]>([]);
   const [loadingFavorites, setLoadingFavorites] = useState(false);
-  
+
   // Viajes del usuario (para "Próximo viaje")
   const [viajes, setViajes] = useState<Viaje[]>([]);
   const [loadingViajes, setLoadingViajes] = useState(false);
@@ -130,6 +129,8 @@ export default function Home() {
   const userId = auth?.userId || "anon";
   const [perfil, setPerfil] = useState<{ nombre: string }>({ nombre: "" });
 
+  // 🔴 FIX OUTFITS IA: contador de prendas
+  const [prendasCount, setPrendasCount] = useState<number | null>(null);
 
   /* ------------------- Saludo dinámico ------------------- */
   const getGreeting = () => {
@@ -140,7 +141,6 @@ export default function Home() {
   };
 
   const username = auth?.userName || perfil.nombre || "Usuario";
-
   const greeting = `${getGreeting()}, ${username}.`;
 
   /* ============================================================
@@ -308,6 +308,7 @@ export default function Home() {
 
     hideLoader();
   };
+
   // ==========================================================
   // Cargar perfil real del backend
   // ==========================================================
@@ -332,21 +333,97 @@ export default function Home() {
     }
   }, [auth?.userId]);
 
+  /* ============================================================
+     🔴 FIX OUTFITS IA
+  ============================================================ */
+  const cargarNumeroPrendas = async (): Promise<number> => {
+    try {
+      const data = await apiRequest<{ total: number }>("/api/prendas/count", {
+        method: "GET",
+      });
+      setPrendasCount(data.total);
+      return data.total;
+    } catch (e) {
+      setPrendasCount(0);
+      return 0;
+    }
+  };
+
+  // ✅ Carga eventos y los outfits asociados a cada evento
+  const cargarEventosYOutfits = async () => {
+    try {
+      // 1) Eventos
+      const dataEventos = await apiRequest<{ eventos: Evento[] }>("/api/eventos", {
+        method: "GET",
+      });
+
+      const evs = dataEventos?.eventos || [];
+      setEventos(evs);
+
+      // 2) Outfits (los que tengan eventoId)
+      const dataOutfits = await apiRequest<{ outfits: OutfitEventoApi[] }>(
+        "/api/outfits",
+        { method: "GET" }
+      );
+
+      const map: Record<string, EventoOutfit[]> = {};
+
+      (dataOutfits?.outfits || []).forEach((o) => {
+        if (!o.eventoId) return;
+
+        if (!map[o.eventoId]) map[o.eventoId] = [];
+        map[o.eventoId].push({
+          id: o.id,
+          nombre: o.nombre,
+          imagen: o.imagen,
+          eventoId: o.eventoId,
+        });
+      });
+
+      setOutfitsPorEvento(map);
+    } catch (e) {
+      console.log("Error cargando eventos y outfits:", e);
+      setEventos([]);
+      setOutfitsPorEvento({});
+    }
+    };
 
 
   /* ============================================================
-     OUTFITS sugeridos: solo una vez al día por usuario (como antes)
+     OUTFITS sugeridos
   ============================================================ */
 
   useEffect(() => {
-    cargarOutfits();
-    cargarFavoritos();
-    cargarViajes();
+    (async () => {
+      // 🔴 FIX OUTFITS IA: aseguramos contador antes de cargar outfits
+      const total = await cargarNumeroPrendas();
+
+      // resto igual
+      if (total >= MIN_PRENDAS_IA) {
+        cargarOutfits();
+      } else {
+        setOutfits([]); // no mostrar IA
+      }
+
+      cargarFavoritos();
+      cargarViajes();
+      cargarEventosYOutfits();
+    })();
   }, []);
 
   const cargarOutfits = async () => {
     try {
       setLoadingOutfits(true);
+
+      // 🔴 FIX OUTFITS IA: si aún no tenemos el count, lo pedimos
+      const totalPrendas =
+        prendasCount === null ? await cargarNumeroPrendas() : prendasCount;
+
+      // 🔴 FIX OUTFITS IA: sin prendas suficientes -> NO IA, NO cache
+      if (totalPrendas < MIN_PRENDAS_IA) {
+        setOutfits([]);
+        return;
+      }
 
       const hoy = new Date().toISOString().slice(0, 10);
       const fechaKey = `outfits_fecha_${userId}`;
@@ -359,7 +436,6 @@ export default function Home() {
       if (storedFecha === hoy && storedData) {
         const parsed = JSON.parse(storedData) as OutfitSugerido[];
         setOutfits(parsed);
-        setLoadingOutfits(false);
         return;
       }
 
@@ -375,57 +451,14 @@ export default function Home() {
         setOutfits(nuevos);
         await AsyncStorage.setItem(fechaKey, hoy);
         await AsyncStorage.setItem(dataKey, JSON.stringify(nuevos));
-      } else if (storedData) {
-        // si el backend no devuelve nada pero había algo guardado, lo usamos
-        setOutfits(JSON.parse(storedData));
+      } else {
+        // 🔴 FIX OUTFITS IA: si backend no devuelve nada, dejamos vacío (no “revivir” cache fantasma)
+        setOutfits([]);
       }
     } catch (err) {
       console.log("Error outfits:", err);
     } finally {
       setLoadingOutfits(false);
-    }
-  };
-  
-  // =================================================
-  // Cargar eventos y outfits asociados a eventos 
-  // =================================================
-  useEffect(() => {
-    cargarEventosYOutfits();
-  }, []);
-
-  const cargarEventosYOutfits = async () => {
-    try {
-      const [dataEventos, dataOutfits] = await Promise.all([
-        apiRequest("/api/eventos", { method: "GET" }),
-        apiRequest("/api/outfits", { method: "GET" }),
-      ]);
-
-      // 1️⃣ Guardamos eventos
-      const evs: Evento[] = dataEventos?.eventos || [];
-      setEventos(evs);
-
-      // 2️⃣ Construimos mapa outfitsPorEvento usando eventoId
-      const map: Record<string, EventoOutfit[]> = {};
-
-      (dataOutfits?.outfits || []).forEach((o: OutfitEventoApi) => {
-        if (!o.eventoId) return;
-
-        if (!map[o.eventoId]) {
-          map[o.eventoId] = [];
-        }
-
-        map[o.eventoId].push({
-          id: o.id,
-          nombre: o.nombre,
-          imagen: o.imagen,
-          eventoId: o.eventoId,
-        });
-      });
-
-      setOutfitsPorEvento(map);
-
-    } catch (e) {
-      console.log("Error cargando eventos y outfits en Home:", e);
     }
   };
 
@@ -467,7 +500,7 @@ export default function Home() {
     }
   };
 
-    /* ============================================================
+  /* ============================================================
      Viajes para "Próximo viaje"
   ============================================================ */
 
@@ -543,18 +576,24 @@ export default function Home() {
   // Outfits finales a mostrar
   let outfitsMostrar: (EventoOutfit | OutfitSugerido)[] = [];
 
-  if (selectedDay === hoyISO) {
-    // HOY → primero eventos, luego IA
-    outfitsMostrar = [...outfitsEventosDelDia, ...outfitsIA];
-  } else {
-    // FUTURO → solo eventos
-    outfitsMostrar = [...outfitsEventosDelDia];
-  }
+  // ✅ SIEMPRE mostrar outfits de evento
+  outfitsMostrar = [...outfitsEventosDelDia];
 
-   const getNombreEvento = (eventoId?: string) => {
-      if (!eventoId) return null;
-      return eventos.find((e) => e.id === eventoId)?.nombre || null;
-    };
+  // ✅ SOLO añadir IA si:
+  // - es HOY
+  // - hay contador de prendas
+  // - hay suficientes prendas
+  if (
+    selectedDay === hoyISO &&
+    prendasCount !== null &&
+    prendasCount >= MIN_PRENDAS_IA
+  ) {
+    outfitsMostrar = [...outfitsMostrar, ...outfitsIA];
+  }
+  const esOutfitEvento = (o: any) =>
+  "eventoId" in o && o.eventoId !== undefined && o.eventoId !== null;
+
+
 
   /* ============================================================
      RENDER
@@ -640,7 +679,15 @@ export default function Home() {
           </View>
 
           {/* ----- OUTFITS DEL DÍA (EVENTOS + IA) ----- */}
-          {outfitsMostrar.length === 0 ? (
+          {/* 🔴 FIX OUTFITS IA: si HOY y no hay prendas suficientes, no mostrar IA */}
+          {selectedDay === hoyISO &&
+          prendasCount !== null &&
+          prendasCount < MIN_PRENDAS_IA ? (
+            <BodyText style={{ color: "#777", marginBottom: 10 }}>
+              Añade al menos {MIN_PRENDAS_IA} prendas a tu armario para que la IA
+              pueda sugerirte outfits.
+            </BodyText>
+          ) : outfitsMostrar.length === 0 ? (
             <Text style={{ color: "#777", marginBottom: 10 }}>
               No hay outfit asignado para este día
             </Text>
@@ -676,9 +723,7 @@ export default function Home() {
 
                     <Text style={styles.outfitName}>{o.nombre}</Text>
                     <Text style={styles.outfitCat}>
-                      {"eventoId" in o && o.eventoId
-                        ? getNombreEvento(o.eventoId) || "Evento"
-                        : "Sugerido por IA"}
+                      {esOutfitEvento(o) ? "Evento" : "Sugerencia de IA"}
                     </Text>
                   </TouchableOpacity>
                 </Card>
@@ -686,20 +731,19 @@ export default function Home() {
             </ScrollView>
           )}
 
-
           {/* ----- ACCIONES RÁPIDAS ----- */}
           <TitleSerif style={styles.sectionTitle}>Acciones rápidas</TitleSerif>
 
           <View style={styles.actionsGrid}>
-            <QuickAction label="Try-on" icon="camera-outline" route="/add-prenda" />
+            <QuickAction label="Agregar prenda" icon="camera-outline" route="/add-prenda" />
             <QuickAction
               label="Crear outfit"
               icon="plus-circle-outline"
               route="/crear-outfit"
             />
-            <QuickAction label="Estilista IA" icon="wand" route="/mis-outfits" />
+            <QuickAction label="Outfits" icon="wand" route="/mis-outfits" />
             <QuickAction
-              label="Moodboard"
+              label="Armario"
               icon="image-multiple-outline"
               route="/mi-armario"
             />
@@ -726,27 +770,20 @@ export default function Home() {
                     Crea tu próximo viaje para planificar la maleta y los outfits.
                   </Text>
                 </View>
-                <TouchableOpacity
-                  onPress={() => router.push("/mis-viajes" as any)}
-                >
+                <TouchableOpacity onPress={() => router.push("/mis-viajes" as any)}>
                   <Text style={styles.tripCTA}>Abrir viajes</Text>
                 </TouchableOpacity>
               </View>
             </Card>
           ) : (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-            >
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               {viajes.map((v) => (
                 <Card
                   key={v.id}
                   style={[styles.tripCard, { width: 230, marginRight: 12 }]}
                 >
                   <TouchableOpacity
-                    onPress={() =>
-                      router.push(`/lista-equipaje?id=${v.id}` as any)
-                    }
+                    onPress={() => router.push(`/lista-equipaje?id=${v.id}` as any)}
                   >
                     <View style={styles.tripRow}>
                       <Ionicons
@@ -788,7 +825,6 @@ export default function Home() {
             </ScrollView>
           )}
 
-
           {/* ----- FAVORITOS ----- */}
           <TitleSerif style={styles.sectionTitle}>Favoritos</TitleSerif>
 
@@ -807,10 +843,7 @@ export default function Home() {
                     activeOpacity={0.8}
                     onPress={() => router.push(`/mis-outfits?id=${o.id}`)}
                   >
-                    <Image
-                      source={{ uri: o.imagen }}
-                      style={styles.favoriteImage}
-                    />
+                    <Image source={{ uri: o.imagen }} style={styles.favoriteImage} />
                     <Text style={styles.favoriteName} numberOfLines={1}>
                       {o.nombre}
                     </Text>
@@ -860,7 +893,7 @@ const styles = StyleSheet.create({
   container: {
     paddingHorizontal: 20,
     paddingBottom: 30,
-    paddingTop: 10, // saludo un poco más abajo
+    paddingTop: 10, 
   },
 
   headerRow: {
@@ -932,7 +965,7 @@ const styles = StyleSheet.create({
   outfitOfDayCard: {
     marginBottom: 24,
   },
- outfitImage: {
+  outfitImage: {
     width: "100%",
     aspectRatio: 3 / 4,
     borderRadius: 16,
@@ -941,12 +974,11 @@ const styles = StyleSheet.create({
   },
   outfitCarouselImage: {
     width: "100%",
-    height: 220,       // proporcion estable
+    height: 220, 
     borderRadius: 16,
-    resizeMode: "contain",   // ⭐ NO RECORTA NUNCA
+    resizeMode: "contain", 
     backgroundColor: "#F4F4F4",
   },
-
 
   outfitName: {
     fontSize: 15,
@@ -1013,10 +1045,10 @@ const styles = StyleSheet.create({
 
   favoriteImage: {
     width: "100%",
-    height: 180,         // más alto para que visually quede bonito
+    height: 180, 
     borderRadius: 16,
-    resizeMode: "contain",   // ⭐ NUNCA RECORTA
-    backgroundColor: "#F7F7F7",  // estilo Maison
+    resizeMode: "contain", 
+    backgroundColor: "#F7F7F7", 
   },
 
   favoriteName: {

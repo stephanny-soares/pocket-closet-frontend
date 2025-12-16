@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -12,28 +12,61 @@ import {
 import { router } from "expo-router";
 import Toast from "react-native-toast-message";
 
-import InputMaison from "../components/ui/InputMaison";
-import PasswordInputMaison from "../components/ui/PasswordInputMaison";
-import CheckBoxMaison from "../components/ui/CheckBoxMaison";
-import PrimaryButton from "../components/ui/PrimaryButton";
-
-import TitleSerif from "../components/ui/TitleSerif";
-import BodyText from "../components/ui/BodyText";
-
 import colors from "../constants/colors";
-import { validateEmail, validatePassword, validatePasswordMatch } from "../utils/validation";
+import {
+  validateEmail,
+  validatePassword,
+  validatePasswordMatch,
+} from "../utils/validation";
+import { apiRequest } from "../utils/apiClient";
 import { useAuth } from "../hooks/useAuth";
 import { logEvent } from "../logger/logEvent";
 import { useLoader } from "../context/LoaderContext";
 
-const API_BASE = (process.env.EXPO_PUBLIC_API_URL || "http://localhost:5000").replace(/\/+$/, "");
+// UI Maison
+import InputMaison from "../components/ui/InputMaison";
+import PasswordInputMaison from "../components/ui/PasswordInputMaison";
+import CheckBoxMaison from "../components/ui/CheckBoxMaison";
+import PrimaryButton from "../components/ui/PrimaryButton";
+import TitleSerif from "../components/ui/TitleSerif";
+import BodyText from "../components/ui/BodyText";
 
+/* ────────────────────────────────── */
+/* Types */
+/* ────────────────────────────────── */
+interface RegisterForm {
+  name: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+  terms: boolean;
+}
+
+interface RegisterErrors {
+  name?: string;
+  email?: string;
+  password?: string;
+  confirmPassword?: string;
+  terms?: string;
+}
+
+interface PasswordStrength {
+  label: string;
+  color: string;
+}
+
+/* ────────────────────────────────── */
+/* Screen */
+/* ────────────────────────────────── */
 const RegisterScreen: React.FC = () => {
   const { width } = useWindowDimensions();
   const isWeb = Platform.OS === "web";
   const maxWidth = isWeb ? Math.min(450, width * 0.9) : width * 0.9;
 
-  const [form, setForm] = useState({
+  const { login, isAuthenticated } = useAuth();
+  const { showLoader, hideLoader } = useLoader();
+
+  const [form, setForm] = useState<RegisterForm>({
     name: "",
     email: "",
     password: "",
@@ -41,19 +74,28 @@ const RegisterScreen: React.FC = () => {
     terms: false,
   });
 
-  const [errors, setErrors] = useState<any>({});
-  const [passwordStrength, setPasswordStrength] = useState({ label: "", color: "" });
+  const [errors, setErrors] = useState<RegisterErrors>({});
+  const [passwordStrength, setPasswordStrength] =
+    useState<PasswordStrength | null>(null);
 
-  const { login, isAuthenticated } = useAuth();
-  const { showLoader, hideLoader } = useLoader();
-
+  /* ──────────────────────────────── */
+  /* Redirect if logged */
+  /* ──────────────────────────────── */
   useEffect(() => {
-    if (isAuthenticated) router.replace("/home");
+    if (isAuthenticated) {
+      router.replace("/(protected)/home");
+    }
   }, [isAuthenticated]);
 
-  const setField = (key: keyof typeof form, val: string | boolean) => {
-    setForm((s) => ({ ...s, [key]: val }));
-    if (key === "password" && typeof val === "string") evaluatePasswordStrength(val);
+  /* ──────────────────────────────── */
+  /* Helpers */
+  /* ──────────────────────────────── */
+  const setField = (key: keyof RegisterForm, value: string | boolean) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+
+    if (key === "password" && typeof value === "string") {
+      evaluatePasswordStrength(value);
+    }
   };
 
   const evaluatePasswordStrength = (password: string) => {
@@ -61,38 +103,61 @@ const RegisterScreen: React.FC = () => {
     if (password.length >= 8) score++;
     if (/[A-Z]/.test(password)) score++;
     if (/[0-9]/.test(password)) score++;
-    if (/[!@#$%^&*()_+.,;:?\-=]/.test(password)) score++;
+    if (/[^A-Za-z0-9]/.test(password)) score++;
 
-    if (score <= 1) setPasswordStrength({ label: "Débil", color: "#E53935" });
-    else if (score === 2) setPasswordStrength({ label: "Media", color: "#FFA726" });
-    else if (score >= 3) setPasswordStrength({ label: "Fuerte", color: "#43A047" });
-    else setPasswordStrength({ label: "", color: "" });
+    if (score <= 1)
+      setPasswordStrength({ label: "Débil", color: colors.danger });
+    else if (score === 2)
+      setPasswordStrength({ label: "Media", color: colors.warning });
+    else
+      setPasswordStrength({ label: "Fuerte", color: colors.success });
   };
 
   const validateForm = (): boolean => {
-    const newErrors: any = {};
-    if (!form.name.trim()) newErrors.name = "El nombre es obligatorio";
-    if (!form.email.trim()) newErrors.email = "El correo electrónico es obligatorio";
-    else if (!validateEmail(form.email)) newErrors.email = "Formato de correo electrónico inválido";
-    if (!validatePassword(form.password))
-      newErrors.password = "La contraseña debe tener al menos 8 caracteres, un número y un símbolo";
-    if (!validatePasswordMatch(form.password, form.confirmPassword))
+    const newErrors: RegisterErrors = {};
+
+    if (!form.name.trim()) {
+      newErrors.name = "El nombre es obligatorio";
+    }
+
+    if (!form.email.trim()) {
+      newErrors.email = "El correo electrónico es obligatorio";
+    } else if (!validateEmail(form.email)) {
+      newErrors.email = "Formato de correo electrónico inválido";
+    }
+
+    if (!validatePassword(form.password)) {
+      newErrors.password =
+        "Debe tener al menos 8 caracteres, un número y un símbolo";
+    }
+
+    if (!validatePasswordMatch(form.password, form.confirmPassword)) {
       newErrors.confirmPassword = "Las contraseñas no coinciden";
-    if (!form.terms)
-      newErrors.terms = "Debes aceptar los Términos y la Política de Privacidad";
+    }
+
+    if (!form.terms) {
+      newErrors.terms =
+        "Debes aceptar los Términos y la Política de Privacidad";
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
+  /* ──────────────────────────────── */
+  /* Submit */
+  /* ──────────────────────────────── */
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
     showLoader("Creando tu cuenta...");
 
     try {
-      const response = await fetch(`${API_BASE}/api/auth/register`, {
+      const data = await apiRequest<{
+        token: string;
+        usuario: { id: string; nombre?: string; name?: string };
+      }>("/api/auth/register", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: form.name,
           email: form.email,
@@ -100,52 +165,43 @@ const RegisterScreen: React.FC = () => {
         }),
       });
 
-      const data: any = await response.json();
+      await logEvent({
+        event: "UserRegistered",
+        message: "Nuevo usuario registrado correctamente",
+        extra: { email: form.email },
+      });
 
-      if (response.ok && data.token) {
-        await login(data.token, data.usuario?.nombre || data.usuario?.name, data.usuario?.id);
+      await login(
+        data.token,
+        data.usuario?.nombre || data.usuario?.name,
+        data.usuario?.id
+      );
 
-        await logEvent({
-          event: "UserRegistered",
-          message: "Nuevo usuario registrado correctamente",
-          level: "info",
-          extra: { email: form.email },
-        });
+      Toast.show({
+        type: "success",
+        text1: "🎉 Registro exitoso",
+        text2: "Usuario creado correctamente",
+        position: "bottom",
+      });
 
-        Toast.show({
-          type: "success",
-          text1: "🎉 Registro exitoso",
-          text2: "Usuario creado correctamente",
-          position: "bottom",
-          visibilityTime: 2000,
-          bottomOffset: 70,
-        });
-
-        setTimeout(() => {
-          router.replace("/(protected)/questionnaire");
-        }, 2100);
-
-      } else {
-        Toast.show({
-          type: "error",
-          text1: "⚠️ Error",
-          text2: data.error || "No se pudo registrar el usuario.",
-          position: "bottom",
-          visibilityTime: 3000,
-          bottomOffset: 70,
-        });
-      }
-    } catch (error: any) {
+      setTimeout(() => {
+        router.replace("/(protected)/questionnaire");
+      }, 1800);
+    } catch (err: any) {
       Toast.show({
         type: "error",
-        text1: "⚠️ Error de conexión",
-        text2: "No se pudo conectar con el servidor.",
+        text1: "Error",
+        text2: err.message || "No se pudo registrar el usuario",
+        position: "bottom",
       });
     } finally {
       hideLoader();
     }
   };
 
+  /* ──────────────────────────────── */
+  /* Render */
+  /* ──────────────────────────────── */
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -153,127 +209,119 @@ const RegisterScreen: React.FC = () => {
     >
       <ScrollView
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={styles.scroll}
       >
-        <View style={[styles.cardWrapper, { maxWidth }]}>
-          <View style={styles.card}>
-            
-            {/* TITLE */}
-            <TitleSerif style={styles.title}>Crear cuenta</TitleSerif>
-            <BodyText style={styles.subtitle}>Regístrate para comenzar</BodyText>
+        <View style={[styles.card, { maxWidth }]}>
+          <TitleSerif style={styles.title}>Crear cuenta</TitleSerif>
+          <BodyText style={styles.subtitle}>
+            Regístrate para comenzar
+          </BodyText>
 
-            {/* NAME */}
-            <InputMaison
-              label="Nombre completo"
-              placeholder="Introduce tu nombre"
-              value={form.name}
-              onChangeText={(v: string) => setField("name", v)}
-              error={errors.name}
+          <InputMaison
+            label="Nombre completo"
+            value={form.name}
+            onChangeText={(v) => setField("name", v)}
+            error={errors.name}
+          />
+
+          <InputMaison
+            label="Correo electrónico"
+            keyboardType="email-address"
+            value={form.email}
+            onChangeText={(v) => setField("email", v)}
+            error={errors.email}
+          />
+
+          <PasswordInputMaison
+            label="Contraseña"
+            value={form.password}
+            onChangeText={(v) => setField("password", v)}
+            error={errors.password}
+          />
+
+          {passwordStrength && (
+            <Text
+              style={[
+                styles.strength,
+                { color: passwordStrength.color },
+              ]}
+            >
+              Fuerza: {passwordStrength.label}
+            </Text>
+          )}
+
+          <PasswordInputMaison
+            label="Confirmar contraseña"
+            value={form.confirmPassword}
+            onChangeText={(v) => setField("confirmPassword", v)}
+            error={errors.confirmPassword}
+          />
+
+          <View style={styles.termsRow}>
+            <CheckBoxMaison
+              checked={form.terms}
+              onToggle={() => setField("terms", !form.terms)}
             />
-
-            {/* EMAIL */}
-            <InputMaison
-              label="Correo electrónico"
-              placeholder="Introduce tu correo"
-              keyboardType="email-address"
-              value={form.email}
-              onChangeText={(v: string) => setField("email", v)}
-              error={errors.email}
-            />
-
-            {/* PASSWORD */}
-            <PasswordInputMaison
-              label="Contraseña"
-              placeholder="Introduce tu contraseña"
-              value={form.password}
-              onChangeText={(v: string) => setField("password", v)}
-              error={errors.password}
-            />
-
-            {/* STRENGTH */}
-            {passwordStrength.label ? (
-              <Text style={[styles.strength, { color: passwordStrength.color }]}>
-                Fuerza: {passwordStrength.label}
+            <Text style={styles.termsText}>
+              Acepto los{" "}
+              <Text style={styles.termsLink}>Términos y Condiciones</Text>{" "}
+              y la{" "}
+              <Text style={styles.termsLink}>
+                Política de Privacidad
               </Text>
-            ) : null}
-
-            {/* CONFIRM PASSWORD */}
-            <PasswordInputMaison
-              label="Confirmar contraseña"
-              placeholder="Repite tu contraseña"
-              value={form.confirmPassword}
-              onChangeText={(v: string) => setField("confirmPassword", v)}
-              error={errors.confirmPassword}
-            />
-
-            {/* TERMS */}
-            <View style={styles.termsRow}>
-              <CheckBoxMaison
-                checked={form.terms}
-                onToggle={() => setField("terms", !form.terms)}
-              />
-
-              <Text style={styles.termsText}>
-                Acepto los{" "}
-                <Text style={styles.termsLink}>Términos y Condiciones</Text>{" "}
-                y la{" "}
-                <Text style={styles.termsLink}>Política de Privacidad</Text>
-              </Text>
-            </View>
-
-            {errors.terms && <Text style={styles.error}>{errors.terms}</Text>}
-
-            {/* SUBMIT */}
-            <PrimaryButton title="Registrar" onPress={handleSubmit} style={{ marginTop: 28 }} />
-
+            </Text>
           </View>
+
+          {errors.terms && (
+            <Text style={styles.errorText}>{errors.terms}</Text>
+          )}
+
+          <PrimaryButton
+            title="Registrar"
+            onPress={handleSubmit}
+            style={{ marginTop: 28 }}
+          />
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 };
 
+export default RegisterScreen;
+
+/* ────────────────────────────────── */
+/* Styles */
+/* ────────────────────────────────── */
 const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: colors.background,
   },
-  scrollContent: {
+  scroll: {
     flexGrow: 1,
     justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 40,
-  },
-  cardWrapper: {
-    width: "100%",
-    alignSelf: "center",
+    padding: 20,
   },
   card: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: colors.card,
     borderRadius: 24,
     padding: 24,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 8,
-    elevation: 5,
+    alignSelf: "center",
+    width: "100%",
   },
   title: {
-    fontSize: 30,
     textAlign: "center",
     marginBottom: 6,
   },
   subtitle: {
     textAlign: "center",
-    fontSize: 15,
-    color: "#777",
+    color: colors.textSecondary,
     marginBottom: 28,
   },
   strength: {
-    marginTop: -4,
-    marginBottom: 12,
     fontSize: 12,
+    marginTop: -6,
+    marginBottom: 12,
   },
   termsRow: {
     flexDirection: "row",
@@ -282,19 +330,17 @@ const styles = StyleSheet.create({
   },
   termsText: {
     marginLeft: 8,
-    color: "#444",
     flex: 1,
     fontSize: 13,
+    color: colors.textPrimary,
   },
   termsLink: {
-    color: "#A5A5A5",
+    color: colors.textSecondary,
     textDecorationLine: "underline",
   },
-  error: {
+  errorText: {
     fontSize: 12,
-    color: "#E53935",
+    color: colors.danger,
     marginTop: 6,
   },
 });
-
-export default RegisterScreen;
