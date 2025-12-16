@@ -31,7 +31,10 @@
               "scheme": "pocketcloset"
             }
           ],
-          "category": ["BROWSABLE", "DEFAULT"]
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ]
         }
       ]
     },
@@ -65,6 +68,10 @@
         "ios": "19430671882-0q85lonv98umce67r40911kp0dg83i44.apps.googleusercontent.com",
         "android": "19430671882-cktkuomgu4jdcsotnk3k5nik4662fivn.apps.googleusercontent.com",
         "web": "19430671882-bcl7etl8r900aa57ae5qskb9tti6l31q.apps.googleusercontent.com"
+      },
+      "router": {},
+      "eas": {
+        "projectId": "8846fb26-842c-4cc9-9d4b-060772117ced"
       }
     }
   }
