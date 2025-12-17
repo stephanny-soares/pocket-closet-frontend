@@ -141,6 +141,7 @@ export default function AddPrenda() {
       const data = await apiRequest<UploadResponse>("/api/prendas/upload", {
         method: "POST",
         body: form,
+        isFormData: true,
       });
 
       setImagen(data.urlImagen);
@@ -154,10 +155,18 @@ export default function AddPrenda() {
       setOcasion(data.clasificacion.ocasion || "");
       setSeccion(data.clasificacion.seccion || "");
     } catch (err: any) {
-      Alert.alert("Error", err.message);
+      console.log("UPLOAD ERROR >>>", err);
+
+      Alert.alert(
+        "Error al subir imagen",
+        err?.response?.data?.message ||
+        err?.message ||
+        JSON.stringify(err)
+      );
     } finally {
       hideLoader();
     }
+
   };
 
   /* -------------------- Guardar prenda -------------------- */

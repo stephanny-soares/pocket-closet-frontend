@@ -1,11 +1,10 @@
 // ============================================================
-// EDITAR OUTFIT – ESTILO MAISON v2 (igual que Add-Prenda)
+// EDITAR OUTFIT – ESTILO MAISON
 // ============================================================
 
 import React, { useEffect, useState } from "react";
 import {
   View,
-  ScrollView,
   Image,
   StyleSheet,
   Alert,
@@ -30,13 +29,11 @@ export default function EditarOutfit() {
   const { showLoader, hideLoader } = useLoader();
 
   const [outfit, setOutfit] = useState<any>(null);
-
   const [nombre, setNombre] = useState("");
   const [categoria, setCategoria] = useState("");
   const [estacion, setEstacion] = useState("");
   const [imagen, setImagen] = useState("");
 
-  // Cargar outfit existente
   useEffect(() => {
     cargarDatos();
   }, []);
@@ -49,11 +46,10 @@ export default function EditarOutfit() {
       const o = data.outfit;
 
       setOutfit(o);
-      setNombre(o.nombre);
-      setCategoria(o.categoria);
-      setEstacion(o.estacion);
-      setImagen(o.imagen);
-
+      setNombre(o.nombre || "");
+      setCategoria(o.categoria || "");
+      setEstacion(o.estacion || "");
+      setImagen(o.imagen || "");
     } catch (err: any) {
       Alert.alert("Error", err.message);
     } finally {
@@ -65,14 +61,15 @@ export default function EditarOutfit() {
     try {
       showLoader("Guardando cambios…");
 
+      const formData = new FormData();
+      formData.append("nombre", nombre);
+      formData.append("categoria", categoria);
+      formData.append("estacion", estacion);
+
       await apiRequest(`/api/outfits/${id}`, {
         method: "PUT",
-        body: JSON.stringify({
-          nombre,
-          categoria,
-          estacion,
-          imagen,
-        }),
+        body: formData,
+        isFormData: true,
       });
 
       hideLoader();
@@ -89,20 +86,14 @@ export default function EditarOutfit() {
 
       <LinearGradient colors={colors.gradient} style={{ flex: 1 }}>
         <SafeAreaView style={{ flex: 1 }} edges={["top", "bottom"]}>
-        
-          {/* HEADER */}
           <HeaderMaison />
 
-          {/* TÍTULO */}
           <View style={styles.titleBlock}>
             <TitleSerif>Editar outfit</TitleSerif>
           </View>
 
           <ModalKeyboardWrapper>
-            
             <Card style={styles.card}>
-
-              {/* Imagen principal o de la prenda 1 (fallback tipo Home) */}
               {imagen || outfit?.prendas?.[0]?.imagen ? (
                 <Image
                   source={{ uri: imagen || outfit.prendas[0].imagen }}
@@ -114,7 +105,6 @@ export default function EditarOutfit() {
               <InputMaison label="Nombre del outfit" value={nombre} onChangeText={setNombre} />
               <InputMaison label="Categoría" value={categoria} onChangeText={setCategoria} />
               <InputMaison label="Estación" value={estacion} onChangeText={setEstacion} />
-              <InputMaison label="URL imagen" value={imagen} onChangeText={setImagen} />
 
               <PrimaryButton
                 text="Guardar cambios"
@@ -122,7 +112,6 @@ export default function EditarOutfit() {
                 style={{ marginTop: 20 }}
               />
             </Card>
-
           </ModalKeyboardWrapper>
         </SafeAreaView>
       </LinearGradient>
@@ -139,19 +128,12 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 6,
   },
-
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 30,
-  },
-
   card: {
     width: "100%",
     maxWidth: 650,
     alignSelf: "center",
     marginTop: 20,
   },
-
   img: {
     width: "100%",
     height: 260,
@@ -160,5 +142,4 @@ const styles = StyleSheet.create({
     backgroundColor: "#F3F3F3",
     ...(Platform.OS === "web" && { objectFit: "contain" }),
   },
-
 });
